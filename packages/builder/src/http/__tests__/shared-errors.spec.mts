@@ -66,14 +66,14 @@ describe('builder({ errorSchema })', () => {
     expect(result.error?.kind).toBe('response-validation')
   })
 
-  it('exposes the shared schemas and keeps them on withClient', async () => {
+  it('exposes the shared schemas and applies them with any client', async () => {
     const shared = { 401: apiError }
     const api = builder({ errorSchema: shared })
-    const other = api.withClient(replying({ status: 401, data: { error: { message: 'x' } } }))
-    const getMe = other.declareEndpoint({ method: 'GET', url: '/me', responseSchema: userSchema })
+    const getMe = api.declareEndpoint({ method: 'GET', url: '/me', responseSchema: userSchema })
+    const other = replying({ status: 401, data: { error: { message: 'x' } } })
 
     expect(api.errorSchema).toBe(shared)
-    expect((await getMe.safe()).error?.kind).toBe('http')
+    expect((await getMe.safe(undefined, { client: other })).error?.kind).toBe('http')
   })
 
   it('leaves the declaration untouched on a builder without shared schemas', () => {

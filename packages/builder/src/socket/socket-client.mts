@@ -58,11 +58,6 @@ export interface SocketClient {
   readonly url?: string
 
   /**
-   * Optional: Check if the socket is connected.
-   */
-  connected?: boolean
-
-  /**
    * Optional: Disconnect the socket.
    */
   disconnect?(): void
@@ -71,20 +66,4 @@ export interface SocketClient {
    * Optional: Close the socket (alias for disconnect).
    */
   close?(): void
-}
-
-/**
- * Type guard to check if an object implements SocketClient interface.
- */
-export function isSocketClient(obj: unknown): obj is SocketClient {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    'emit' in obj &&
-    typeof obj.emit === 'function' &&
-    'on' in obj &&
-    typeof obj.on === 'function' &&
-    'off' in obj &&
-    typeof obj.off === 'function'
-  )
 }

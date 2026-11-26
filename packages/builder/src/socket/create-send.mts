@@ -28,10 +28,7 @@ function generateAckId(): string {
 export interface PendingAck {
   /** Topic of the send that is waiting. */
   topic: string
-  resolve: (value: unknown) => void
   reject: (error: Error) => void
-  /** The timer of the `ackTimeout`, unless the acknowledgement is awaited without limit. */
-  timeoutId: ReturnType<typeof setTimeout> | undefined
   /**
    * Validates the acknowledgement data and settles the send with it. Only the
    * first call for a pending acknowledgement has an effect, whichever way the
@@ -125,18 +122,17 @@ export function createSendHandler<Options extends SendOptions>(
 
       // Runs for an acknowledgement, however it arrives; only the first one counts.
       const ackHandler = (ackData: unknown) => {
-        const pending = ackHandlers.get(ackId)
-        if (!pending) {
+        if (!ackHandlers.has(ackId)) {
           return
         }
         release()
 
         const settle = (outcome: ValidationOutcome) => {
           if (outcome.ok) {
-            pending.resolve(outcome.value)
+            resolve(outcome.value)
             return
           }
-          pending.reject(
+          reject(
             fail(client, {
               kind: 'validation',
               message: `Acknowledgement for "${topic}" failed validation`,
@@ -167,7 +163,7 @@ export function createSendHandler<Options extends SendOptions>(
       }
       const timeoutId = timeout > MAX_TIMEOUT ? undefined : setTimeout(giveUp, timeout)
 
-      ackHandlers.set(ackId, { topic, resolve, reject, timeoutId, settle: ackHandler, release })
+      ackHandlers.set(ackId, { topic, reject, settle: ackHandler, release })
 
       // Listen for the acknowledgement, then send. If either throws, the send
       // never left: stop waiting now instead of reporting an ack-timeout later.

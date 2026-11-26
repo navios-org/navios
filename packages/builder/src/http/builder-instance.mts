@@ -35,13 +35,6 @@ export interface BuilderInstance<Errors extends ErrorSchemaRecord = {}> {
   getClient(): Client
 
   /**
-   * Returns a new builder with the same configuration and a different
-   * client. Endpoints declared on the returned builder use that client;
-   * endpoints already declared on this builder are not affected.
-   */
-  withClient(client: Client): BuilderInstance<Errors>
-
-  /**
    * Declares a type-safe API endpoint.
    *
    * Uses `const` type parameter inference to derive every type from the

@@ -74,7 +74,6 @@ describe('eventSourceBuilder', () => {
       on: onMock,
       off: offMock,
       close: closeMock,
-      connected: true,
       onMock,
       offMock,
       closeMock,

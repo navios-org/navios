@@ -18,6 +18,10 @@
 
 ### Removed
 
+- **Breaking: `api.withClient(client)`.** It was `builder({ ...config, client })`; write that, or pass `{ client }` as the second argument of a call for one request.
+- **Breaking: `getHeader(meta, name)`.** Read the header from the `Headers`: `result.response?.headers.get(name) ?? null`. `getCookie`, `getRetryAfterMs` and `getFilename` stay.
+- **Breaking: the types `EndpointOptions` and `InferErrorSchemaOutput`**, which no signature used. Use `BaseEndpointOptions & { responseSchema: Schema }` for the first.
+- **Breaking: `isSocketClient` and `isEventSourceClient`** (`/socket`, `/eventsource`), and `connected` on the `SocketClient` and `EventSourceClient` interfaces: the builders never read it. The handles of `declareWebSocket` and `declareEventSource` still have `connected`.
 - **Breaking: the type parameters of `DeclareWebSocketOptions`, `DeclareEventSourceOptions`, `SendOptions`, `SubscribeOptions` and `EventOptions`.** The declare and define functions infer their options as they did; write the type without arguments. `InferWebSocketConnectParams` and `InferEventSourceConnectParams` are the `urlParams` and `params` of `ClientRequestArgs`, so a connection and an HTTP endpoint with the same URL and schemas take the same parameters.
 
 ### Fixed

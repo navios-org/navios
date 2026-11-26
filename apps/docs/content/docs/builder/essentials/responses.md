@@ -87,14 +87,14 @@ Builder asks the HTTP client for the matching body type by setting `responseType
 
 `.safe()` exposes the metadata of the reply as `response`, on success and on failure. It holds `status`, `statusText` and a `Headers` instance. On a failure where nothing came back, it is `null`.
 
-Four helpers read common headers and accept `null`, so you can call them without checking first:
+Three helpers read common headers and accept `null`, so you can call them without checking first. Any other header is read from `headers`:
 
 ```ts
-import { getCookie, getFilename, getHeader, getRetryAfterMs } from '@navios/builder'
+import { getCookie, getFilename, getRetryAfterMs } from '@navios/builder'
 
 const res = await listUsers.safe()
 
-getHeader(res.response, 'x-total-count') // string | null
+res.response?.headers.get('x-total-count') ?? null // string | null
 getCookie(res.response, 'sid') // string | null, read from Set-Cookie; always null in a browser
 getRetryAfterMs(res.response) // number | null, from Retry-After
 getFilename(res.response) // string | null, from Content-Disposition

@@ -118,19 +118,16 @@ The wrapper above shows what a client of your own has to take care of:
 
 ## Giving a builder its client
 
-Pass the client when you create the builder. Three methods cover the other cases:
+Pass the client when you create the builder. Two methods cover the other cases:
 
 ```ts
 const API = builder({ client })
 
 API.provideClient(other) // set or replace the client for every endpoint on this builder
 API.getClient() // the current client; throws a NaviosError when none is set
-API.withClient(other) // a new builder with the same configuration and another client
 ```
 
 `provideClient` exists for apps that only know their client at start-up, for example after reading configuration. Declarations can be made before a client exists; a call made without one fails with kind `config`.
-
-`withClient` does not affect endpoints already declared on the original builder. Only endpoints declared on the returned builder use the new client.
 
 ## A client for one call
 
