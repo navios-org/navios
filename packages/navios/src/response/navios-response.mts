@@ -4,5 +4,3 @@ export interface NaviosResponse<T> {
   statusText: string
   headers: Headers
 }
-
-export type NaviosPromise<T = unknown> = Promise<NaviosResponse<T>>

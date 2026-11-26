@@ -18,8 +18,6 @@ export interface NaviosConfig {
   headers?: HeadersSource
   /** @default 'json' */
   responseType?: NaviosResponseType
-  /** A `FormData` implementation other than the global one, whose instances are sent as they are. */
-  FormData?: new (...args: never[]) => object
   /** The class `params` are written with. @default the global `URLSearchParams` */
   URLSearchParams?: new () => { append(name: string, value: string): void; toString(): string }
 }

@@ -45,35 +45,17 @@ export interface PreparedRequestConfig<
   headers: Record<string, string>
   responseType: NaviosResponseType
   validateStatus: (status: number) => boolean
-  FormData?: NaviosConfig['FormData']
   URLSearchParams?: NaviosConfig['URLSearchParams']
 }
 
-export type NaviosGetConfig<Params extends object = object> = Omit<
-  NaviosRequestConfig<void, Params>,
-  'method' | 'data' | 'url'
->
-export type NaviosPostConfig<Data = unknown, Params extends object = object> = Omit<
+/** The config of `post`, `put`, `patch` and `delete`: the method and URL are their arguments. */
+export type NaviosBodyConfig<Data = unknown, Params extends object = object> = Omit<
   NaviosRequestConfig<Data, Params>,
   'method' | 'url'
 >
-export type NaviosPutConfig<Data = unknown, Params extends object = object> = Omit<
-  NaviosRequestConfig<Data, Params>,
-  'method' | 'url'
->
-export type NaviosDeleteConfig<Params extends object = object> = Omit<
-  NaviosRequestConfig<unknown, Params>,
-  'method' | 'url'
->
-export type NaviosPatchConfig<Data = unknown, Params extends object = object> = Omit<
-  NaviosRequestConfig<Data, Params>,
-  'method' | 'url'
->
-export type NaviosHeadConfig<Params extends object = object> = Omit<
-  NaviosRequestConfig<void, Params>,
-  'method' | 'data' | 'url'
->
-export type NaviosOptionsConfig<Params extends object = object> = Omit<
-  NaviosRequestConfig<void, Params>,
-  'method' | 'data' | 'url'
+
+/** The config of `get`, `head` and `options`, which send no `data`. */
+export type NaviosNoBodyConfig<Params extends object = object> = Omit<
+  NaviosBodyConfig<void, Params>,
+  'data'
 >

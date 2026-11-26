@@ -145,7 +145,7 @@ Creates a client.
 - `responseType` - Default response type: `json` (the default), `text`, `blob`, `arrayBuffer`, `formData`, `stream`
 - `validateStatus` - Which statuses resolve. The default is 200 to 299
 - `adapter` - A `fetch` to use instead of the global one, like the one from `undici`
-- `FormData`, `URLSearchParams` - Implementations to use instead of the global ones
+- `URLSearchParams` - An implementation to write `params` with, instead of the global one. A `FormData` body is recognised by its tag, whatever implementation made it
 
 ### `client.request(config)`
 

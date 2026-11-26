@@ -1,6 +1,6 @@
-import { create } from './client/index.mjs'
+import { create } from './client/create-navios.mjs'
 
-import type { NaviosStatic } from './client/index.mjs'
+import type { NaviosStatic } from './client/navios.mjs'
 
 const client = /* @__PURE__ */ create()
 
@@ -22,25 +22,20 @@ export default navios
 
 export { HttpClientError, isHttpClientError } from './http-client-error.mjs'
 export type { HttpClientErrorInit } from './http-client-error.mjs'
-export type { Navios, NaviosStatic } from './client/index.mjs'
-export type { InterceptorManager } from './interceptors/index.mjs'
+export type { Navios, NaviosStatic } from './client/navios.mjs'
+export type { InterceptorManager } from './interceptors/interceptor-manager.mjs'
 export type {
   NaviosAdapter,
   NaviosConfig,
   NaviosDefaults,
   NaviosResponseType,
 } from './navios-config.mjs'
+export type { HttpMethod } from './request/http-method.mjs'
+export type { HeadersSource } from './request/merge-headers.mjs'
 export type {
-  HeadersSource,
-  HttpMethod,
-  NaviosDeleteConfig,
-  NaviosGetConfig,
-  NaviosHeadConfig,
-  NaviosOptionsConfig,
-  NaviosPatchConfig,
-  NaviosPostConfig,
-  NaviosPutConfig,
+  NaviosBodyConfig,
+  NaviosNoBodyConfig,
   NaviosRequestConfig,
   PreparedRequestConfig,
-} from './request/index.mjs'
-export type { NaviosPromise, NaviosResponse } from './response/index.mjs'
+} from './request/request-config.mjs'
+export type { NaviosResponse } from './response/navios-response.mjs'

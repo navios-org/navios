@@ -1,50 +1,45 @@
-import type { InterceptorManager } from '../interceptors/index.mjs'
+import type { InterceptorManager } from '../interceptors/interceptor-manager.mjs'
 import type { NaviosConfig, NaviosDefaults } from '../navios-config.mjs'
 import type {
-  NaviosDeleteConfig,
-  NaviosGetConfig,
-  NaviosHeadConfig,
-  NaviosOptionsConfig,
-  NaviosPatchConfig,
-  NaviosPostConfig,
-  NaviosPutConfig,
+  NaviosBodyConfig,
+  NaviosNoBodyConfig,
   NaviosRequestConfig,
   PreparedRequestConfig,
-} from '../request/index.mjs'
-import type { NaviosResponse } from '../response/index.mjs'
+} from '../request/request-config.mjs'
+import type { NaviosResponse } from '../response/navios-response.mjs'
 
 export interface Navios {
   create: (baseConfig?: NaviosConfig) => Navios
   get: <Result, Params extends object = object>(
     url: string,
-    config?: NaviosGetConfig<Params>,
+    config?: NaviosNoBodyConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
   post: <Result, Data = unknown, Params extends object = object>(
     url: string,
     data?: Data,
-    config?: NaviosPostConfig<Data, Params>,
+    config?: NaviosBodyConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
   put: <Result, Data = unknown, Params extends object = object>(
     url: string,
     data?: Data,
-    config?: NaviosPutConfig<Data, Params>,
+    config?: NaviosBodyConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
   delete: <Result, Params extends object = object>(
     url: string,
-    config?: NaviosDeleteConfig<Params>,
+    config?: NaviosBodyConfig<unknown, Params>,
   ) => Promise<NaviosResponse<Result>>
   patch: <Result, Data = unknown, Params extends object = object>(
     url: string,
     data?: Data,
-    config?: NaviosPatchConfig<Data, Params>,
+    config?: NaviosBodyConfig<Data, Params>,
   ) => Promise<NaviosResponse<Result>>
   head: <Result, Params extends object = object>(
     url: string,
-    config?: NaviosHeadConfig<Params>,
+    config?: NaviosNoBodyConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
   options: <Result, Params extends object = object>(
     url: string,
-    config?: NaviosOptionsConfig<Params>,
+    config?: NaviosNoBodyConfig<Params>,
   ) => Promise<NaviosResponse<Result>>
   request: <Result, Data = unknown, Params extends object = object>(
     config: NaviosRequestConfig<Data, Params>,

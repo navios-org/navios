@@ -9,13 +9,6 @@ import type { PreparedRequestConfig } from './request-config.mjs'
 /** Bodies `fetch` sends by itself, besides strings and views of a buffer. */
 const FETCH_BODIES = ['URLSearchParams', 'Blob', 'File', 'ArrayBuffer', 'ReadableStream']
 
-function isFormData(data: unknown, config: PreparedRequestConfig): boolean {
-  return (
-    isInstance(data, 'FormData') ||
-    (config.FormData !== undefined && data instanceof config.FormData)
-  )
-}
-
 /**
  * Builds what is passed to `fetch` from the config, which stays as the
  * interceptors left it, so that it can be sent again.
@@ -32,7 +25,6 @@ export function buildInit(config: PreparedRequestConfig): RequestInit {
     responseType: _responseType,
     validateStatus: _validateStatus,
     withCredentials,
-    FormData: _FormData,
     URLSearchParams: _URLSearchParams,
     ...rest
   } = config
@@ -46,7 +38,7 @@ export function buildInit(config: PreparedRequestConfig): RequestInit {
   if (data === undefined || config.body != null || METHODS_WITHOUT_BODY.includes(config.method)) {
     return init
   }
-  if (isFormData(data, config)) {
+  if (isInstance(data, 'FormData')) {
     // `fetch` adds the content type, with the boundary it chose
     delete headers['content-type']
     init.body = data as FormData
