@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/index.mts',
     'src/adapter/index.mts',
+    'src/web/index.mts',
     'src/testing/index.mts',
     'src/legacy-compat/index.mts',
     'src/conformance/index.mts',

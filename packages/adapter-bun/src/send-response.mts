@@ -1,3 +1,5 @@
+import { toWebHeaders } from '@navios/server/web'
+
 import type { ManagedBody, RouteResponse } from '@navios/server/adapter'
 
 /**
@@ -50,28 +52,13 @@ function unreadStream(): ReadableStream {
   return new ReadableStream({}, { highWaterMark: 0 })
 }
 
-function toHeaders(headers: RouteResponse['headers']): Headers {
-  const native = new Headers()
-  for (const name in headers) {
-    const value = headers[name]
-    if (typeof value === 'string') {
-      native.set(name, value)
-    } else {
-      for (const item of value) {
-        native.append(name, item)
-      }
-    }
-  }
-  return native
-}
-
 export function toResponse(
   response: RouteResponse,
   request: Request | undefined,
   isTest: boolean,
 ): Response {
   const { status, body, release } = response
-  const headers = toHeaders(response.headers)
+  const headers = toWebHeaders(response.headers)
 
   if (
     body === null ||

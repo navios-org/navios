@@ -1,8 +1,11 @@
-import { toTestMessage, toTestResponse } from '@navios/server/adapter'
+import { toTestMessage, toTestResponse } from '../adapter/test-exchange.mjs'
 
-import type { TestRequest, TestResponse } from '@navios/server/adapter'
+import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
 
-/** Runs a test request in process. */
+/**
+ * Runs a test request in process, as a web `Request`. `handle` is given the
+ * request and the path of its url, and answers as it answers one of the server.
+ */
 export async function injectRequest(
   request: TestRequest,
   handle: (request: Request, path: string) => Response | Promise<Response>,

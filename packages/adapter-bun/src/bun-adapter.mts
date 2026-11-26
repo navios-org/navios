@@ -6,6 +6,7 @@ import {
   ManagedBody,
   RouteTable,
 } from '@navios/server/adapter'
+import { Cors, injectRequest, limitBody } from '@navios/server/web'
 
 import type {
   AdapterContext,
@@ -19,9 +20,6 @@ import type {
 } from '@navios/server/adapter'
 import type { BunRequest } from 'bun'
 
-import { DEFAULT_BODY_LIMIT, limitBody } from './body-limit.mjs'
-import { Cors } from './cors.mjs'
-import { injectRequest } from './inject.mjs'
 import { BunRouteInput } from './request-input.mjs'
 import { toResponse } from './send-response.mjs'
 
@@ -45,6 +43,9 @@ type Handle = (
 
 /** The methods that the router of `Bun.serve` is documented to know. */
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
+
+/** The default of `Bun.serve`. */
+export const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
 
 /** The default of `Bun.serve`, in seconds. */
 const DEFAULT_IDLE_TIMEOUT = 10
