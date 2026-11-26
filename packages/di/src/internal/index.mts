@@ -5,6 +5,7 @@
 import '../symbol-metadata.mjs'
 
 export { constructedInstances, hasOwnProvider, setErrorReporter, setProvider } from './access.mjs'
+export { disposeScope } from '../container/scoped-container.mjs'
 export { validateSync } from '../schema/standard-schema.mjs'
 
 export type { ErrorReporter } from './host.mjs'

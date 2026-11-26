@@ -1,6 +1,7 @@
 import { ExecutionContextToken, PlainContextKey } from '@navios/core'
 import { needsScope, runInContext } from '@navios/core/transport'
 import { DIError, DIErrorCode } from '@navios/di'
+import { disposeScope } from '@navios/di/internal'
 
 import type { ContextValue, ExecutionContext } from '@navios/core'
 import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
@@ -41,6 +42,8 @@ let requestCounter = 0
 const CLOSE_TIMEOUT_MS = 1000
 
 const UNREAD = Symbol('unread')
+
+const nextMicrotask: Promise<void> = Promise.resolve()
 
 /** A relative url has no host, and one with an invalid host is not a url. */
 function parseUrl(text: string): URL {
@@ -104,6 +107,13 @@ export class RequestContext<
    * @internal
    */
   responseCookies: Map<string, string> | null = null
+  /**
+   * The neighbours in the list of requests that hold something to release.
+   * @internal
+   */
+  previousLive: RequestContext | null = null
+  /** @internal */
+  nextLive: RequestContext | null = null
 
   constructor(
     private readonly input: RouteInput,
@@ -630,18 +640,29 @@ export class RequestContext<
    * @internal
    */
   release(): Promise<void> {
-    return (this.releasing ??= this.host.asyncContext
-      ? this.run(() => this.releaseAll())
-      : this.releaseAll())
-  }
-
-  private async releaseAll(): Promise<void> {
     // Adapters call this from an event of the connection. Whoever listens to
     // `ctx.signal` hears of a disconnect first.
-    await undefined
+    return (this.releasing ??= nextMicrotask.then(() =>
+      this.host.asyncContext ? this.run(() => this.releaseSteps()) : this.releaseSteps(),
+    ))
+  }
+
+  /**
+   * Synchronous when there is nothing to wait for: a request that holds only
+   * its DI scope, whose services have no asynchronous destroy hooks, needs no
+   * promise of its own to be released.
+   */
+  private releaseSteps(): void | Promise<void> {
     if (this.takenOver) {
       this.responseStatus = this.input.respondedStatus?.()
     }
+    if (this.bodies !== null || this.finishers !== null || this.disposers !== null) {
+      return this.releaseAll()
+    }
+    return this.releaseScope()
+  }
+
+  private async releaseAll(): Promise<void> {
     // Any of these may start or register more.
     for (;;) {
       const open = this.bodies?.filter((body) => body.isOpen)
@@ -664,17 +685,33 @@ export class RequestContext<
       }
       await this.disposeValue(...disposer)
     }
+    await this.releaseScope()
+  }
+
+  /** Disposes the DI scope, last, and lets go of the request. */
+  private releaseScope(): void | Promise<void> {
     const scope = this.scope
     this.scope = null
     this.released = true
-    if (scope !== null) {
-      try {
-        await scope.dispose()
-      } catch (error) {
-        this.logFailure('the disposal of the request scope', error)
-      }
+    let disposal: Promise<void> | undefined
+    try {
+      disposal = scope === null ? undefined : disposeScope(scope)
+    } catch (error) {
+      this.logFailure('the disposal of the request scope', error)
     }
-    this.host.live.delete(this as unknown as RequestContext)
+    if (disposal === undefined) {
+      this.host.live.delete(this as unknown as RequestContext)
+      return
+    }
+    return disposal.then(
+      () => {
+        this.host.live.delete(this as unknown as RequestContext)
+      },
+      (error: unknown) => {
+        this.logFailure('the disposal of the request scope', error)
+        this.host.live.delete(this as unknown as RequestContext)
+      },
+    )
   }
 
   private async disposeValue(

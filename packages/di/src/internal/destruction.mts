@@ -3,7 +3,7 @@ import { DIError, DIErrorCode } from '../errors/di-error.mjs'
 import { inBackground } from './background.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
 import { runHook } from './frame.mjs'
-import { unlink } from './links.mjs'
+import { dependentsOf, unlink } from './links.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { DestroyListener, Entry } from './entry.mjs'
@@ -77,8 +77,8 @@ function destroy(entry: Entry, cascade: Cascade): void | Promise<void> {
     entry.store.destroying++
   }
   let waits: Promise<void>[] | null = null
-  if (entry.dependents !== null && entry.dependents.size > 0) {
-    for (const dependent of Array.from(entry.dependents)) {
+  if ((entry.dependents !== null && entry.dependents.size > 0) || entry.scopedDependents !== null) {
+    for (const dependent of dependentsOf(entry)) {
       if (dependent.status === EntryStatus.Creating) {
         dependent.stale = true
         continue
@@ -168,6 +168,7 @@ function finalize(entry: Entry, cascade: Cascade): void {
   }
   unlink(entry)
   entry.dependents = null
+  entry.scopedDependents = null
   entry.transients = null
   entry.promise = null
   if (entry.store !== null && entry.store.hasListeners(entry.token)) {
@@ -247,9 +248,7 @@ export function destroyAll(entries: Entry[]): void | Promise<void> {
   if (entries.length === 0) {
     return
   }
-  if (entries.length > 1) {
-    entries.sort((a, b) => b.seq - a.seq)
-  }
+  newestFirst(entries)
   const cascade: Cascade = { gone: null }
   const result = destroyFrom(entries, 0, cascade)
   if (result !== undefined) {
@@ -257,6 +256,34 @@ export function destroyAll(entries: Entry[]): void | Promise<void> {
   }
   notify(cascade)
 }
+
+/**
+ * Puts entries in reverse creation order. A store lists them in creation order
+ * as a rule, so they usually only need to be reversed, which unlike `sort()`
+ * allocates nothing. That matters for a request scope, disposed once per
+ * request.
+ */
+function newestFirst(entries: Entry[]): void {
+  let ascending = true
+  let descending = true
+  for (let i = 1; i < entries.length; i++) {
+    if (entries[i].seq > entries[i - 1].seq) {
+      descending = false
+    } else {
+      ascending = false
+    }
+  }
+  if (descending) {
+    return
+  }
+  if (ascending) {
+    entries.reverse()
+    return
+  }
+  entries.sort(byNewest)
+}
+
+const byNewest = (a: Entry, b: Entry): number => b.seq - a.seq
 
 /**
  * Destroys the transients a container has handed out to nobody who would

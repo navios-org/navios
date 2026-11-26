@@ -2,6 +2,7 @@ import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
 import type { Host } from './host.mjs'
+import type { ScopedLink } from './links.mjs'
 import type { Store } from './store.mjs'
 
 export const EntryStatus = {
@@ -54,7 +55,12 @@ export interface Entry<T = any> {
   stale: boolean
   /** The stored entries it injected; for a transient only if it has an owner. */
   deps: Entry[] | null
+  /** The entries of its own container that injected it. */
   dependents: Set<Entry> | null
+  /** The first link from an entry of another container, a scope, that injected it. */
+  scopedDependents: ScopedLink | null
+  /** The first of its links to entries of another container, its root. */
+  rootLinks: ScopedLink | null
   /** Transient instances built for this entry; destroyed with it. */
   transients: Entry[] | null
   destroyListeners: DestroyListener[] | null
@@ -90,6 +96,8 @@ export function createEntry(
     stale: false,
     deps: null,
     dependents: null,
+    scopedDependents: null,
+    rootLinks: null,
     transients: null,
     destroyListeners: null,
     waitingFor: null,

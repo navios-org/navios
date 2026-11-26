@@ -72,14 +72,6 @@ export function toResponse(
 ): Response {
   const { status, body, release } = response
   const headers = toHeaders(response.headers)
-  // The server closes the body of a stream when the response is released.
-  let released = false
-  const done = async () => {
-    if (!released) {
-      released = true
-      await release?.()
-    }
-  }
 
   if (
     body === null ||
@@ -89,9 +81,17 @@ export function toResponse(
   ) {
     if (release !== undefined) {
       // Bun does not tell when a body that is in memory has been sent.
-      queueMicrotask(done)
+      queueMicrotask(release)
     }
     return new Response(body as BodyInit | null, { status, headers })
+  }
+  // The server closes the body of a stream when the response is released.
+  let released = false
+  const done = async () => {
+    if (!released) {
+      released = true
+      await release?.()
+    }
   }
   if (request?.method === 'HEAD') {
     void done()

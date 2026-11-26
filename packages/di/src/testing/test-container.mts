@@ -1,6 +1,7 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { discard } from '../internal/destruction.mjs'
+import { dependentsOf } from '../internal/links.mjs'
 import { aliasTarget, baseToken, isResolved } from '../internal/normalize.mjs'
 import { provide } from '../provider/provide.mjs'
 import { findInjectableToken, getInjectableToken } from '../token/injectable-token.mjs'
@@ -457,8 +458,8 @@ export class TestContainer extends Container {
         // An asynchronous destroy leaves the entry in place until it is done;
         // the next resolution must already see the new binding.
         this.store.delete(entry)
-      } else if (entry.token === target && entry.dependents !== null) {
-        Array.from(entry.dependents).forEach(discard)
+      } else if (entry.token === target) {
+        dependentsOf(entry).forEach(discard)
       }
     }
     this.overrides.set(provider.token, provider.record)

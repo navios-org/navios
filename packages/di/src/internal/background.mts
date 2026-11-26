@@ -32,6 +32,10 @@ const { setTimeout, clearTimeout } = globalThis
 // destroyed as soon as they are ready. Returns what the disposal of `host`
 // waits for, if anything: not forever, since they may never be ready.
 export function abandonBuilds(host: Host): Promise<void> | undefined {
+  if (host !== host.root && (host.building === null || host.building.size === 0)) {
+    // A scope, disposed once per request, that builds nothing.
+    return undefined
+  }
   const builds = [...(host.building ?? [])]
   if (host === host.root) {
     builds.push(...host.root.factoryValues.values())

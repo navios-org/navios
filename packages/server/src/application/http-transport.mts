@@ -4,6 +4,7 @@ import type { Transport } from '@navios/core'
 import type { ModuleNode } from '@navios/core/transport'
 import type { TransportHost } from '@navios/core/transport'
 
+import { LiveRequests } from '../context/live-requests.mjs'
 import { isRequestValueClass } from '../context/request-value.mjs'
 import { useClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
@@ -24,7 +25,6 @@ import type {
   HttpAdapterEnvironment,
 } from '../adapter/http-adapter.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
-import type { RequestContext } from '../context/request-context.mjs'
 import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
@@ -141,7 +141,7 @@ async function createHttpTransport(
     const interceptors: HttpInterceptorClass[] = []
     const table = new RouteTable<CompiledRoute>()
     /** The requests that hold something: until it is released, or the transport stops. */
-    const live = new Set<RequestContext>()
+    const live = new LiveRequests()
     let compiled: CompiledRoute[] = []
     let isSetUp = false
     let isStopped = false
