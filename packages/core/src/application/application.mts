@@ -1,30 +1,20 @@
-import { Container, provide } from '@navios/di'
-import {
-  constructedInstances,
-  hasOwnProvider,
-  setErrorReporter,
-  setProvider,
-} from '@navios/di/internal'
+import { Container } from '@navios/di'
+import { constructedInstances, setErrorReporter } from '@navios/di/internal'
 
-import type { ClassType, InjectionToken, Provider } from '@navios/di'
+import type { ClassType } from '@navios/di'
 
 import { enableAsyncContext } from '../execution/async-context.mjs'
 import { createContextHost } from '../execution/context-host.mjs'
-import { ConsoleLogger } from '../logger/console-logger.mjs'
-import { LoggerOutput } from '../logger/logger-output.mjs'
 import { Logger } from '../logger/logger.mjs'
-import { deferOutput, endDeferral } from '../logger/pending-output.mjs'
 import { buildModuleGraph } from '../modules/module-graph.mjs'
-import { assertProviders } from '../modules/module-metadata.mjs'
 import { orderPlugins } from '../plugins/order-plugins.mjs'
+import { createPluginApi } from '../plugins/plugin-api.mjs'
 import { MAX_DELAY_MS, settledWithin } from '../transports/settled-within.mjs'
 
 import type { InterceptorClass } from '../interceptors/interceptor.mjs'
-import type { LoggerService } from '../logger/logger-output.mjs'
 import type { LoggerInstance } from '../logger/logger.mjs'
-import type { PendingOutput } from '../logger/pending-output.mjs'
-import type { ModuleNode } from '../modules/module-graph.mjs'
-import type { PluginApi, PluginInstance } from '../plugins/plugin.mjs'
+import type { PluginApiTarget, PluginShutdownHook } from '../plugins/plugin-api.mjs'
+import type { PluginInstance } from '../plugins/plugin.mjs'
 import type {
   Transport,
   TransportFactory,
@@ -32,9 +22,10 @@ import type {
   TransportInstance,
 } from '../transports/transport.mjs'
 
+import { ApplicationLog } from './application-log.mjs'
 import { declaresHook } from './lifecycle-hooks.mjs'
 import { currentPhase, outsideSteps, runStep } from './lifecycle-step.mjs'
-import { moduleProviders } from './module-providers.mjs'
+import { ProviderPrecedence } from './provider-precedence.mjs'
 import { closeOnSignals, stopListening } from './shutdown-signals.mjs'
 
 import type { ApplicationOptions } from './application-options.mjs'
@@ -46,15 +37,6 @@ import type {
 import type { ShutdownHooksOptions } from './shutdown-signals.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-const noopLogger: LoggerService = {
-  log() {},
-  error() {},
-  warn() {},
-  debug() {},
-  verbose() {},
-  fatal() {},
-}
 
 /**
  * How much longer than the time it was given a transport may take to stop. It
@@ -111,18 +93,10 @@ export class Application {
   private readonly extraModules: ClassType[] = []
   private readonly globalInterceptors: InterceptorClass[] = []
   private readonly bootstrapHooks: Array<() => void | Promise<void>> = []
-  private readonly shutdownHooks: Array<{
-    plugin: string
-    run: (signal?: string) => void | Promise<void>
-  }> = []
-  /** What modules and plugins provide. Everything else is the caller's. */
-  private readonly supplied = new Map<InjectionToken<any, any>, Provider | 'plugin'>()
-  /** For the log, once there is one. */
-  private readonly notes: string[] = []
-  /** What loggers write to until it is settled where the log goes. */
-  private pendingOutput: PendingOutput | null = null
+  private readonly shutdownHooks: PluginShutdownHook[] = []
+  private readonly logOutput: ApplicationLog
+  private readonly precedence: ProviderPrecedence
   private transportsCreated = false
-  private settingUpPlugins = false
   private initialised = false
   private initialisation: Promise<void> | null = null
   private startup: Promise<void> | null = null
@@ -142,20 +116,9 @@ export class Application {
       )
     }
     this.container = options.container ?? new Container()
-    // The last one of several for one token counts.
-    const given = new Map<InjectionToken<any, any>, [option: string, Provider]>()
-    assertProviders('The application', options.providers ?? [])
-    for (const provider of options.providers ?? []) {
-      given.set(provider.token, ['providers', provider])
-    }
-    const { logger } = options
-    if (logger !== undefined && !Array.isArray(logger)) {
-      const value = logger === false ? noopLogger : logger
-      given.set(LoggerOutput, ['logger', provide(LoggerOutput, { value })])
-    }
-    for (const [option, provider] of given.values()) {
-      this.provideOption(option, provider)
-    }
+    this.logOutput = new ApplicationLog(this.container, options)
+    this.precedence = new ProviderPrecedence(this.container, (message) => this.logNote(message))
+    this.precedence.provideOptions(options.providers ?? [], this.logOutput.provider)
     this.plugins = [...(options.plugins ?? [])]
     this.slots = []
     for (const instance of options.transports ?? []) {
@@ -168,17 +131,12 @@ export class Application {
     setErrorReporter(this.container, (error, description) => this.report(description, error))
   }
 
-  /** Supplies what an option provides, unless the given container does. */
-  private provideOption(option: string, provider: Provider): void {
-    const { token } = provider
-    if (this.isProvidedByCaller(token)) {
-      this.notes.push(
-        `The container provides ${token}, so the one of the \`${option}\` option is not used.`,
-      )
-    } else if (!setProvider(this.container, provider)) {
-      throw new Error(
-        `[Navios] \`${option}\` has ${token}, which has already been resolved in \`container\`.`,
-      )
+  /** Goes to the debug log, or waits for there to be one. */
+  private logNote(message: string): void {
+    if (this.logger) {
+      this.logger.debug(message)
+    } else {
+      this.logOutput.notes.push(message)
     }
   }
 
@@ -189,7 +147,7 @@ export class Application {
         this.logger.error(message, error)
         return
       }
-      if (this.applicationOptions.logger === false) {
+      if (this.logOutput.isOff) {
         return
       }
     } catch {
@@ -318,14 +276,14 @@ export class Application {
   }
 
   private async initialise(): Promise<void> {
-    this.pendingOutput = deferOutput(this.container, () => this.settleLoggerNow())
+    this.logOutput.defer()
     try {
       await this.build()
     } catch (error) {
       await this.tearDownFailed()
       throw error
     } finally {
-      endDeferral(this.container)
+      this.logOutput.endDeferral()
     }
   }
 
@@ -348,10 +306,10 @@ export class Application {
     // on must already see them.
     let graph = buildModuleGraph([this.appModule])
     const own = new Set(graph.map((node) => node.module))
-    this.applyModuleProviders(graph, own, 'before plugins')
+    this.precedence.provideModules(graph, own, 'before plugins')
 
     this.logger = await this.step('init', () => container.get(Logger, { context: 'Navios' }))
-    for (const note of this.notes.splice(0)) {
+    for (const note of this.logOutput.notes.splice(0)) {
       this.logger.debug(note)
     }
 
@@ -385,10 +343,10 @@ export class Application {
       // Modules that plugins added are only known now.
       graph = buildModuleGraph([this.appModule, ...this.extraModules])
     }
-    this.applyModuleProviders(graph, own, 'after plugins')
+    this.precedence.provideModules(graph, own, 'after plugins')
 
     // Everything that may provide the logger has had its turn.
-    await this.step('init', () => this.settleLogger())
+    await this.step('init', () => this.logOutput.settle())
 
     for (const node of graph) {
       await this.step('init', async () => {
@@ -415,153 +373,26 @@ export class Application {
     this.initialised = true
   }
 
-  /**
-   * Whether the caller provides a token: with the options of the application
-   * or in its container, where an instance may also have been put.
-   */
-  private isProvidedByCaller(token: InjectionToken<any, any>): boolean {
-    if (this.supplied.has(token)) {
-      return false
-    }
-    if (hasOwnProvider(this.container, token)) {
-      return true
-    }
-    const instance = this.container.peek(token)
-    return instance !== null && !constructedInstances(this.container).includes(instance)
-  }
-
-  /**
-   * Supplies what the modules provide, unless the application or a plugin
-   * provides it. Modules that disagree about a token are an error where one of
-   * them would have to be used, which is settled after the plugins.
-   */
-  private applyModuleProviders(
-    graph: readonly ModuleNode[],
-    own: ReadonlySet<ClassType>,
-    when: 'before plugins' | 'after plugins',
-  ): void {
-    const provided = moduleProviders(graph, (module) => own.has(module))
-    for (const [token, { provider, module, rival }] of provided) {
-      const supplied = this.supplied.get(token)
-      if (supplied === provider || supplied === 'plugin' || this.isProvidedByCaller(token)) {
-        continue
-      }
-      let used = provider
-      if (rival !== undefined) {
-        const conflict = new Error(
-          `[Navios] Modules ${rival.name} and ${module.name} both provide ${token}, and neither ` +
-            `imports the other. Provide it in a module that imports both, or with the ` +
-            `\`providers\` option of the application.`,
-        )
-        if (when === 'after plugins') {
-          throw conflict
-        }
-        // Whoever needs the token before a plugin may have decided gets to know.
-        used = provide(token, {
-          factory: () => {
-            throw conflict
-          },
-        })
-      }
-      if (!setProvider(this.container, used)) {
-        throw new Error(
-          `[Navios] ${module.name} provides ${token}, which has already been resolved. Resolve ` +
-            `it later, or provide it with the \`providers\` option of the application.`,
-        )
-      }
-      this.supplied.set(token, used)
-    }
-  }
-
-  private async settleLogger(): Promise<void> {
-    const output = await this.container.get(LoggerOutput)
-    this.configureOutput(output)
-    this.pendingOutput!.settle(output)
-    endDeferral(this.container)
-  }
-
-  /** What was logged so far is not lost, whatever becomes of the start-up. */
-  private settleLoggerNow(): void {
-    if (this.pendingOutput === null || this.pendingOutput.isSettled) {
-      return
-    }
-    let output: LoggerService
-    try {
-      output = this.container.getSync(LoggerOutput)
-      this.configureOutput(output)
-    } catch {
-      // It is built asynchronously, or cannot be built.
-      output = new ConsoleLogger()
-      this.configureOutput(output)
-    }
-    this.pendingOutput.settle(output)
-  }
-
-  private configureOutput(output: LoggerService): void {
-    const { logger, asyncContext } = this.applicationOptions
-    if (Array.isArray(logger)) {
-      output.setLogLevels?.(logger)
-    }
-    if (asyncContext && output instanceof ConsoleLogger) {
-      output.setDefaults({ requestId: true })
-    }
-  }
-
   private async setupPlugins(): Promise<void> {
-    this.settingUpPlugins = true
+    let settingUp = true
+    const target: PluginApiTarget = {
+      container: this.container,
+      isSettingUp: () => settingUp,
+      provide: (plugin, provided, impl) => this.precedence.providePlugin(plugin, provided, impl),
+      interceptors: this.globalInterceptors,
+      modules: this.extraModules,
+      bootstrapHooks: this.bootstrapHooks,
+      shutdownHooks: this.shutdownHooks,
+      transport: (factory, instanceName) => this.findTransport(factory, instanceName),
+    }
     try {
       for (const { definition, options } of orderPlugins(this.plugins)) {
         this.logger.debug(`Setting up plugin ${definition.name}`)
-        const api = this.pluginApi(definition.name)
+        const api = createPluginApi(definition.name, target)
         await this.step('init', () => definition.setup(api, options))
       }
     } finally {
-      this.settingUpPlugins = false
-    }
-  }
-
-  private pluginApi(plugin: string): PluginApi {
-    const { container } = this
-    const assertSetup = (call: string) => {
-      if (!this.settingUpPlugins) {
-        throw new Error(`[Navios] api.${call}() must be called during setup`)
-      }
-    }
-    return {
-      container,
-      provide: ((target: any, impl: any) => {
-        assertSetup('provide')
-        const { token } = provide(target, impl)
-        if (this.isProvidedByCaller(token)) {
-          this.logger.debug(
-            `Plugin ${plugin} provides ${token}, but the application provides its own.`,
-          )
-          return
-        }
-        container.provide(target, impl)
-        this.supplied.set(token, 'plugin')
-      }) as Container['provide'],
-      decorate: ((target: any, decorator: any) => {
-        assertSetup('decorate')
-        container.decorate(target, decorator)
-      }) as Container['decorate'],
-      intercept: (interceptor) => {
-        assertSetup('intercept')
-        this.globalInterceptors.push(interceptor)
-      },
-      addModule: (module) => {
-        assertSetup('addModule')
-        this.extraModules.push(module)
-      },
-      transport: (factory, instanceName) => this.findTransport(factory, instanceName),
-      onBootstrap: (hook) => {
-        assertSetup('onBootstrap')
-        this.bootstrapHooks.push(hook)
-      },
-      onShutdown: (hook) => {
-        assertSetup('onShutdown')
-        this.shutdownHooks.push({ plugin, run: hook })
-      },
+      settingUp = false
     }
   }
 
@@ -719,7 +550,7 @@ export class Application {
 
   private async takeDown(transportTimeout: number): Promise<void> {
     const { container, shutdownTimeout } = this
-    this.settleLoggerNow()
+    this.logOutput.settleNow()
     try {
       await Promise.all(this.slots.map((slot) => this.stopTransport(slot, transportTimeout)))
 
