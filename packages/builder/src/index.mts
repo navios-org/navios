@@ -17,10 +17,15 @@ export type {
   BaseEndpointOptions,
   ClientOptions,
   EndpointBodyKind,
+  EndpointOptions,
   EndpointResponseKind,
   SuccessSchemaRecord,
 } from './http/endpoint-options.mjs'
-export type { ErrorSchemaRecord, MergeErrorSchemas } from './http/error-schema.mjs'
+export type {
+  ErrorSchemaRecord,
+  InferErrorSchemaOutput,
+  MergeErrorSchemas,
+} from './http/error-schema.mjs'
 export type {
   EndpointCallArgs,
   EndpointCallOptions,
@@ -45,7 +50,7 @@ export type { ClientRequestArgs, RequestBase, ServerRequestArgs } from './http/r
 // Response
 export type { SafeResult, SafeResultErr, SafeResultOk } from './http/safe-result.mjs'
 export type { ResponseMeta } from './http/response-meta.mjs'
-export { getCookie, getFilename, getRetryAfterMs } from './http/response-headers.mjs'
+export { getCookie, getFilename, getHeader, getRetryAfterMs } from './http/response-headers.mjs'
 export type { HeaderSource } from './http/response-headers.mjs'
 
 // Errors

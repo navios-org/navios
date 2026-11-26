@@ -37,7 +37,8 @@ describe('builder({ errorSchema })', () => {
     expectTypeOf<HttpBody<E, 409>>().toEqualTypeOf<{ error: { message: string } }>()
   })
 
-  test('keeps the type parameter on errorSchema', () => {
+  test('keeps the type parameter on withClient and errorSchema', () => {
+    expectTypeOf(api.withClient({ request: async () => ({}) as never })).toEqualTypeOf(api)
     expectTypeOf<keyof typeof api.errorSchema>().toEqualTypeOf<401 | 404>()
   })
 

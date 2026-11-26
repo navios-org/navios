@@ -34,7 +34,8 @@ export type EndpointResponseKind = 'json' | 'blob' | 'text' | 'stream' | 'void'
  * Endpoint options accepted by `declareEndpoint`.
  *
  * `responseSchema` is required when `response` is `'json'` (the default) and
- * there are no `responses`, and an error otherwise.
+ * there are no `responses`, and an error otherwise. {@link EndpointOptions} is
+ * the narrower form that has it.
  */
 export interface BaseEndpointOptions {
   /** HTTP method for the endpoint */
@@ -139,6 +140,15 @@ export interface BaseEndpointOptions {
    * @default true
    */
   validateResponse?: boolean
+}
+
+/**
+ * Endpoint options for a JSON endpoint: {@link BaseEndpointOptions} with a
+ * required `responseSchema`.
+ */
+export interface EndpointOptions extends BaseEndpointOptions {
+  /** Schema for validating and typing the response */
+  responseSchema: Schema
 }
 
 /**

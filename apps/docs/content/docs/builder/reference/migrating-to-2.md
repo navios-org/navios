@@ -173,7 +173,7 @@ For a Zod schema the original `ZodError` is still available on `error.cause`. [E
 | `handleError`                                                   | removed                                                                 |
 | `RequestArgs`                                                   | `ClientRequestArgs<Options>` (input types), `ServerRequestArgs<Options>` (output types) |
 | `InferEndpointParams`, `EndpointFunctionArgs`                   | removed; the argument type is now `ClientRequestArgs<Options>`, or `EndpointParams<typeof endpoint>` from an endpoint |
-| `BaseEndpointConfig`, `AnyEndpointConfig`                       | removed; constrain with `BaseEndpointOptions`. `EndpointConfig<typeof endpoint>` reads one endpoint's options |
+| `BaseEndpointConfig`, `AnyEndpointConfig`                       | removed; constrain with `BaseEndpointOptions`, or `EndpointOptions` when a `responseSchema` is required. `EndpointConfig<typeof endpoint>` reads one endpoint's options |
 | `AbstractEndpoint`, `StreamHandler`, `AbstractStream`           | `EndpointHandler<Options>`                                              |
 | `BaseStreamConfig`, `AnyStreamConfig`, `StreamOptions`, `InferStreamReturn`, `InferStreamParams`, `NaviosZodRequest`, `NaviosZodRequestBase`, `Util_FlatObject` | removed |
 | `createHandler`, `makeConfig`, `makeFormData`, `Simplify` and the types `HandlerRequest`, `ConfigRequest`, `UrlParamsRequest` | removed. `bindUrlParams` stays, and `getUrlParamNames` is new |

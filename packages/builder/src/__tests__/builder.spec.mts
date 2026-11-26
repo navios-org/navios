@@ -40,7 +40,7 @@ describe('builder', () => {
       expect(api).toHaveProperty('declareEndpoint')
       expect(api).toHaveProperty('provideClient')
       expect(api).toHaveProperty('getClient')
-      expect(api).not.toHaveProperty('withClient')
+      expect(api).toHaveProperty('withClient')
       expect(api).not.toHaveProperty('declareMultipart')
       expect(api).not.toHaveProperty('declareStream')
     })

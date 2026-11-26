@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
 import { EndpointError } from './endpoint-error.mjs'
-import { getCookie, getFilename, getRetryAfterMs } from './response-headers.mjs'
+import { getCookie, getFilename, getHeader, getRetryAfterMs } from './response-headers.mjs'
 
 describe('response header helpers', () => {
+  it('getHeader returns string or null', () => {
+    const meta = {
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ etag: 'abc' }),
+    }
+    expect(getHeader(meta, 'etag')).toBe('abc')
+    expect(getHeader(meta, 'missing')).toBeNull()
+    expect(getHeader(null, 'etag')).toBeNull()
+  })
+
   it('getCookie parses set-cookie name', () => {
     const meta = {
       status: 200,

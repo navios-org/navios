@@ -37,6 +37,7 @@ Creates a builder. See [Quick start](/docs/builder/quick-start).
 | `errorSchema`     | `Errors`                                                     | The builder's shared error schemas; `{}` when there are none                                  |
 | `provideClient`   | `(client: Client) => void`                                   | Sets or replaces the client for every endpoint of this builder                                |
 | `getClient`       | `() => Client`                                               | Returns the current client; throws `NaviosError` when none was provided                       |
+| `withClient`      | `(client: Client) => BuilderInstance<Errors>`                | Returns a new builder with the same config and another client. Existing endpoints are unaffected |
 
 See [HTTP client](/docs/builder/essentials/http-client).
 
@@ -68,6 +69,7 @@ Related option types:
 | Type                   | Description                                                             |
 | ---------------------- | ----------------------------------------------------------------------- |
 | `BaseEndpointOptions`  | The options above, as an interface                                      |
+| `EndpointOptions`      | `BaseEndpointOptions` with a required `responseSchema`                  |
 | `EndpointBodyKind`     | `'json' \| 'multipart'`                                                 |
 | `EndpointResponseKind` | `'json' \| 'blob' \| 'text' \| 'stream' \| 'void'`                      |
 | `SuccessSchemaRecord`  | `Record<number, Schema \| null>`, the type of `responses`               |
@@ -182,6 +184,8 @@ Types that narrow `EndpointError` by `kind`. At runtime every one is an `Endpoin
 | `TransportEndpointError`          | `'network' \| 'timeout' \| 'aborted' \| 'config'`  | `response: null`                                                  |
 | `EndpointErrorOf<E>`              | all                                                | The union of the five above for error schema record `E`           |
 
+`InferErrorSchemaOutput<E>` is the union of the output types of every entry of an `ErrorSchemaRecord`.
+
 ## Guards
 
 ```ts
@@ -204,10 +208,11 @@ if (isHttpError<typeof getUser.config.errorSchema, 404>(error, 404)) {
 
 ## Response helpers
 
-All of them accept `null`, so they can be called on `result.response` or `error.response` without a check. One header is `result.response?.headers.get(name) ?? null`.
+All of them accept `null`, so they can be called on `result.response` or `error.response` without a check.
 
 | Function          | Signature                                                    | Description                                                                 |
 | ----------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `getHeader`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One header value                                                          |
 | `getCookie`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One cookie value from the `Set-Cookie` headers. Always `null` in a browser, where they cannot be read |
 | `getRetryAfterMs` | `(meta: ResponseMeta \| null) => number \| null`             | `Retry-After` in milliseconds, from either its seconds or its date form     |
 | `getFilename`     | `(source: HeaderSource \| string \| null) => string \| null` | The file name of `Content-Disposition`: `filename*` (RFC 6266, any charset) over `filename`, unquoted, without directory parts. Takes a `ResponseMeta`, the `response` of react-query's `withResponse`, or the header value |

@@ -726,6 +726,18 @@ describe('endpoint handler', () => {
       expect(api.getClient()).toBe(client)
     })
 
+    it('withClient returns an independent builder', async () => {
+      const other = makeClient()
+      const scoped = api.withClient(other)
+      const ep = scoped.declareEndpoint({ method: 'GET', url: '/u', responseSchema: z.any() })
+
+      await ep()
+
+      expect(other.calls).toHaveLength(1)
+      expect(scoped.getClient()).toBe(other)
+      expect(api.getClient()).toBe(client)
+    })
+
     it('provideClient replaces the client', () => {
       const bare = builder()
       expect(() => bare.getClient()).toThrow(NaviosError)

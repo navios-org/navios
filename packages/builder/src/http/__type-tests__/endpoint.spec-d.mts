@@ -9,6 +9,7 @@ import type {
   BaseEndpointOptions,
   ClientRequestArgs,
   EndpointErrorType,
+  EndpointOptions,
   EndpointParams,
   EndpointResult,
   ParsePathParams,
@@ -188,9 +189,8 @@ describe('declareEndpoint', () => {
     api.declareEndpoint({ ...shared, method: 'GET', url: '/x', responseSchema: userSchema })
     const partial: Partial<BaseEndpointOptions> = {}
     api.declareEndpoint({ ...partial, method: 'GET', url: '/x', responseSchema: userSchema })
-    interface Get extends BaseEndpointOptions {
+    interface Get extends EndpointOptions {
       method: 'GET'
-      responseSchema: typeof userSchema
     }
     api.declareEndpoint({ method: 'GET', url: '/x', responseSchema: userSchema } as Get)
     interface Download extends BaseEndpointOptions {
@@ -374,6 +374,7 @@ describe('builder', () => {
         expectTypeOf(error).toEqualTypeOf<EndpointError>()
       },
     })
+    expectTypeOf(api.withClient).returns.toEqualTypeOf<typeof api>()
     builder({ send: 'output' })
     // @ts-expect-error not a way of sending
     builder({ send: 'both' })

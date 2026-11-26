@@ -1,7 +1,12 @@
 import type { ResponseMeta } from './response-meta.mjs'
 
+/** Reads one response header. `null` when the header is absent or nothing came back. */
+export function getHeader(meta: ResponseMeta | null, name: string): string | null {
+  return meta ? meta.headers.get(name) : null
+}
+
 export function getRetryAfterMs(meta: ResponseMeta | null): number | null {
-  const raw = meta?.headers.get('retry-after')
+  const raw = getHeader(meta, 'retry-after')
   if (!raw) return null
   const asInt = Number(raw)
   if (Number.isFinite(asInt)) return Math.max(0, asInt * 1000)

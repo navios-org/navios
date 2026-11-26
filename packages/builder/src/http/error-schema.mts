@@ -1,4 +1,4 @@
-import type { Schema } from '../shared/schema.mjs'
+import type { InferSchemaOutput, Schema } from '../shared/schema.mjs'
 
 /**
  * Record mapping HTTP status codes to schemas for error responses.
@@ -13,6 +13,22 @@ import type { Schema } from '../shared/schema.mjs'
  * ```
  */
 export type ErrorSchemaRecord = Record<number, Schema>
+
+/**
+ * Extracts the union of all output types from an ErrorSchemaRecord.
+ *
+ * @example
+ * ```ts
+ * type Errors = InferErrorSchemaOutput<{
+ *   400: z.ZodObject<{ error: z.ZodString }>,
+ *   404: z.ZodObject<{ notFound: z.ZodBoolean }>
+ * }>
+ * // Result: { error: string } | { notFound: boolean }
+ * ```
+ */
+export type InferErrorSchemaOutput<T extends ErrorSchemaRecord> = {
+  [K in keyof T]: T[K] extends Schema ? InferSchemaOutput<T[K]> : never
+}[keyof T]
 
 /**
  * The error schemas of an endpoint declared on a builder that has shared ones

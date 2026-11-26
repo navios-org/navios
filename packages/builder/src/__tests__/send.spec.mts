@@ -263,4 +263,19 @@ describe("send: 'output'", () => {
 
     expect(calls.map((call) => call.params)).toEqual([{ page: 3 }, { page: 1 }])
   })
+
+  it('should be kept by withClient()', async () => {
+    const { api, calls } = setup({ send: 'output' })
+    const other = api.withClient(api.getClient())
+    const ep = other.declareEndpoint({
+      method: 'POST',
+      url: '/x',
+      requestSchema: z.object({ v: z.string().default('x') }),
+      response: 'void',
+    })
+
+    await ep()
+
+    expect(calls[0]!.data).toEqual({ v: 'x' })
+  })
 })

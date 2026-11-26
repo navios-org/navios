@@ -76,5 +76,6 @@ export function builder(
       createHandler(withSharedErrors(options), context),
     provideClient,
     getClient,
+    withClient: (newClient: Client) => builder({ ...config, client: newClient }),
   } as unknown as BuilderInstance<ErrorSchemaRecord>
 }
