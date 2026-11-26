@@ -2,11 +2,11 @@ import type { RequestContext } from './request-context.mjs'
 
 /**
  * The requests that hold something to release, linked through the requests
- * themselves, so that a transport that stops can release them. Every request that uses a DI scope is added and removed. A `Set`
- * that lives as long as the server does allocates its new tables in the old
- * generation while it is churned like that, which brings on full garbage
- * collections; this allocates nothing.
- * @internal
+ * themselves, so that a transport that stops can release them. Every request
+ * that uses a DI scope is added and removed. A `Set` that lives as long as the
+ * server does allocates its new tables in the old generation while it is
+ * churned like that, which brings on full garbage collections; this allocates
+ * nothing. Not exported: the type of `RequestHost.live`.
  */
 export class LiveRequests {
   private head: RequestContext | null = null
