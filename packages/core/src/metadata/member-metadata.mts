@@ -63,3 +63,37 @@ export function memberMetadata(
   }
   return member
 }
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+type ClassOrMemberContext =
+  | ClassDecoratorContext
+  | ClassMethodDecoratorContext
+  | ClassFieldDecoratorContext
+
+/**
+ * A decorator for classes, methods and fields that adds to what decorators
+ * attached to them: `toClass` is given the context of a class, `toMember` the
+ * metadata of a member. `name` names the decorator in its errors.
+ * @internal
+ */
+export function classOrMemberDecorator(
+  name: string,
+  toClass: (context: ClassDecoratorContext) => void,
+  toMember: (member: MethodHandlerMetadata) => void,
+): (target: any, context: ClassOrMemberContext) => any {
+  return (target, context) => {
+    if (context.kind === 'class') {
+      toClass(context)
+      return target
+    }
+    if (context.kind !== 'method' && context.kind !== 'field') {
+      throw new Error(`[Navios] ${name} can only be used on classes, methods and fields.`)
+    }
+    if (typeof context.name !== 'string') {
+      throw new Error(`[Navios] ${name} cannot be used on symbol-named members.`)
+    }
+    toMember(memberMetadata(context, context.name))
+    return context.kind === 'field' ? undefined : target
+  }
+}

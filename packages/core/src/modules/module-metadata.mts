@@ -78,9 +78,8 @@ export function defineModuleMetadata(
 /**
  * An import that is `undefined` is what an import cycle between files leaves
  * behind: the importing file ran before the imported one defined its class.
- * @internal
  */
-export function assertImportsDefined(target: ClassType, imports: readonly unknown[]): void {
+function assertImportsDefined(target: ClassType, imports: readonly unknown[]): void {
   const index = imports.findIndex((imported) => imported === undefined || imported === null)
   if (index !== -1) {
     throw new Error(

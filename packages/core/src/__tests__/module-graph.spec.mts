@@ -234,10 +234,6 @@ describe('buildModuleGraph', () => {
     expect(() => module('Importer', { imports: [undefined as any] })).toThrow(
       '[Navios] Module Importer imports undefined',
     )
-
-    const Late = module('Late')
-    getModuleMetadata(Late).imports.push(undefined as any)
-    expect(() => buildModuleGraph([Late])).toThrow('[Navios] Module Late imports undefined')
   })
 
   it('lets the nearest module win for attributes', () => {

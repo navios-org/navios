@@ -1,7 +1,7 @@
 import type { InferInput, InferOutput, StandardSchemaV1 } from '@navios/di'
 
 import { classAttributes } from '../metadata/class-metadata.mjs'
-import { memberMetadata } from '../metadata/member-metadata.mjs'
+import { classOrMemberDecorator } from '../metadata/member-metadata.mjs'
 
 import type { HandlerInfo } from '../execution/execution-context.mjs'
 
@@ -35,19 +35,15 @@ export interface ClassSchemaAttribute<Schema extends StandardSchemaV1> {
 }
 
 function apply(token: symbol, value: unknown): AttributeApplication {
-  const decorator = (target: any, context: AttributeContext) => {
-    if (context.kind === 'class') {
+  const decorator = classOrMemberDecorator(
+    `Attribute ${String(token)}`,
+    (context) => {
       classAttributes(context).set(token, value)
-    } else if (context.kind === 'method' || context.kind === 'field') {
-      if (typeof context.name !== 'string') {
-        throw new Error('[Navios] Attributes cannot be applied to symbol-named members')
-      }
-      memberMetadata(context, context.name).attributes.set(token, value)
-    } else {
-      throw new Error('[Navios] Attributes can only be applied to classes, methods and fields')
-    }
-    return context.kind === 'field' ? undefined : target
-  }
+    },
+    (member) => {
+      member.attributes.set(token, value)
+    },
+  )
   return Object.assign(decorator, { token, value })
 }
 

@@ -37,12 +37,24 @@ export function unique(list: ClassType[]): ClassType[] {
 }
 
 /**
+ * Adds to `list`, in place, what it does not include yet, in order.
+ * @internal
+ */
+export function addMissing<T>(list: T[], items: Iterable<T>): T[] {
+  for (const item of items) {
+    if (!list.includes(item)) {
+      list.push(item)
+    }
+  }
+  return list
+}
+
+/**
  * Puts `first` in front of `list`, in place, skipping duplicates.
  */
 export function prepend(list: ClassType[], first: Iterable<ClassType> | undefined): ClassType[] {
   if (first) {
-    const added = unique([...first]).filter((item) => !list.includes(item))
-    list.unshift(...added)
+    list.unshift(...addMissing([], first).filter((item) => !list.includes(item)))
   }
   return list
 }

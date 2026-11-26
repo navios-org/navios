@@ -2,7 +2,9 @@ import { isDeepStrictEqual } from 'node:util'
 
 import type { ClassType, Provider } from '@navios/di'
 
-import { assertImportsDefined, getModuleMetadata } from './module-metadata.mjs'
+import { addMissing } from '../metadata/class-metadata.mjs'
+
+import { getModuleMetadata } from './module-metadata.mjs'
 
 import type { ModuleMetadata } from './module-metadata.mjs'
 
@@ -71,14 +73,6 @@ interface Draft {
   /** Whether the walk is at what it imports. */
   open: boolean
   ranked: boolean
-}
-
-function addAll<T>(target: T[], source: Iterable<T>): void {
-  for (const item of source) {
-    if (!target.includes(item)) {
-      target.push(item)
-    }
-  }
 }
 
 function names(path: readonly ClassType[]): string {
@@ -184,8 +178,6 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
       return
     }
     const metadata = getModuleMetadata(module)
-    const imports = metadata.imports
-    assertImportsDefined(module, imports)
     const node: ModuleNode = {
       module,
       providers: metadata.providers,
@@ -206,7 +198,7 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
     }
     drafts.set(module, draft)
     path.push(module)
-    for (const imported of imports) {
+    for (const imported of metadata.imports) {
       visit(imported, node)
     }
     path.pop()
@@ -242,8 +234,8 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
   // imports it came before; it then hands what it has to its imports.
   for (const draft of outermostFirst) {
     const { node, metadata } = draft
-    addAll(node.guards, metadata.guards)
-    addAll(node.interceptors, metadata.interceptors)
+    addMissing(node.guards, metadata.guards)
+    addMissing(node.interceptors, metadata.interceptors)
     inheritAttributes(
       draft,
       node.importers.map((importer) => drafts.get(importer.module)!),
@@ -253,8 +245,8 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
     }
     for (const imported of metadata.imports) {
       const child = drafts.get(imported)!
-      addAll(child.node.guards, node.guards)
-      addAll(child.node.interceptors, node.interceptors)
+      addMissing(child.node.guards, node.guards)
+      addMissing(child.node.interceptors, node.interceptors)
     }
   }
   return order
