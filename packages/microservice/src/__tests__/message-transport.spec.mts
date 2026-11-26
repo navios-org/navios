@@ -94,11 +94,9 @@ describe('messageTransport', () => {
 
     const { transport } = await createApp(AppModule)
 
-    expect(
-      transport.handlers().map((handler) => [handler.pattern, handler.destination, handler.name]),
-    ).toEqual([
-      ['pubsub', 'user.created', 'UsersConsumer.onCreated'],
-      ['request-reply', 'user.get', 'UsersConsumer.get'],
+    expect(transport.handlers().map((handler) => [handler.message, handler.name])).toEqual([
+      [userCreated.config, 'UsersConsumer.onCreated'],
+      [getUser.config, 'UsersConsumer.get'],
     ])
   })
 

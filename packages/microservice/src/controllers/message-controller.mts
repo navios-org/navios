@@ -11,9 +11,8 @@ export interface MessageControllerOptions {
   interceptors?: InterceptorClass[]
 }
 
-export type MessageControllerMetadata = HandlerClassMetadata
-
-const messageControllerMetadata = classMetadata<MessageControllerMetadata>(
+/** What `@MessageController` stores on its class. */
+export const messageControllerMetadata = classMetadata<HandlerClassMetadata>(
   Symbol.for('navios.microservice.controller'),
   'a message controller',
   'MessageController',
@@ -40,12 +39,4 @@ export function MessageController(options: MessageControllerOptions = {}) {
     registerInjectable(target, { scope: InjectableScope.Singleton })
     return target
   }
-}
-
-export function hasMessageControllerMetadata(target: ClassType): boolean {
-  return messageControllerMetadata.has(target)
-}
-
-export function getMessageControllerMetadata(target: ClassType): MessageControllerMetadata {
-  return messageControllerMetadata.get(target)
 }
