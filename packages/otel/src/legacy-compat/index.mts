@@ -30,11 +30,11 @@ export type {
 // Re-export metadata utilities from main module (they work the same for both APIs)
 export {
   extractTracedMetadata,
+  getTraceableServices,
   getTracedMetadata,
   hasTracedMetadata,
   TracedMetadataKey,
 } from '../traced/traced-metadata.mjs'
-export { getTraceableServices } from '../traced/traceable-services.mjs'
 
 // Export legacy-compatible decorators
 export { Traceable } from './traceable.mjs'

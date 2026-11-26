@@ -1,9 +1,16 @@
+import { trace } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
 
 import type { ClassType } from '@navios/di'
 
 import { Traceable as LegacyTraceable, Traced as LegacyTraced } from '../../legacy-compat/index.mjs'
-import { extractTracedMetadata, Traceable, Traced } from '../index.mjs'
+import {
+  extractTracedMetadata,
+  hasTracedMetadata,
+  Traceable,
+  traceInstance,
+  Traced,
+} from '../index.mjs'
 
 const seen = (target: ClassType) => {
   const { name, attributes, enabled, methods } = extractTracedMetadata(target)
@@ -90,5 +97,22 @@ describe('traced metadata of a subclass', () => {
     expect(seen(Orders)).toEqual(expected.orders)
     expect(seen(Users)).toEqual(expected.users)
     expect(extractTracedMetadata(Base).methods.get('list')!.name).toBe('base-list')
+  })
+})
+
+describe('a subclass without a decorator', () => {
+  it('is not traced as its base class', () => {
+    @Traced({ name: 'base-service' })
+    class Base {
+      list() {}
+    }
+    class Child extends Base {}
+
+    expect(hasTracedMetadata(Base)).toBe(true)
+    expect(hasTracedMetadata(Child)).toBe(false)
+    expect(() => extractTracedMetadata(Child)).toThrow(/Child/)
+
+    const child = traceInstance(new Child(), Child, trace.getTracer('test'))
+    expect(Object.getOwnPropertyNames(child)).toEqual([])
   })
 })

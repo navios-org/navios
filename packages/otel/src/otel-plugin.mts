@@ -7,8 +7,11 @@ import { MeterToken } from './sdk/meter-token.mjs'
 import { OtelSetupService } from './sdk/otel-setup-service.mjs'
 import { TracerToken } from './sdk/tracer-token.mjs'
 import { traceInstance } from './traced/trace-instance.mjs'
-import { getTraceableServices } from './traced/traceable-services.mjs'
-import { extractTracedMetadata, hasTracedMetadata } from './traced/traced-metadata.mjs'
+import {
+  extractTracedMetadata,
+  getTraceableServices,
+  hasTracedMetadata,
+} from './traced/traced-metadata.mjs'
 
 import type { OtelConfig } from './config/otel-config.mjs'
 

@@ -1,8 +1,10 @@
+import { ownMetadata, requireMetadata } from '@navios/core/transport'
+
 import type { ClassType } from '@navios/di'
 import type { AttributeValue } from '@opentelemetry/api'
 
 /**
- * Symbol used to store traced metadata on classes and in context.metadata.
+ * Symbol used to store traced metadata in context.metadata.
  */
 export const TracedMetadataKey = Symbol('navios:traced:metadata')
 
@@ -46,11 +48,16 @@ export interface ClassTracedMetadata extends TracedMetadata {
   methods: Map<string, MethodTracedMetadata>
 }
 
+// The classes decorated with `@Traced` or `@Traceable`, filled when they are
+// decorated. Only a class decorated itself is in it: a subclass without a
+// decorator is not what the decorator made of its parent.
+const tracedClasses = new Map<ClassType, ClassTracedMetadata>()
+
 /**
  * Gets or creates traced metadata during decoration.
  * Used inside decorators with access to context.metadata.
  *
- * For class decorators, also stores on target for runtime extraction.
+ * For class decorators, also records the class for runtime extraction.
  * For method decorators, only uses context.metadata (shared with class decorator).
  *
  * @param context - The decorator context
@@ -61,31 +68,22 @@ export function getTracedMetadata(
   context: ClassDecoratorContext | ClassMethodDecoratorContext,
   target?: ClassType,
 ): ClassTracedMetadata {
-  if (!context.metadata) {
-    throw new Error('[Navios] Wrong environment.')
-  }
-
   // A subclass starts from a copy: the metadata object of its base class is the
   // prototype of its own, and other subclasses share it.
-  if (!Object.hasOwn(context.metadata, TracedMetadataKey)) {
-    const inherited = context.metadata[TracedMetadataKey] as ClassTracedMetadata | undefined
-    context.metadata[TracedMetadataKey] = {
-      name: undefined,
-      attributes: undefined,
-      enabled: false,
-      ...inherited,
+  const metadata = ownMetadata<ClassTracedMetadata>(
+    requireMetadata(context),
+    TracedMetadataKey,
+    (inherited) => ({
+      name: inherited?.name,
+      attributes: inherited?.attributes,
+      enabled: inherited?.enabled ?? false,
       methods: new Map(inherited?.methods),
-    } satisfies ClassTracedMetadata
-  }
-  const metadata = context.metadata[TracedMetadataKey] as ClassTracedMetadata
-
-  // For class decorators, also store on target for runtime extraction. Method
-  // decorators, which run first, may have created the metadata.
+    }),
+  )
+  // Method decorators, which run first, may have created the metadata.
   if (target) {
-    // @ts-expect-error Store on target for extraction later
-    target[TracedMetadataKey] = metadata
+    tracedClasses.set(target, metadata)
   }
-
   return metadata
 }
 
@@ -95,26 +93,32 @@ export function getTracedMetadata(
  *
  * @param target - The decorated class
  * @returns The class traced metadata
- * @throws Error if metadata not found
+ * @throws Error if the class itself is not decorated
  */
 export function extractTracedMetadata(target: ClassType): ClassTracedMetadata {
-  // @ts-expect-error We store metadata directly on target
-  const metadata = target[TracedMetadataKey] as ClassTracedMetadata | undefined
+  const metadata = tracedClasses.get(target)
   if (!metadata) {
     throw new Error(
-      '[Navios] Traced metadata not found. Make sure to use @Traceable or @Traced decorator.',
+      `[Navios] Traced metadata not found on ${target.name}. Make sure to use @Traceable or @Traced decorator.`,
     )
   }
   return metadata
 }
 
 /**
- * Checks if a class has traced metadata.
+ * Checks if a class is decorated with `@Traced` or `@Traceable` itself.
  *
  * @param target - The class to check
  * @returns True if the class has traced metadata
  */
 export function hasTracedMetadata(target: ClassType): boolean {
-  // @ts-expect-error We store metadata directly on target
-  return !!target[TracedMetadataKey]
+  return tracedClasses.has(target)
+}
+
+/**
+ * Returns the set of all classes decorated with @Traceable or @Traced.
+ * Used by the plugin to find services that need wrapping.
+ */
+export function getTraceableServices(): ReadonlySet<ClassType> {
+  return new Set(tracedClasses.keys())
 }

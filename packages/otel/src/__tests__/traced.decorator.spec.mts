@@ -6,7 +6,6 @@ import {
   hasTracedMetadata,
   Traceable,
   Traced,
-  TracedMetadataKey,
 } from '../traced/index.mjs'
 
 describe('@Traced decorator', () => {
@@ -181,15 +180,6 @@ describe('@Traced decorator', () => {
 
       const methodMeta = metadata.methods.get('tracedMethod')
       expect(methodMeta?.attributes).toEqual({ 'method.key': 'method-value' })
-    })
-  })
-
-  describe('metadata key', () => {
-    it('should use correct symbol key', () => {
-      @Traced()
-      class TestService {}
-
-      expect((TestService as any)[TracedMetadataKey]).toBeDefined()
     })
   })
 })

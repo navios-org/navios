@@ -1,4 +1,3 @@
-import { traceableServices } from './traceable-services.mjs'
 import { getTracedMetadata } from './traced-metadata.mjs'
 
 import type { TracedOptions } from './traced-options.mjs'
@@ -31,9 +30,6 @@ import type { TracedOptions } from './traced-options.mjs'
  */
 export function Traceable(options: TracedOptions = {}) {
   return function (target: any, context: ClassDecoratorContext) {
-    // Add to tracked set immediately (at decoration time)
-    traceableServices.add(target)
-
     // Get or create metadata (preserves method decorators' data)
     const metadata = getTracedMetadata(context, target)
 

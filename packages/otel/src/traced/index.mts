@@ -1,9 +1,9 @@
 export { traceInstance } from './trace-instance.mjs'
 export { Traceable } from './traceable.mjs'
-export { getTraceableServices } from './traceable-services.mjs'
 export { Traced } from './traced.mjs'
 export {
   extractTracedMetadata,
+  getTraceableServices,
   getTracedMetadata,
   hasTracedMetadata,
   TracedMetadataKey,
