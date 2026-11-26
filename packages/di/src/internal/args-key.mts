@@ -42,7 +42,7 @@ export function argsKey(value: unknown): string {
   return valueKey(value)
 }
 
-/** The key an instance requested with `args` is stored under; `null` without args. */
+// The key an instance requested with `args` is stored under; `null` without args.
 export function keyOf(args: unknown): string | null {
   return args === undefined ? null : argsKey(args)
 }

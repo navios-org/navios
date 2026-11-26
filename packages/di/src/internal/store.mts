@@ -201,10 +201,8 @@ class Holders {
   }
 }
 
-/**
- * The entry stored for `token` / `key` where a request in `host` finds it: in
- * the scope first, then in the root container.
- */
+// The entry stored for `token` / `key` where a request in `host` finds it: in
+// the scope first, then in the root container.
 export function findStored(
   host: Host,
   token: InjectionToken<any, any>,

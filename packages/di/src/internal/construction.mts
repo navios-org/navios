@@ -259,11 +259,9 @@ function reuseTransient(
   return null
 }
 
-/**
- * Resolves any injectable reference against `host`, as `resolve()` does a
- * normalised token. The args of a factory token that are still being
- * computed are a `Wait`.
- */
+// Resolves any injectable reference against `host`, as `resolve()` does a
+// normalised token. The args of a factory token that are still being
+// computed are a `Wait`.
 export function resolveReference(
   host: Host,
   raw: AnyInjectableType,

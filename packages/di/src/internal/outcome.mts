@@ -9,10 +9,8 @@ import { unlink } from './links.mjs'
 import type { Entry } from './entry.mjs'
 import type { Frame } from './frame.mjs'
 
-/**
- * Makes `value` the instance of an entry whose build is over. One that went
- * stale while it was built is destroyed at once.
- */
+// Makes `value` the instance of an entry whose build is over. One that went
+// stale while it was built is destroyed at once.
 export function settleEntry(entry: Entry, value: unknown): void {
   entry.promise = null
   entry.waitingFor = null
@@ -22,12 +20,10 @@ export function settleEntry(entry: Entry, value: unknown): void {
   }
 }
 
-/**
- * Ends the build of `entry` with `error`, and releases what it had acquired.
- * Returns what to throw: `error` itself if it is a `DIError`, otherwise an
- * `InitializationError` that wraps it. `frame` is the build that failed, if
- * any.
- */
+// Ends the build of `entry` with `error`, and releases what it had acquired.
+// Returns what to throw: `error` itself if it is a `DIError`, otherwise an
+// `InitializationError` that wraps it. `frame` is the build that failed, if
+// any.
 export function failEntry(entry: Entry, error: unknown, frame: Frame | null): DIError {
   const wrapped =
     error instanceof DIError ? error : initializationError(entry.token.toString(), error)

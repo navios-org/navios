@@ -242,11 +242,9 @@ function reportListenerError(entry: Entry, error: unknown): void {
   entry.host.root.reportError?.(error, `An onInvalidate listener of ${entry.token} failed`)
 }
 
-/**
- * What `invalidate()` of a container or a scope does with `service`: destroys
- * the entries of `host` that hold it, as one cascade. `null` when there are
- * none.
- */
+// What `invalidate()` of a container or a scope does with `service`: destroys
+// the entries of `host` that hold it, as one cascade. `null` when there are
+// none.
 export function destroyHeld(host: Host, service: unknown): void | Promise<void> | null {
   if (service === host) {
     throw misuse(`${host.isScope ? 'A scope' : 'A container'} cannot be invalidated; use dispose()`)

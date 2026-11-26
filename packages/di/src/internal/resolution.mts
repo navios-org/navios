@@ -56,16 +56,13 @@ function assertSettles(raw: AnyInjectableType, restarts: number): void {
   }
 }
 
-/**
- * Repeats `step` until it comes to an entry that is ready, and returns what
- * `done` makes of that entry. `first` is what a synchronous attempt came to.
- *
- * A `Wait` is waited for, after `onWait` had a look at it, and so is an entry
- * that is still being created: `watch` is told which one, and `null` when the
- * wait is over. What was built for the request and is gone before it could
- * be handed out, as a `Wait` that asks to rebuild or a creation that did not
- * end ready, is a restart; too many in a row fail the request.
- */
+// Repeats `step` until it comes to an entry that is ready, and returns what
+// `done` makes of that entry. `first` is what a synchronous attempt came to.
+// A `Wait` is waited for, after `onWait` had a look at it, and so is an entry
+// that is still being created: `watch` is told which one, and `null` when the
+// wait is over. What was built for the request and is gone before it could
+// be handed out, as a `Wait` that asks to rebuild or a creation that did not
+// end ready, is a restart; too many in a row fail the request.
 async function untilReady<T>(
   raw: AnyInjectableType,
   step: () => Entry | Wait,
@@ -183,7 +180,7 @@ export function resolveSyncOrThrow(host: Host, raw: AnyInjectableType, rawArgs: 
   return resolved
 }
 
-/** The context handed to a factory: of a provider, or of a factory token. */
+// The context handed to a factory: of a provider, or of a factory token.
 export function createFactoryContext(entry: Entry): FactoryContext {
   const { host } = entry
   return {

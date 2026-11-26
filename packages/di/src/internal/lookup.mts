@@ -23,7 +23,7 @@ import type { Host, RootHost } from './host.mjs'
  * or computing anything.
  */
 
-/** The error for something that is neither a class nor a token of this copy. */
+// The error for something that is neither a class nor a token of this copy.
 export function unknownReference(raw: unknown): Error {
   if (typeof raw === 'object' && raw !== null && 'name' in raw && 'schema' in raw) {
     return foreignCopy(`Token ${String(raw)}`)
@@ -115,7 +115,7 @@ export function finalToken(
   return token === undefined ? undefined : baseToken(followAlias(host, token))
 }
 
-/** The provider of what `raw` stands for, aliases being followed to their end. */
+// The provider of what `raw` stands for, aliases being followed to their end.
 export function finalRecord(host: Host, raw: AnyInjectableType): ProviderRecord | undefined {
   const token = finalToken(host, raw)
   return token === undefined ? undefined : lookupRecord(host, token)
