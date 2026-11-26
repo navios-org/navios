@@ -1,7 +1,7 @@
 import { bindUrlParams, getUrlParamNames } from '../shared/bind-url-params.mjs'
 import { callErrorHook } from '../shared/call-error-hook.mjs'
 import { NaviosError } from '../shared/navios-error.mjs'
-import { validate } from '../shared/validate.mjs'
+import { validate, validateOptional } from '../shared/validate.mjs'
 
 import type { Schema } from '../shared/schema.mjs'
 import type { ValidationOutcome } from '../shared/validate.mjs'
@@ -195,22 +195,6 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
   }
 
   /**
-   * Validates the body or the query. Either may be left out when its schema
-   * accepts `undefined` or has no required fields (the call signature makes it
-   * optional in both cases), so one that was is also tried as an empty object.
-   * `input` is the value that was accepted; `asEmpty` why an empty object was not.
-   */
-  async function validateOptional(
-    schema: Schema | undefined,
-    value: unknown,
-  ): Promise<{ outcome: ValidationOutcome; input: unknown; asEmpty?: ValidationOutcome }> {
-    const outcome = await validateInput(schema, value)
-    if (outcome.ok || value !== undefined || !schema) return { outcome, input: value }
-    const asEmpty = await validate(schema, {})
-    return asEmpty.ok ? { outcome: asEmpty, input: {} } : { outcome, input: value, asEmpty }
-  }
-
-  /**
    * The URL params to send. One that was left out has no input to send, and a
    * URL has to have it, so it is what the schema produced: its default.
    */
@@ -267,8 +251,8 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     }
 
     // 2. Validate input and build the request. Nothing is sent on failure.
-    const body = await validateOptional(options.requestSchema, request.data)
-    const query = await validateOptional(options.querySchema, request.params ?? undefined)
+    const body = await validateOptional(options.requestSchema, request.data, validate)
+    const query = await validateOptional(options.querySchema, request.params ?? undefined, validate)
     const parts = {
       urlParams: await validateInput(options.urlParamsSchema, request.urlParams),
       // A query is an object, so the fields it lacks say more than that it is missing
