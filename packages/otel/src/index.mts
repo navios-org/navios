@@ -15,27 +15,16 @@ export type { OtelSetupLogger } from './sdk/index.mjs'
 
 // Tracing: spans, the active span and trace context propagation
 export {
-  createHttpRequestAttributes,
-  createNaviosAttributes,
   extractTraceContext,
   getCurrentSpan,
   getCurrentSpanContext,
-  HttpAttributes,
-  NaviosAttributes,
   parentContext,
-  parseUrlAttributes,
   recordSpanError,
   RequestSpan,
   runWithSpanContext,
-  SpanFactoryService,
   TraceContextService,
 } from './tracing/index.mjs'
-export type {
-  ChildSpanOptions,
-  HeaderCarrier,
-  HttpSpanOptions,
-  SpanContext,
-} from './tracing/index.mjs'
+export type { HeaderCarrier, SpanContext } from './tracing/index.mjs'
 
 // @Traced / @Traceable
 export {

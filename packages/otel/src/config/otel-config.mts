@@ -120,7 +120,6 @@ export interface OtelConfig {
    * - navios.controller
    * - navios.handler
    * - navios.module
-   * - navios.guard
    * @default false
    */
   includeNaviosAttributes?: boolean

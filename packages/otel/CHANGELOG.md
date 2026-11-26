@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING**: `@navios/otel/legacy-compat` exports the decorators `Traced` and `Traceable` and the type `TracedOptions`, as the documentation says. `extractTracedMetadata`, `getTracedMetadata`, `hasTracedMetadata`, `getTraceableServices`, `TracedMetadataKey` and the types `TracedMetadata`, `ClassTracedMetadata` and `MethodTracedMetadata` are no longer exported from it.
 - **BREAKING**: the legacy `Traced` and `Traceable` are built with `legacy()` of `@navios/core/legacy-compat` and accept only the legacy call shapes. Before, they also accepted a standard decorator call; use `Traced` and `Traceable` of `@navios/otel` for standard decorators.
 
+### Removed
+
+- **BREAKING**: the span helpers written for the removed `@navios/otel-fastify` and `@navios/otel-bun`, which nothing in the package used any more: `SpanFactoryService` with the types `HttpSpanOptions` and `ChildSpanOptions`, `HttpAttributes`, `createHttpRequestAttributes`, `parseUrlAttributes`, `NaviosAttributes` and `createNaviosAttributes`. Start a span with the tracer of `TracerToken`; `parentContext()` is the context to start a child span in when no context manager is registered.
+
 ### Fixed
 
 - A subclass of a `@Traced` or `@Traceable` class that is not decorated itself is no longer traced with the metadata of its parent by `traceInstance()` and `TracedProxyFactory.wrap()`. Only what a class is decorated with itself counts, as with `@Schedulable()`.

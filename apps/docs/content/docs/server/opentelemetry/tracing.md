@@ -153,7 +153,6 @@ What the plugin provides:
 | `MeterToken`          | The application's `Meter`. See [Metrics](/docs/server/opentelemetry#metrics).       |
 | `OtelConfigToken`     | The configuration with defaults applied.                                            |
 | `OtelSetupService`    | The SDK owner: `forceFlush()`, `shutdown()`, `getTracer()`, `getMeter()`.           |
-| `SpanFactoryService`  | Helpers that create spans with this package's names and attributes.                 |
 | `TraceContextService` | `runWithSpan()`, `getCurrentSpan()`, `extractFromHeaders()`, `injectIntoHeaders()`. |
 | `TracedProxyFactory`  | `wrap(object, Class)`, shown above.                                                 |
 

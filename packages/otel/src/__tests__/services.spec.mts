@@ -13,7 +13,6 @@ import {
   OtelConfigToken,
   OtelSetupService,
   resolveOtelConfig,
-  SpanFactoryService,
   TraceContextService,
   Traced,
   TracedProxyFactory,
@@ -84,56 +83,6 @@ describe('services', () => {
       const service = await container.get(TraceContextService)
 
       expect(trace.getSpanContext(service.extractFromHeaders({ accept: '*/*' }))).toBeUndefined()
-    })
-  })
-
-  describe('SpanFactoryService', () => {
-    it('creates a server span with HTTP and navios attributes', async () => {
-      const spans = await container.get(SpanFactoryService)
-
-      const span = spans.createHttpSpan({
-        method: 'GET',
-        url: '/users/1',
-        route: '/users/$id',
-        controller: 'UsersController',
-        handler: 'getUser',
-      })
-      spans.setHttpResponse(span, 404)
-      span.end()
-
-      const [finished] = exporter.getFinishedSpans()
-      expect(finished.name).toBe('HTTP GET /users/$id')
-      expect(finished.kind).toBe(SpanKind.SERVER)
-      expect(finished.attributes).toMatchObject({
-        'http.method': 'GET',
-        'http.url': '/users/1',
-        'http.route': '/users/$id',
-        'http.status_code': 404,
-        'navios.controller': 'UsersController',
-        'navios.handler': 'getUser',
-      })
-      expect(finished.status).toEqual({ code: SpanStatusCode.ERROR, message: 'HTTP 404' })
-    })
-
-    it('creates child spans under the active span and records errors', async () => {
-      const spans = await container.get(SpanFactoryService)
-      const context = await container.get(TraceContextService)
-      const parent = spans.createHttpSpan({ method: 'GET', url: '/' })
-
-      context.runWithSpan(parent, () => {
-        const child = spans.createChildSpan({ name: 'work', attributes: { step: 1 } })
-        spans.recordError(child, new Error('failed'))
-        child.end()
-      })
-      parent.end()
-
-      const [child] = exporter.getFinishedSpans()
-      expect(child.name).toBe('work')
-      expect(child.kind).toBe(SpanKind.INTERNAL)
-      expect(child.attributes.step).toBe(1)
-      expect(child.parentSpanContext?.spanId).toBe(parent.spanContext().spanId)
-      expect(child.status).toEqual({ code: SpanStatusCode.ERROR, message: 'failed' })
-      expect(child.events[0].name).toBe('exception')
     })
   })
 
