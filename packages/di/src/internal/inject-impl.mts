@@ -15,18 +15,18 @@ import type {
   InjectionTokenType,
 } from '../token/injection-token.mjs'
 
-import { argsKey } from './args-key.mjs'
+import { keyOf } from './args-key.mjs'
 import { inBackground } from './background.mjs'
 import { discard, runDestroyListener } from './destruction.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
 import { current, runHook } from './frame.mjs'
 import { addWaitEdge, isIntact, linkTo, relink } from './links.mjs'
 import {
+  finalRecord,
   finalToken,
   followAlias,
   hasInstance,
   hasProvider,
-  lookupRecord,
   normalize,
   normArgs,
   normToken,
@@ -125,7 +125,7 @@ function fromEarlierPass(
   if (token.schema !== undefined) {
     args = validateSync(token.schema, args, token.toString())
   }
-  const key = args === undefined ? null : argsKey(args)
+  const key = keyOf(args)
   rethrowFailure(frame, token, key)
   const index =
     frame.reuse?.findIndex((candidate) => candidate.token === token && candidate.key === key) ?? -1
@@ -348,8 +348,7 @@ function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any
 export const asyncInject: AsyncResolve = asyncInjectImpl as AsyncResolve
 
 function isTransient(host: Host, raw: AnyInjectableType): boolean {
-  const token = finalToken(host, raw)
-  return token !== undefined && lookupRecord(host, token)?.scope === InjectableScope.Transient
+  return finalRecord(host, raw)?.scope === InjectableScope.Transient
 }
 
 export function createFactoryContext(entry: Entry): FactoryContext {

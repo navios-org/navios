@@ -3,6 +3,7 @@ import type { InjectionToken } from '../token/injection-token.mjs'
 import { EntryStatus } from './entry.mjs'
 
 import type { Entry } from './entry.mjs'
+import type { Host } from './host.mjs'
 
 export type InvalidateListener = () => unknown
 
@@ -198,4 +199,16 @@ class Holders {
     }
     this.entries.push(entry)
   }
+}
+
+/**
+ * The entry stored for `token` / `key` where a request in `host` finds it: in
+ * the scope first, then in the root container.
+ */
+export function findStored(
+  host: Host,
+  token: InjectionToken<any, any>,
+  key: string | null,
+): Entry | undefined {
+  return (host.isScope ? host.store.get(token, key) : undefined) ?? host.root.store.get(token, key)
 }

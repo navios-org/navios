@@ -3,9 +3,10 @@ import { validateSync } from '../schema/standard-schema.mjs'
 
 import type { InjectionToken } from '../token/injection-token.mjs'
 
-import { argsKey } from './args-key.mjs'
+import { keyOf } from './args-key.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
 import { lookupRecord } from './normalize.mjs'
+import { findStored } from './store.mjs'
 
 import type { Entry } from './entry.mjs'
 import type { Host } from './host.mjs'
@@ -34,8 +35,7 @@ function stored(host: Host, token: InjectionToken<any, any>): Entry | undefined 
       return undefined
     }
   }
-  const key = args === undefined ? null : argsKey(args)
-  return (host.isScope ? host.store.get(token, key) : undefined) ?? host.root.store.get(token, key)
+  return findStored(host, token, keyOf(args))
 }
 
 function collectLeaving(

@@ -18,15 +18,15 @@ import type {
   InjectionToken,
 } from '../token/injection-token.mjs'
 
-import { argsKey } from './args-key.mjs'
+import { keyOf } from './args-key.mjs'
 import { inBackground, trackBuild } from './background.mjs'
 import { discard, rejectWith, runDestroyListeners } from './destruction.mjs'
 import { createEntry, EntryStatus, isLeaving, markReady } from './entry.mjs'
 import { current, enter, framePath, hookOwner, onStack, outside, runHook } from './frame.mjs'
 import { createFactoryContext } from './inject-impl.mjs'
 import { isDestroying, leavingIn } from './leaving.mjs'
-import { assertLive, disposedError, isDisposed } from './liveness.mjs'
 import { addWaitEdge, unlink } from './links.mjs'
+import { assertLive, disposedError, isDisposed } from './liveness.mjs'
 import {
   baseToken,
   followAlias,
@@ -35,6 +35,7 @@ import {
   normArgs,
   normToken,
 } from './normalize.mjs'
+import { findStored } from './store.mjs'
 import { findReady } from './stored-values.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
@@ -141,13 +142,10 @@ export function resolve(
   if (token.schema !== undefined) {
     args = validateSync(token.schema, rawArgs, token.toString())
   }
-  const key = args === undefined ? null : argsKey(args)
+  const key = keyOf(args)
 
   for (;;) {
-    let existing = host.isScope ? host.store.get(token, key) : undefined
-    if (existing === undefined) {
-      existing = host.root.store.get(token, key)
-    }
+    const existing = findStored(host, token, key)
     if (existing !== undefined) {
       switch (existing.status) {
         case EntryStatus.Ready:

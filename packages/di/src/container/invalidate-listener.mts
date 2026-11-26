@@ -1,4 +1,4 @@
-import { argsKey } from '../internal/args-key.mjs'
+import { keyOf } from '../internal/args-key.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { finalToken, followAlias, requireToken } from '../internal/normalize.mjs'
 import { ANY_ARGS } from '../internal/store.mjs'
@@ -63,5 +63,5 @@ function keyFor(token: InjectionToken<any, any>, args: unknown): string | null {
       // same as the instance never existing.
     }
   }
-  return value === undefined ? null : argsKey(value)
+  return keyOf(value)
 }

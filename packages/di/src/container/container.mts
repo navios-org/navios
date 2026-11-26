@@ -5,15 +5,15 @@ import { abandonBuilds, settleHost, settleStore } from '../internal/background.m
 import { destroyAll } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
+import { assertLive } from '../internal/liveness.mjs'
 import {
   baseToken,
-  followAlias,
+  finalRecord,
   hasProvider,
   isResolved,
   lookupRecord,
   requireToken,
 } from '../internal/normalize.mjs'
-import { assertLive } from '../internal/liveness.mjs'
 import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
 import { peek, storeValue } from '../internal/stored-values.mjs'
@@ -211,8 +211,8 @@ export class Container implements IContainer {
     if (kind !== 'existing') {
       return { kind, scope, target }
     }
-    const aliased = this.getProvider(followAlias(this, token) as InjectionToken<any, any>)
-    return { kind, scope: aliased?.scope ?? scope, target }
+    // An alias has the scope of what it points to.
+    return { kind, scope: finalRecord(this, token)?.scope ?? scope, target }
   }
 
   /**

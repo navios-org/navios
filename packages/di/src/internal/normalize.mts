@@ -154,6 +154,12 @@ export function finalToken(
   return token === undefined ? undefined : baseToken(followAlias(host, token))
 }
 
+/** The provider of what `raw` stands for, aliases being followed to their end. */
+export function finalRecord(host: Host, raw: AnyInjectableType): ProviderRecord | undefined {
+  const token = finalToken(host, raw)
+  return token === undefined ? undefined : lookupRecord(host, token)
+}
+
 // Whether `root` holds an instance for `token`. For an alias that is what it
 // points to, once somebody asked for it by that alias.
 export function isResolved(root: RootHost, token: InjectionToken<any, any>): boolean {
@@ -188,5 +194,10 @@ export function hasProvider(host: Host, raw: AnyInjectableType): boolean {
   if (record === undefined || record.kind !== 'existing') {
     return record !== undefined
   }
-  return hasProvider(host, followAlias(host, token))
+  // An alias is provided when what it points to in the end is, as resolving
+  // it follows the alias there.
+  const final = finalToken(host, token)
+  return (
+    final !== undefined && (hasInstance(host, final) || lookupRecord(host, final) !== undefined)
+  )
 }
