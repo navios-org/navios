@@ -559,11 +559,12 @@ export class RequestContext<
   }
 
   /**
-   * Sets the status of the response.
+   * Sets the status of the response. That of a response the handler writes
+   * itself is read again when it has finished.
    * @internal
    */
   respondWith(status: number): void {
-    this.responseStatus = this.takenOver ? this.input.respondedStatus?.() : status
+    this.responseStatus = status
   }
 
   // --------------------------------------------------------------------------
