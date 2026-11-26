@@ -15,16 +15,16 @@ import { callOptionsFor } from '../endpoint/http-client.mjs'
 import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
 import type { EndpointData } from '../endpoint/types.mjs'
 
+import { attachCacheHelpers, prefetchFrom, skippedOptions } from './cache-helpers.mjs'
+
+import type { LooseOptions } from './cache-helpers.mjs'
 import type {
   InfiniteEndpointOptions,
   InfiniteQueryObject,
   InfiniteQuerySettings,
 } from './infinite-query-object.mjs'
 
-function noop() {}
-
 type LooseArgs = { params?: Record<string, unknown>; [key: string]: unknown } | undefined
-type LooseOptions = Record<string, unknown> | undefined
 
 /**
  * Creates an {@link InfiniteQueryObject} for an endpoint.
@@ -99,45 +99,29 @@ export function makeInfiniteQuery<
       ...pagination(args),
     })
 
+  const fetchPages = (queryClient: QueryClient, args?: LooseArgs) =>
+    queryClient.infiniteQuery(build(args) as never)
+
   const query = build as unknown as Record<string, unknown>
 
-  query.key = (args?: LooseArgs) => keys.key(args)
+  attachCacheHelpers(query, keys, endpoint)
 
   query.use = (args?: LooseArgs | typeof skipToken, overrides?: LooseOptions) =>
     useInfiniteQuery(
       (args === skipToken
-        ? {
-            ...defaults,
-            ...overrides,
-            ...pagination(undefined),
-            queryKey: keys.skipped(),
-            queryFn: skipToken,
-          }
+        ? { ...skippedOptions(keys, defaults, overrides), ...pagination(undefined) }
         : build(args, overrides)) as never,
     )
 
   query.useSuspense = (args?: LooseArgs, overrides?: LooseOptions) =>
     useSuspenseInfiniteQuery(build(args, overrides) as never)
 
-  query.fetch = (queryClient: QueryClient, args?: LooseArgs) =>
-    queryClient.infiniteQuery(build(args) as never)
+  query.fetch = fetchPages
 
-  query.prefetch = (queryClient: QueryClient, args?: LooseArgs) =>
-    queryClient.infiniteQuery(build(args) as never).then(noop, noop)
+  query.prefetch = prefetchFrom(fetchPages)
 
   query.ensure = (queryClient: QueryClient, args?: LooseArgs) =>
     queryClient.infiniteQuery({ ...build(args), staleTime: 'static' } as never)
-
-  query.getData = (queryClient: QueryClient, args?: LooseArgs) =>
-    queryClient.getQueryData(keys.key(args))
-
-  query.setData = (queryClient: QueryClient, args: LooseArgs, updater: unknown) =>
-    queryClient.setQueryData(keys.key(args), updater as never)
-
-  query.invalidate = (queryClient: QueryClient, args?: LooseArgs, filters?: LooseOptions) =>
-    queryClient.invalidateQueries({ ...filters, queryKey: keys.key(args) })
-
-  query.endpoint = endpoint
 
   return query as never
 }

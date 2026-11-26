@@ -171,6 +171,9 @@ export function createKeyBuilder(
   }
 }
 
+/** What {@link createKeyBuilder} returns. */
+export type KeyBuilder = ReturnType<typeof createKeyBuilder>
+
 /**
  * Key shared by every mutation of one endpoint:
  * `[...keyPrefix, method, urlTemplate, ...keySuffix]`.
