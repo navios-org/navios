@@ -1,3 +1,5 @@
+import { ownMetadata, requireMetadata } from '@navios/core/transport'
+
 import type { OverlapPolicy } from './cron.mjs'
 
 export const CronMetadataKey = Symbol('CronMetadataKey')
@@ -40,21 +42,9 @@ export function takeInheritedCronMetadata(job: CronMetadata): boolean {
 export function getAllCronMetadata(
   context: ClassMethodDecoratorContext | ClassDecoratorContext,
 ): Set<CronMetadata> {
-  const { metadata } = context
-  if (!metadata) {
-    throw new Error(
-      '[Navios-Schedule] This environment does not provide decorator metadata, so jobs cannot be declared.',
-    )
-  }
-  // The metadata object of a subclass inherits from the one of its parent,
-  // so only an own property is the set of this class.
-  if (Object.hasOwn(metadata, CronMetadataKey)) {
-    return metadata[CronMetadataKey] as Set<CronMetadata>
-  }
-  const parentJobs = metadata[CronMetadataKey] as Set<CronMetadata> | undefined
-  const jobs = inheritCronMetadata(parentJobs ?? [])
-  metadata[CronMetadataKey] = jobs
-  return jobs
+  return ownMetadata<Set<CronMetadata>>(requireMetadata(context), CronMetadataKey, (parentJobs) =>
+    inheritCronMetadata(parentJobs ?? []),
+  )
 }
 
 export function getCronMetadata(context: ClassMethodDecoratorContext): CronMetadata {

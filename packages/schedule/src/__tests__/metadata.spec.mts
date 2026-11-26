@@ -308,7 +308,9 @@ describe('schedule metadata', () => {
     it('should throw when the environment has no decorator metadata', () => {
       const context = { kind: 'method', name: 'job' } as ClassMethodDecoratorContext
 
-      expect(() => Cron('*/1 * * * * *')(() => {}, context)).toThrow(/decorator metadata/)
+      expect(() => Cron('*/1 * * * * *')(() => {}, context)).toThrow(
+        /Decorator metadata is not available/,
+      )
     })
 
     it('should keep the time zone in the metadata', () => {

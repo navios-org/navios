@@ -1,6 +1,6 @@
 import type { ClassType } from '@navios/di'
 
-import { own, requireMetadata } from './decorator-metadata.mjs'
+import { ownMetadata, requireMetadata } from './decorator-metadata.mjs'
 
 import type { DecoratorMetadata } from './decorator-metadata.mjs'
 
@@ -37,7 +37,7 @@ export function memberMetadata(
   context: { metadata?: DecoratorMetadata },
   name: string,
 ): MethodHandlerMetadata {
-  const members = own<Map<string, MethodHandlerMetadata>>(
+  const members = ownMetadata<Map<string, MethodHandlerMetadata>>(
     requireMetadata(context),
     MembersKey,
     (inherited) => {

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **`@navios/core/transport` no longer re-exports `constructedInstances`.** It is part of `@navios/di/internal`, which follows no semver; a transport that needs it imports it from there and lists `@navios/di` as a peer dependency.
+- **`@navios/core/transport` exports less.** `constructedInstances` is part of `@navios/di/internal`, which follows no semver; a transport that needs it imports it from there and lists `@navios/di` as a peer dependency. `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
 - **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
 - **`handlerChain` builds the `HandlerInfo`.** It takes the `controller` and the `handlerName` of the handler besides `node`, `owner` and `member`, and returns `{ info, outer, inner }`: `info` is what the handler's contexts carry as `ctx.handler`, its guards in `info.guards`. `HandlerChain.guards` and `HandlerChain.interceptors` are removed. `resolveChain` takes what `handlerChain` returns, the guards in `info.guards`.
 
@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`executeChain(host, ctx, chain, handler, onDenied)`** in `@navios/core/transport`: `runChain` with a context of the transport's own, in the async context when `host.asyncContext` is set, and `ctx.finish()` afterwards, whatever the outcome.
 - **`moduleClasses(node, entry)`** in `@navios/core/transport`: the classes a module lists under an option of a transport, once each. Something that is not a class fails with the module and the option, as an import cycle between files leaves `undefined` behind.
+- **`classMetadata(key, what, decorator)`** in `@navios/core/transport`: `define`, `get` and `has` for what a class decorator stores on a class. Only the class itself carries it, not a subclass, and `get` throws `Users is not a controller. Make sure it is decorated with @Controller.` for a class without it.
+- **`ownMetadata(metadata, key, create)` and `requireMetadata(context)`** in `@navios/core/transport`, for decorators that keep their own entries in decorator metadata: the entry of this class, created from what its parent has, and the metadata of a context that has to have one.
 - **`settledWithin(work, ms)` and `MAX_DELAY_MS`** in `@navios/core/transport`: whether a promise settles within `ms`, for a transport's `stop(timeoutMs)`. A longer time than a timer takes is cut to `MAX_DELAY_MS`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
