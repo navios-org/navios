@@ -39,6 +39,19 @@ describe('legacy-compat', () => {
     await container.dispose()
   })
 
+  it('refuses to decorate anything but a class', () => {
+    class Service {
+      method() {}
+    }
+    // A method decorator receives the prototype.
+    expect(() => (Injectable() as (target: any) => unknown)(Service.prototype)).toThrow(
+      '@Injectable decorator can only be used on classes.',
+    )
+    expect(() => (Factory() as (target: any) => unknown)(Service.prototype)).toThrow(
+      '@Factory decorator can only be used on classes.',
+    )
+  })
+
   describe('metadata', () => {
     it('is one object for a class and its members', () => {
       class Base {
