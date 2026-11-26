@@ -1,14 +1,14 @@
-import type { BaseEndpointOptions } from '@navios/builder'
+import type { BaseEndpointOptions, ClientRequestArgs } from '@navios/builder'
 
-import type { EndpointArgs, RequiredKeys } from './types.mjs'
+import type { RequiredKeys } from './types.mjs'
 
 /** The parts of the call arguments that can identify a cache entry. */
 export type InputPart = 'urlParams' | 'params' | 'data'
 
 export const INPUT_PARTS = ['urlParams', 'params', 'data'] as const satisfies readonly InputPart[]
 
-type PartValue<Options extends BaseEndpointOptions, P> = P extends keyof EndpointArgs<Options>
-  ? NonNullable<EndpointArgs<Options>[P]>
+type PartValue<Options extends BaseEndpointOptions, P> = P extends keyof ClientRequestArgs<Options>
+  ? NonNullable<ClientRequestArgs<Options>[P]>
   : never
 
 /** Field names a field list can name: only a plain-object part has them. */
@@ -39,7 +39,7 @@ type FieldsOf<V> = V extends readonly unknown[]
 export type KeyBy<Options extends BaseEndpointOptions> =
   | false
   | {
-      [P in InputPart & keyof EndpointArgs<Options>]?:
+      [P in InputPart & keyof ClientRequestArgs<Options>]?:
         | boolean
         | readonly FieldsOf<PartValue<Options, P>>[]
     }
@@ -99,14 +99,14 @@ type LeftOutParts<Args, K> = {
  * `fetch`, `prefetch`, `ensure`): the shared inputs are optional.
  */
 export type SendArgs<Options extends BaseEndpointOptions, K> = [K] extends [undefined]
-  ? EndpointArgs<Options>
+  ? ClientRequestArgs<Options>
   : OptionalIf<
       {
-        [P in keyof EndpointArgs<Options>]: P extends InputPart
-          ? SendPart<NonNullable<EndpointArgs<Options>[P]>, ModeOf<K, P>>
-          : EndpointArgs<Options>[P]
+        [P in keyof ClientRequestArgs<Options>]: P extends InputPart
+          ? SendPart<NonNullable<ClientRequestArgs<Options>[P]>, ModeOf<K, P>>
+          : ClientRequestArgs<Options>[P]
       },
-      OmittableParts<EndpointArgs<Options>, K>
+      OmittableParts<ClientRequestArgs<Options>, K>
     >
 
 /**
@@ -114,18 +114,21 @@ export type SendArgs<Options extends BaseEndpointOptions, K> = [K] extends [unde
  * `getData`, `setData`): only the inputs that identify it.
  */
 export type KeyedArgs<Options extends BaseEndpointOptions, K> = [K] extends [undefined]
-  ? EndpointArgs<Options>
+  ? ClientRequestArgs<Options>
   : OptionalIf<
       {
         [
-          P in keyof EndpointArgs<Options> as P extends LeftOutParts<EndpointArgs<Options>, K>
+          P in keyof ClientRequestArgs<Options> as P extends LeftOutParts<
+            ClientRequestArgs<Options>,
+            K
+          >
             ? never
             : P
         ]: P extends InputPart
-          ? KeyedPart<NonNullable<EndpointArgs<Options>[P]>, ModeOf<K, P>>
-          : EndpointArgs<Options>[P]
+          ? KeyedPart<NonNullable<ClientRequestArgs<Options>[P]>, ModeOf<K, P>>
+          : ClientRequestArgs<Options>[P]
       },
-      OmittableParts<EndpointArgs<Options>, K>
+      OmittableParts<ClientRequestArgs<Options>, K>
     >
 
 // ---------------------------------------------------------------------------

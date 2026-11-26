@@ -1,4 +1,10 @@
-import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
+import type {
+  BaseEndpointOptions,
+  ClientRequestArgs,
+  EndpointHandler,
+  InferEndpointError,
+  InferEndpointReturn,
+} from '@navios/builder'
 import type {
   MutationFunctionContext,
   UseMutationOptions,
@@ -6,13 +12,7 @@ import type {
 } from '@tanstack/react-query'
 
 import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
-import type {
-  EndpointArgs,
-  EndpointData,
-  EndpointFailure,
-  EndpointInputs,
-  RequiredKeys,
-} from '../endpoint/types.mjs'
+import type { EndpointInputs, RequiredKeys } from '../endpoint/types.mjs'
 import type { AnyQueryObject } from '../query/types.mjs'
 
 import type { OptimisticUpdate, OptimisticUpdater } from './optimistic-update.mjs'
@@ -21,10 +21,10 @@ import type { OptimisticUpdate, OptimisticUpdater } from './optimistic-update.mj
  * Variables passed to `mutate`. Optional when the endpoint requires nothing.
  */
 export type MutationVariables<Options extends BaseEndpointOptions> = [
-  RequiredKeys<EndpointArgs<Options>>,
+  RequiredKeys<ClientRequestArgs<Options>>,
 ] extends [never]
-  ? EndpointArgs<Options> | void
-  : EndpointArgs<Options>
+  ? ClientRequestArgs<Options> | void
+  : ClientRequestArgs<Options>
 
 /**
  * Context handed to every mutation callback: TanStack's own context
@@ -52,8 +52,8 @@ export type MutationSettings<
   Options extends BaseEndpointOptions,
   TOnMutateResult = unknown,
   TContext = unknown,
-  TData = EndpointData<Options>,
-  TError = EndpointFailure<Options>,
+  TData = InferEndpointReturn<Options>,
+  TError = InferEndpointError<Options>,
   TVariables = MutationVariables<Options>,
   WithResponse extends boolean = boolean,
 > = Omit<
@@ -119,8 +119,8 @@ export type MutationSettings<
 export type MutationObject<
   Options extends BaseEndpointOptions,
   TOnMutateResult = unknown,
-  TData = EndpointData<Options>,
-  TError = EndpointFailure<Options>,
+  TData = InferEndpointReturn<Options>,
+  TError = InferEndpointError<Options>,
   TVariables = MutationVariables<Options>,
 > = (() => UseMutationResult<TData, TError, TVariables, TOnMutateResult>) & {
   /** Key shared by every mutation of this endpoint: `[...prefix, method, url]`. */

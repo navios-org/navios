@@ -1,4 +1,4 @@
-import type { BaseEndpointOptions } from '@navios/builder'
+import type { BaseEndpointOptions, InferEndpointError, InferEndpointReturn } from '@navios/builder'
 import type {
   QueryClient,
   UnusedSkipTokenOptions,
@@ -10,7 +10,7 @@ import type {
 
 import type { AnyKeyBy, KeyedArgs, SendArgs } from '../endpoint/key-by.mjs'
 import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
-import type { ArgsOf, EndpointData, EndpointFailure } from '../endpoint/types.mjs'
+import type { ArgsOf } from '../endpoint/types.mjs'
 
 import type { CacheHelpers } from './cache-helpers.mjs'
 import type { HookArgsOf, TaggedKey } from './types.mjs'
@@ -118,8 +118,8 @@ export type QueryOptionsResult<TData, TError> = UnusedSkipTokenOptions<
  */
 export interface QueryObject<
   Options extends BaseEndpointOptions,
-  TData = EndpointData<Options>,
-  TError = EndpointFailure<Options>,
+  TData = InferEndpointReturn<Options>,
+  TError = InferEndpointError<Options>,
   TKeyBy = undefined,
 > extends CacheHelpers<Options, TData, TError, TKeyBy> {
   /**

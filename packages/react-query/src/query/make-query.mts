@@ -6,7 +6,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 
-import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
+import type { BaseEndpointOptions, EndpointHandler, InferEndpointError } from '@navios/builder'
 import type { QueryClient, QueryFunctionContext } from '@tanstack/react-query'
 
 import { createKeyBuilder } from '../endpoint/cache-key.mjs'
@@ -14,9 +14,8 @@ import { createCaller } from '../endpoint/create-caller.mjs'
 import { callOptionsFor } from '../endpoint/http-client.mjs'
 import { sharedInputsOf, withSharedInputs } from '../endpoint/key-by.mjs'
 
-import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { SurfaceData } from '../endpoint/create-caller.mjs'
 import type { AnyKeyBy, KeyBy, SharedInputs } from '../endpoint/key-by.mjs'
-import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 
 import { attachCacheHelpers, prefetchFrom, skippedOptions } from './cache-helpers.mjs'
 import {
@@ -55,17 +54,12 @@ export function makeQuery<
 >(
   endpoint: EndpointHandler<Options>,
   options: QuerySettings<
-    MaybeWithResponse<EndpointData<Options>, WithResponse>,
-    EndpointFailure<Options>,
+    SurfaceData<Options, WithResponse>,
+    InferEndpointError<Options>,
     WithResponse,
     TKeyBy
   > = {},
-): QueryObject<
-  Options,
-  MaybeWithResponse<EndpointData<Options>, WithResponse>,
-  EndpointFailure<Options>,
-  TKeyBy
-> {
+): QueryObject<Options, SurfaceData<Options, WithResponse>, InferEndpointError<Options>, TKeyBy> {
   const { keyPrefix, keySuffix, withResponse, keyBy, ...declared } = options
   // The declaration's TanStack options, under whatever a call site passes
   const defaults = declared as LooseOptions

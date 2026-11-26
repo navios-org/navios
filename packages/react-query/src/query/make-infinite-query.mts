@@ -12,8 +12,7 @@ import { createKeyBuilder } from '../endpoint/cache-key.mjs'
 import { createCaller } from '../endpoint/create-caller.mjs'
 import { callOptionsFor } from '../endpoint/http-client.mjs'
 
-import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
-import type { EndpointData } from '../endpoint/types.mjs'
+import type { SurfaceData } from '../endpoint/create-caller.mjs'
 
 import { attachCacheHelpers, prefetchFrom, skippedOptions } from './cache-helpers.mjs'
 
@@ -51,12 +50,8 @@ export function makeInfiniteQuery<
   const WithResponse extends boolean = false,
 >(
   endpoint: EndpointHandler<Options>,
-  settings: InfiniteQuerySettings<
-    Options,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>,
-    WithResponse
-  >,
-): InfiniteQueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>> {
+  settings: InfiniteQuerySettings<Options, SurfaceData<Options, WithResponse>, WithResponse>,
+): InfiniteQueryObject<Options, SurfaceData<Options, WithResponse>> {
   const {
     getNextPageParam,
     getPreviousPageParam,

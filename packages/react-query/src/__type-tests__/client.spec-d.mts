@@ -14,6 +14,8 @@ import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 
 import { declareClient } from '../index.mjs'
 
+import type { SurfaceData } from '../index.mjs'
+
 declare const queryClient: QueryClient
 
 const api = builder()
@@ -233,6 +235,12 @@ describe('withResponse', () => {
     expectTypeOf(feed.useSuspense({ params: { page: 1 } }).data.pages).toEqualTypeOf<
       { data: User[]; response: Meta }[]
     >()
+  })
+
+  test('SurfaceData is the data of an endpoint, wrapped with withResponse', () => {
+    type Options = (typeof getUserEndpoint)['config']
+    expectTypeOf<SurfaceData<Options, false>>().toEqualTypeOf<User>()
+    expectTypeOf<SurfaceData<Options, true>>().toEqualTypeOf<{ data: User; response: Meta }>()
   })
 })
 

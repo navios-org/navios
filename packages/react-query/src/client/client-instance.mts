@@ -2,14 +2,14 @@ import type {
   BaseEndpointOptions,
   EndpointHandler,
   ErrorSchemaRecord,
+  InferEndpointError,
   NoUnknownOptions,
   RequireResponseSchema,
   WithBuilderErrors,
 } from '@navios/builder'
 
-import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { SurfaceData } from '../endpoint/create-caller.mjs'
 import type { KeyBy } from '../endpoint/key-by.mjs'
-import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 import type {
   MutationObject,
   MutationSettings,
@@ -44,8 +44,8 @@ type MutationSettingsFor<
   Options,
   TOnMutateResult,
   TContext,
-  MaybeWithResponse<EndpointData<Options>, WithResponse>,
-  EndpointFailure<Options>,
+  SurfaceData<Options, WithResponse>,
+  InferEndpointError<Options>,
   MutationVariables<Options>,
   WithResponse
 >
@@ -55,8 +55,8 @@ type QuerySettingsFor<
   WithResponse extends boolean,
   TKeyBy,
 > = QuerySettings<
-  MaybeWithResponse<EndpointData<Options>, WithResponse>,
-  EndpointFailure<Options>,
+  SurfaceData<Options, WithResponse>,
+  InferEndpointError<Options>,
   WithResponse,
   TKeyBy
 >
@@ -98,8 +98,8 @@ export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
     >,
   ): QueryObject<
     WithBuilderErrors<Options, Errors>,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>,
-    EndpointFailure<WithBuilderErrors<Options, Errors>>,
+    SurfaceData<Options, WithResponse>,
+    InferEndpointError<WithBuilderErrors<Options, Errors>>,
     TKeyBy
   >
   query<
@@ -109,12 +109,7 @@ export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
   >(
     endpoint: EndpointHandler<Options>,
     options?: QuerySettingsFor<Options, WithResponse, TKeyBy>,
-  ): QueryObject<
-    Options,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>,
-    EndpointFailure<Options>,
-    TKeyBy
-  >
+  ): QueryObject<Options, SurfaceData<Options, WithResponse>, InferEndpointError<Options>, TKeyBy>
 
   /**
    * Creates an infinite query. The endpoint must have a `querySchema`; each
@@ -136,26 +131,22 @@ export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
       Options,
       InfiniteQuerySettings<
         Options,
-        MaybeWithResponse<EndpointData<Options>, WithResponse>,
+        SurfaceData<Options, WithResponse>,
         WithResponse,
-        EndpointFailure<WithBuilderErrors<Options, Errors>>
+        InferEndpointError<WithBuilderErrors<Options, Errors>>
       >
     >,
   ): InfiniteQueryObject<
     WithBuilderErrors<Options, Errors> & InfiniteEndpointOptions,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>
+    SurfaceData<Options, WithResponse>
   >
   infiniteQuery<
     const Options extends InfiniteEndpointOptions,
     const WithResponse extends boolean = false,
   >(
     endpoint: EndpointHandler<Options>,
-    options: InfiniteQuerySettings<
-      Options,
-      MaybeWithResponse<EndpointData<Options>, WithResponse>,
-      WithResponse
-    >,
-  ): InfiniteQueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>>
+    options: InfiniteQuerySettings<Options, SurfaceData<Options, WithResponse>, WithResponse>,
+  ): InfiniteQueryObject<Options, SurfaceData<Options, WithResponse>>
 
   /**
    * Creates a mutation for any endpoint, including `body: 'multipart'`
@@ -188,7 +179,7 @@ export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
   ): MutationObject<
     WithBuilderErrors<Options, Errors>,
     TOnMutateResult,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>
+    SurfaceData<Options, WithResponse>
   >
   mutation<
     const Options extends BaseEndpointOptions,
@@ -198,9 +189,5 @@ export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
   >(
     endpoint: EndpointHandler<Options>,
     options?: MutationSettingsFor<Options, TOnMutateResult, TContext, WithResponse>,
-  ): MutationObject<
-    Options,
-    TOnMutateResult,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>
-  >
+  ): MutationObject<Options, TOnMutateResult, SurfaceData<Options, WithResponse>>
 }

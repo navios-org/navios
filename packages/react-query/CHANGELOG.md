@@ -8,11 +8,17 @@
 - **TanStack options on a query declaration**: `client.query`, `client.infiniteQuery`, `makeQuery` and `makeInfiniteQuery` accept `useQuery` / `useInfiniteQuery` options (`staleTime`, `gcTime`, `refetchOnWindowFocus`, `retry`, `placeholderData`, `meta`, ...) next to the key options. Every use of the query gets them, under the options of a call site; `fetch`, `prefetch` and `ensure` use those that apply outside a component. `select`, `initialData` and `initialDataUpdatedAt` stay at the call site. New types: `QueryDefaults`, `QuerySettings`, `InfiniteQueryDefaults`.
 - **Shared error schemas of the builder**: `declareClient({ api })` takes the type of `builder({ errorSchema })`, so inline declarations have the same typed errors as endpoints declared on the builder. `ClientOptions` and `ClientInstance` take it as a type parameter, `{}` by default.
 - **Mocking through `@navios/builder/mock`**: query, infinite query and mutation objects can be passed to `mocks.on(...)` as they are.
+- **`SurfaceData<Options, WithResponse>`**: the data a query, an infinite query page or a mutation of an endpoint delivers, `MaybeWithResponse<InferEndpointReturn<Options>, WithResponse>`.
 
 ### Changed
 
 - **Client `defaults` compose with each declaration's key segments**: a query's or mutation's own `keyPrefix` / `keySuffix` are added after the client's `defaults` instead of replacing them, so `[...defaults.keyPrefix, ...keyPrefix, method, url, ...defaults.keySuffix, ...keySuffix]`.
 - **Cache key shape** is now `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]`. The `{ keyBy }` segment is there only when a declaration's `keyBy` leaves inputs out.
+
+### Removed
+
+- **Breaking: the types `EndpointArgs`, `EndpointData` and `EndpointFailure`** — use `ClientRequestArgs`, `InferEndpointReturn` and `InferEndpointError` from `@navios/builder`, which they were aliases of.
+- **Breaking: the type `ArgsWith<Options, Rest>`** — use `ArgsOf<ClientRequestArgs<Options>, Rest>`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 
