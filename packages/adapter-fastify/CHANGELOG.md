@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Breaking
+
+- **`FastifyAdapter` is exported as a type only.** It narrows `http.adapter` in a plugin (`as FastifyAdapter`); `defineFastifyEnvironment()` creates one.
+
 ### Changed
 
 - The definition that `defineFastifyEnvironment()` returns has no `name`, which `@navios/server` no longer reads.

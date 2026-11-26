@@ -1,4 +1,4 @@
-export { BunAdapter } from './bun-adapter.mjs'
+export type { BunAdapter } from './bun-adapter.mjs'
 export { defineBunEnvironment } from './environment.mjs'
 
 export type { BunCorsOptions, CorsOrigin, OriginFunction } from './cors.mjs'
