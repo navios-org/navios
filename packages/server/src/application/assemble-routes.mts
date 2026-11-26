@@ -79,7 +79,13 @@ export async function assembleRoutes(
         }
         taken.set(key, where)
 
-        const info: RouteInfo = { method, path, endpoint: draft.config, ...chain.info }
+        const info: RouteInfo = {
+          method,
+          path,
+          params: compiledPath.params,
+          endpoint: draft.config,
+          ...chain.info,
+        }
         const resolved = await resolveChain<RequestContext, RouteResult>(container, chain)
         const definition: RouteDefinition = {
           info,

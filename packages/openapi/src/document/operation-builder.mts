@@ -5,8 +5,6 @@ import { describeMultipartFields } from '../json-schema/index.mjs'
 import type { OpenApiEndpointMetadata } from '../annotations/index.mjs'
 import type { JsonSchema, SchemaConverter } from '../json-schema/index.mjs'
 
-import { extractUrlParamNames } from './openapi-path.mjs'
-
 import type {
   OpenApiMediaType,
   OpenApiOperation,
@@ -95,13 +93,13 @@ export class OperationBuilder {
   }
 
   private parameters(): OpenApiParameter[] {
-    const { endpoint, path } = this.route
+    const { endpoint, params } = this.route
     const parameters: OpenApiParameter[] = []
 
     const urlParams = endpoint.urlParamsSchema
       ? properties(this.input(endpoint.urlParamsSchema))
       : {}
-    for (const name of extractUrlParamNames(path)) {
+    for (const name of params) {
       const schema = urlParams[name] ?? { type: 'string' }
       parameters.push({
         name,

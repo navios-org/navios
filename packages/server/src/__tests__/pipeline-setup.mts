@@ -113,9 +113,11 @@ export function setup(
     ...extra.responders,
   })
   const endpoint: RouteEndpointConfig = { method: 'GET', url: '/test', ...config }
+  const path = compileRoutePath(extra.path ?? endpoint.url)
   const info: RouteInfo = {
     method: endpoint.method,
     path: extra.path ?? endpoint.url,
+    params: path.params,
     endpoint,
     module: class TestModule {},
     controller: class TestController {},
@@ -127,7 +129,7 @@ export function setup(
   const compiled = compileRoute(
     {
       info,
-      path: compileRoutePath(info.path),
+      path,
       invoke,
       guards: extra.guards ?? [],
       outer: extra.outer ?? [],

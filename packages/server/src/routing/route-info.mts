@@ -11,6 +11,8 @@ export interface RouteInfo extends HandlerInfo {
   readonly method: string
   /** Full path with every prefix applied, in builder form (`/users/$id`). */
   readonly path: string
+  /** The names of the url params of `path`, prefixes included, in order. */
+  readonly params: readonly string[]
   /** The builder declaration's `config`. */
   readonly endpoint: RouteEndpointConfig
 }
