@@ -129,10 +129,10 @@ describe('otel plugin on the Bun adapter', () => {
     const request = exporter.spans.find((span) => span.kind === SpanKind.SERVER)!
     expect(request.name).toBe('HTTP GET /users/$id')
     expect(request.attributes).toMatchObject({
-      'http.method': 'GET',
+      'http.request.method': 'GET',
       'http.route': '/users/$id',
-      'http.url': '/users/42',
-      'http.status_code': 200,
+      'url.path': '/users/42',
+      'http.response.status_code': 200,
       'user.id': '42',
     })
     expect(request.status.code).toBe(SpanStatusCode.OK)
@@ -160,10 +160,10 @@ describe('otel plugin on the Bun adapter', () => {
 
     const [crash, missing] = exporter.spans
     expect(crash.name).toBe('HTTP GET /fail/$kind')
-    expect(crash.attributes['http.status_code']).toBe(500)
+    expect(crash.attributes['http.response.status_code']).toBe(500)
     expect(crash.status).toEqual({ code: SpanStatusCode.ERROR, message: 'unexpected failure' })
     expect(crash.events[0].name).toBe('exception')
-    expect(missing.attributes['http.status_code']).toBe(404)
+    expect(missing.attributes['http.response.status_code']).toBe(404)
     expect(missing.status).toEqual({ code: SpanStatusCode.ERROR, message: 'Nothing here' })
     expect(missing.events[0].attributes?.['exception.type']).toBe('NotFoundException')
   })

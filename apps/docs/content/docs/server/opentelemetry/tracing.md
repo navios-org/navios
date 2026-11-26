@@ -71,7 +71,7 @@ A method-level `@Traced` needs `@Traceable` or `@Traced` on the class; without o
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Name       | The method's own `name`, otherwise `<class name option or class name>.<method>`.                                          |
 | Kind       | `INTERNAL`                                                                                                                |
-| Attributes | `code.function`, `code.namespace` and the attributes from the decorators.                                                 |
+| Attributes | `code.function.name` (`<Class>.<method>`) and the attributes from the decorators.                                        |
 | Parent     | The active span. Called from a handler, that is the request span; called from another traced method, that method's span.  |
 | Errors     | An error thrown by the method, or a rejection of the promise it returns, is recorded on the span and rethrown.            |
 

@@ -128,13 +128,22 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(span.name).toBe('HTTP GET /users/$id')
     expect(span.kind).toBe(SpanKind.SERVER)
     expect(span.attributes).toMatchObject({
-      'http.method': 'GET',
+      'http.request.method': 'GET',
       'http.route': '/users/$id',
-      'http.url': '/users/42',
-      'http.status_code': 200,
-      'http.user_agent': 'Test-Agent/1.0',
+      'url.path': '/users/42',
+      'http.response.status_code': 200,
+      'user_agent.original': 'Test-Agent/1.0',
     })
     expect(span.attributes['http.request_id']).toEqual(expect.any(String))
+    // Each once, under its stable semantic-convention name.
+    expect(Object.keys(span.attributes).sort()).toEqual([
+      'http.request.method',
+      'http.request_id',
+      'http.response.status_code',
+      'http.route',
+      'url.path',
+      'user_agent.original',
+    ])
     expect(span.status.code).toBe(SpanStatusCode.OK)
     expect(span.ended).toBe(true)
     expect(span.resource.attributes['service.name']).toBe('otel-test')
@@ -142,7 +151,7 @@ describe('otelPlugin: HTTP request spans', () => {
     const created = await app.inject({ method: 'POST', url: '/users', body: { name: 'Grace' } })
     expect(created.status).toBe(201)
     const post = spans().find((candidate) => candidate.name === 'HTTP POST /users')
-    expect(post?.attributes['http.status_code']).toBe(201)
+    expect(post?.attributes['http.response.status_code']).toBe(201)
     expect(post?.status.code).toBe(SpanStatusCode.OK)
   })
 
@@ -166,7 +175,7 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(server).toHaveLength(3)
     expect(new Set(server.map((span) => span.spanContext().spanId)).size).toBe(3)
     expect(new Set(server.map((span) => span.spanContext().traceId)).size).toBe(3)
-    expect(server.map((span) => span.attributes['http.url']).sort()).toEqual([
+    expect(server.map((span) => span.attributes['url.path']).sort()).toEqual([
       '/users/1',
       '/users/2',
       '/users/3',
@@ -189,7 +198,7 @@ describe('otelPlugin: HTTP request spans', () => {
 
     const [span] = spans()
     expect(span.name).toBe('HTTP GET /boom')
-    expect(span.attributes['http.status_code']).toBe(500)
+    expect(span.attributes['http.response.status_code']).toBe(500)
     expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'database is down' })
     expect(span.events).toHaveLength(1)
     expect(span.events[0].name).toBe('exception')
@@ -212,7 +221,7 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(response.status).toBe(404)
 
     const [span] = spans()
-    expect(span.attributes['http.status_code']).toBe(404)
+    expect(span.attributes['http.response.status_code']).toBe(404)
     expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'No such user' })
     expect(span.events[0].name).toBe('exception')
     expect(span.events[0].attributes?.['exception.type']).toBe('NotFoundException')
@@ -241,9 +250,9 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(denied.status).toBe(403)
 
     const [validation, guard] = spans()
-    expect(validation.attributes['http.status_code']).toBe(400)
+    expect(validation.attributes['http.response.status_code']).toBe(400)
     expect(validation.status.code).toBe(SpanStatusCode.ERROR)
-    expect(guard.attributes['http.status_code']).toBe(403)
+    expect(guard.attributes['http.response.status_code']).toBe(403)
     expect(guard.status.code).toBe(SpanStatusCode.ERROR)
   })
 
@@ -279,7 +288,6 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(response.status).toBe(409)
 
     const [span] = exporter.getFinishedSpans()
-    expect(span.attributes['http.status_code']).toBe(409)
     expect(span.attributes['http.response.status_code']).toBe(409)
     expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'name is taken' })
     expect(span.events[0].name).toBe('exception')
@@ -311,7 +319,7 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(spans()).toHaveLength(1)
     expect(spans()[0].name).toBe('HTTP GET /feed')
     expect(spans()[0].ended).toBe(true)
-    expect(spans()[0].attributes['http.status_code']).toBe(200)
+    expect(spans()[0].attributes['http.response.status_code']).toBe(200)
   })
 
   it('continues the trace of an incoming traceparent header', async () => {
@@ -459,8 +467,7 @@ describe('otelPlugin: @Traced services', () => {
     expect(child.spanContext().traceId).toBe(request.spanContext().traceId)
     expect(child.attributes).toMatchObject({
       layer: 'service',
-      'code.function': 'findName',
-      'code.namespace': 'user-service',
+      'code.function.name': 'UserService.findName',
     })
     expect(child.status.code).toBe(SpanStatusCode.OK)
 
@@ -551,7 +558,10 @@ describe('otelPlugin: @Traced services', () => {
     expect(orders.validate()).toBe(true)
 
     expect(spans().map((span) => span.name)).toEqual(['process-order', 'orders.validate'])
-    expect(spans()[0].attributes).toMatchObject({ critical: true, 'code.function': 'process' })
+    expect(spans()[0].attributes).toMatchObject({
+      critical: true,
+      'code.function.name': 'OrderService.process',
+    })
     expect(spans()[0].parentSpanContext).toBeUndefined()
   })
 
@@ -684,12 +694,20 @@ describe('otelPlugin: providers and shutdown', () => {
     @Module({})
     class AppModule {}
 
-    const { app, spans } = await createApp(AppModule, { serviceVersion: '1.2.3' })
+    const { app, spans } = await createApp(AppModule, {
+      serviceVersion: '1.2.3',
+      environment: 'staging',
+    })
     const reporter = await app.container.get(Reporter)
 
     reporter.tracer.startSpan('manual').end()
     expect(spans().map((span) => span.name)).toEqual(['manual'])
     expect(spans()[0].instrumentationScope).toMatchObject({ name: 'otel-test', version: '1.2.3' })
+    expect(spans()[0].resource.attributes).toMatchObject({
+      'service.name': 'otel-test',
+      'service.version': '1.2.3',
+      'deployment.environment.name': 'staging',
+    })
     expect(typeof reporter.meter.createCounter).toBe('function')
     expect(reporter.config).toMatchObject({
       serviceName: 'otel-test',

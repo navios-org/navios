@@ -60,7 +60,7 @@ await app.listen({ port: 3000 })
 | ------------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
 | `serviceName`             | `string`                        | required | Service name on every span.                                                               |
 | `serviceVersion`          | `string`                        |          | Service version.                                                                          |
-| `environment`             | `string`                        |          | Sets the `deployment.environment` resource attribute.                                     |
+| `environment`             | `string`                        |          | Sets the `deployment.environment.name` resource attribute.                                |
 | `exporter`                | `'otlp' \| 'console' \| 'none'` | required | Where spans go. See [Exporters](#exporters).                                              |
 | `exporterOptions`         | `{ endpoint?, headers? }`       |          | OTLP endpoint and headers.                                                                |
 | `spanProcessors`          | `SpanProcessor[]`               | `[]`     | Extra span processors, for an exporter of your own or for tests.                          |
@@ -103,7 +103,7 @@ The plugin registers one [interceptor](/docs/server/essentials/guards-and-interc
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Name       | `HTTP <METHOD> <route path>`, with the route pattern, not the actual URL: `HTTP GET /users/$userId`.                                                                                                               |
 | Kind       | `SERVER`                                                                                                                                                                                                           |
-| Attributes | `http.method`, `http.route`, `http.url` (the request path, without the query string), `http.request_id`, `http.user_agent` when the header is present, and the status as `http.status_code` and `http.response.status_code`. |
+| Attributes | `http.request.method`, `http.route`, `url.path` (the request path, without the query string), `http.request_id`, `user_agent.original` when the header is present, and the status as `http.response.status_code`. |
 | Parent     | Taken from the incoming `traceparent` header when there is one, so the span continues the caller's trace.                                                                                                          |
 | End        | When the response has finished: after the body was sent, a stream ended, or the client went away. The span of a streamed response covers the whole stream.                                                         |
 | Status     | `OK` below 400 and `ERROR` from 400 up, from the final status of the response, including one produced by an `app.mapError()` mapper.                                                                               |

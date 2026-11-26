@@ -6,4 +6,4 @@ export {
   RequestSpan,
 } from './context.mjs'
 export type { HeaderCarrier } from './context.mjs'
-export { recordSpanError } from './record-span-error.mjs'
+export { recordSpanError } from './span.mjs'

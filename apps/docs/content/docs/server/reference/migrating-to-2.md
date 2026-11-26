@@ -213,7 +213,9 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | `autoInstrument.handlers` / `guards`, `propagateContext`, `metrics.requestDuration` / `errorCount` | removed. One server span covers guards, validation and the handler.                        |
 | `OtelHttpInterceptor`, `compileIgnoreRoutes` from `@navios/otel`                                   | from `@navios/otel/http`. The main entry no longer needs `@navios/server`.                 |
 | a span for a request that matched no route (Fastify), `guard:<name>` child spans (Bun)             | removed                                                                                    |
-| the `http.url` span attribute                                                                      | holds the request path, without the query string                                           |
+| the span attributes `http.method`, `http.url`, `http.user_agent`, `http.status_code`              | `http.request.method`, `url.path` (the path, without the query string), `user_agent.original`, `http.response.status_code` |
+| the span attributes `code.function`, `code.namespace` of a traced method                           | `code.function.name`, `<Class>.<method>`                                                   |
+| the resource attribute `deployment.environment`                                                    | `deployment.environment.name`                                                              |
 | `getSpanContextStore()`                                                                            | removed; the active span lives in the OpenTelemetry context                                |
 | `createTracedWrapperFactory()`                                                                     | removed; use `traceInstance()`                                                             |
 | `TRACED_METADATA_KEY`                                                                              | `TracedMetadataKey`                                                                        |
