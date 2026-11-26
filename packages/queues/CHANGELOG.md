@@ -26,3 +26,4 @@ Ported to `@navios/di` 2.0.
 
 - Importing the package threw `Invalid discriminated union option at index "0"`: `abstractMessageDefinitionSchema` was a `z.discriminatedUnion('pattern', ...)` over objects whose discriminator is nested under `config`. It is now a plain union.
 - `QueuePublisherToken`, `QueueSenderToken` and `QueueRequesterToken` validated `messageDef` against the message _config_ schema, so every declaration returned by `messageBuilder()` was rejected. They now validate against the message _definition_ schemas.
+- `kafkaConfigSchema` rejected a retry `factor` of `0.2`, its own default (`min(1)`). `factor` is the kafkajs randomisation factor and now accepts 0 to 1.
