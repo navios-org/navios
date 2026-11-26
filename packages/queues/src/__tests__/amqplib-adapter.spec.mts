@@ -228,6 +228,18 @@ describe('RabbitMQClient with amqplib 2.x channel API', () => {
     await client.disconnect()
   })
 
+  it('rejects a request whose publish fails', async () => {
+    const { wrapper } = installConnectionManager()
+    const client = new RabbitMQClient(config)
+    await client.connect()
+    const failure = new Error('channel closed')
+    wrapper.publish.mockRejectedValueOnce(failure)
+
+    await expect(client.request('users', { id: 1 })).rejects.toBe(failure)
+
+    await client.disconnect()
+  })
+
   it('rejects the waiting requests on disconnect', async () => {
     const { wrapper } = installConnectionManager()
     const client = new RabbitMQClient(config)

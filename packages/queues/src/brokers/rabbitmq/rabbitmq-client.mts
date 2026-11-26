@@ -260,12 +260,14 @@ export class RabbitMQClient implements QueueClient {
 
     const reply = this.pendingRequests.create(correlationId, `topic: ${topic}`)
 
-    this.channel.publish(exchangeName, `${topic}.request`, message, {
-      persistent: true,
-      contentType: 'application/json',
-      correlationId,
-      replyTo: this.replyQueue!,
-    })
+    this.channel
+      .publish(exchangeName, `${topic}.request`, message, {
+        persistent: true,
+        contentType: 'application/json',
+        correlationId,
+        replyTo: this.replyQueue!,
+      })
+      .catch((error: unknown) => this.pendingRequests.fail(correlationId, error))
 
     return reply
   }
