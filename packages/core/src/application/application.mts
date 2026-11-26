@@ -89,7 +89,6 @@ function className(instance: unknown): string {
 interface TransportSlot {
   readonly instance: TransportInstance
   transport: Transport | null
-  started: boolean
   stopped: boolean
 }
 
@@ -127,7 +126,6 @@ export class Application {
   private initialised = false
   private initialisation: Promise<void> | null = null
   private startup: Promise<void> | null = null
-  private closed = false
   private closing: Promise<void> | null = null
   private tearingDown: Promise<void> | null = null
   private signal: string | undefined
@@ -164,7 +162,7 @@ export class Application {
       if (this.slots.some((slot) => slot.instance.instanceName === instance.instanceName)) {
         throw new Error(`[Navios] Two transports are named "${instance.instanceName}".`)
       }
-      this.slots.push({ instance, transport: null, started: false, stopped: false })
+      this.slots.push({ instance, transport: null, stopped: false })
     }
     backing.add(this.container)
     setErrorReporter(this.container, (error, description) => this.report(description, error))
@@ -284,6 +282,11 @@ export class Application {
     }
     this.initialisation ??= this.initialise()
     return this.initialisation.then(() => this)
+  }
+
+  /** Whether `close()` was called, or a failed start-up took the application down. */
+  private get closed(): boolean {
+    return this.closing !== null || this.tearingDown !== null
   }
 
   private assertOpen(): void {
@@ -607,11 +610,9 @@ export class Application {
 
   private async startTransports(): Promise<void> {
     try {
+      // Runs once: `startup` is never retried.
       for (const slot of this.slots) {
-        if (!slot.started) {
-          slot.started = true
-          await this.startTransport(slot)
-        }
+        await this.startTransport(slot)
       }
       this.assertNotTornDown()
     } catch (error) {
@@ -673,8 +674,8 @@ export class Application {
     }
     if (this.closing === null) {
       this.signal ??= signal
+      // Signals are no longer listened to once it reaches the teardown, which it always does.
       this.closing = this.shutdown()
-      stopListening(this, this.closing)
     }
     if (phase !== null) {
       this.closing.catch((error: unknown) => this.report('Error closing the application', error))
@@ -693,7 +694,6 @@ export class Application {
   }
 
   private async shutdown(): Promise<void> {
-    this.closed = true
     // Whatever is still being built or started is let finish first, so that
     // nothing is created or started after it was stopped. Their failures
     // belong to whoever called init() or start().
@@ -711,7 +711,6 @@ export class Application {
   /** Takes down whatever was built so far, once. */
   private teardown(transportTimeout: number): Promise<void> {
     if (this.tearingDown === null) {
-      this.closed = true
       this.tearingDown = this.takeDown(transportTimeout)
       stopListening(this, this.tearingDown)
     }
