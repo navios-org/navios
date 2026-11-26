@@ -6,7 +6,6 @@ import { RequestContext } from '../context/request-context.mjs'
 import { problem } from '../errors/problem.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
 import { ManagedBody } from '../responses/managed-body.mjs'
-import { isEventStream } from '../responses/response-headers.mjs'
 import { compileRequestPath } from '../routing/route-path.mjs'
 
 import type { RouteExecutor } from '../adapter/compiled-route.mjs'
@@ -147,13 +146,8 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     // A stream that cannot start, for example a file that is not there, is an
     // error like any other. Not so an event stream, whose headers must not
     // wait for its first event.
-    const { body, headers } = response
-    if (
-      !(body instanceof ManagedBody) ||
-      result.kind === 'sse' ||
-      isEventStream(headers) ||
-      ctx.method === 'HEAD'
-    ) {
+    const { body } = response
+    if (!(body instanceof ManagedBody) || body.opening !== null || ctx.method === 'HEAD') {
       return response
     }
     const first = result.body instanceof PrimedGenerator ? result.body.take() : null

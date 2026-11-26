@@ -184,7 +184,7 @@ Read it with `next()`, one chunk at a time and no faster than the client takes t
 - Do not read it for a `HEAD`. Send the headers that `GET` would have, and call `release`.
 - The server closes what produces it when you call `release`. Nothing else is needed to stop it.
 - Do not hold back the headers of a body whose first chunk takes its time, if the server lets you send them. `isStarted` says that the first chunk is there. That of an event stream may not be for a long time. If the server sends headers only together with the first bytes, send `opening` first when it is not `null`: text that means nothing to the client. Not for `inject()`.
-- `isEventStream(headers)` says whether a response is one, for a server that closes connections on which nothing is sent.
+- `opening` is not `null` for an event stream, and only for one, whether it comes from `sseStream()` or from a handler that sets `content-type: text/event-stream` itself: for a server that closes connections on which nothing is sent. `isEventStream(headers)` says the same of a response's headers.
 
 ### `release`
 

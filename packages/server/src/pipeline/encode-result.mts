@@ -1,6 +1,6 @@
 import { describeValue } from '../internal/describe-value.mjs'
 import { isLazyBody, ManagedBody } from '../responses/managed-body.mjs'
-import { setHeader } from '../responses/response-headers.mjs'
+import { isEventStream, setHeader } from '../responses/response-headers.mjs'
 import { cookieKey, serializeCookie } from '../responses/serialize-cookie.mjs'
 
 import type { RouteBody, RouteResponse } from '../adapter/route-response.mjs'
@@ -75,6 +75,10 @@ export function encodeResponse(result: RouteResult, ctx: RequestContext | null):
     if (kind === 'sse') {
       headers['cache-control'] ??= 'no-cache'
       headers['x-accel-buffering'] ??= 'no'
+    }
+    // Whoever produces the events, a server must not hold back the headers.
+    if (body instanceof ManagedBody && (kind === 'sse' || isEventStream(headers))) {
+      body.sendsEvents()
     }
   } else if (isBodiless(status)) {
     delete headers['content-type']

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **An `HttpException` that a CORS origin function fails with keeps its status**, as on Fastify: a `ForbiddenException` is a 403. It was a 500, and logged as an unexpected error.
+- **An event stream that a generator declares itself**, with `ctx.reply.header('content-type', 'text/event-stream')`, gets its headers before its first event, opened with a comment as one of `sseStream()` is. Bun held them back until the first event.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

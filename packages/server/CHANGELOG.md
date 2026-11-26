@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **An error that throws when it is looked at**, such as a `Proxy` whose traps throw, is reported and answered with a 500 in every place an error is mapped, also when an error mapper fails with one, when an interceptor leaves the handler behind, and outside a route. Some of those answered without a report, or threw.
+- **A stream whose handler sets `content-type: text/event-stream` itself is an event stream like one of `sseStream()`**: `ManagedBody.opening` is the opening comment for it as well, decided where the response is encoded, so that an adapter that sends headers with the first bytes does not hold them back until the first event. The conformance suite checks it.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

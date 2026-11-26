@@ -194,6 +194,16 @@ export function defineStreamLifecycleTopic(suite: ConformanceSuite) {
       ),
     )
 
+    /** A generator that says itself that it is an event stream. */
+    idleOwnEvents = handler(
+      endpoint({ method: 'GET', url: '/idle/own-events', response: 'stream' }),
+      async function* (_params: any, ctx: RequestContext) {
+        ctx.reply.header('content-type', 'text/event-stream')
+        await waitFor(() => events.includes('idle:go'))
+        yield 'data: x\n\n'
+      },
+    )
+
     rollback = handler(
       endpoint({ method: 'GET', url: '/rollback', response: 'stream' }),
       async function* (_params: any, ctx: RequestContext) {
@@ -343,6 +353,15 @@ export function defineStreamLifecycleTopic(suite: ConformanceSuite) {
         expect(response?.status).toBe(200)
         expect(response!.headers.get('content-type')).toBe('text/event-stream')
         // A server may have to send a comment for it.
+        expect((await response!.text()).replace(/^:\n\n/, '')).toBe('data: x\n\n')
+      })
+
+      it('sends the headers of a stream that declares itself an event stream at once', async () => {
+        events.length = 0
+        const response = await Promise.race([fetch(url('/idle/own-events')), pause(500)])
+        events.push('idle:go')
+        expect(response?.status).toBe(200)
+        expect(response!.headers.get('content-type')).toBe('text/event-stream')
         expect((await response!.text()).replace(/^:\n\n/, '')).toBe('data: x\n\n')
       })
 

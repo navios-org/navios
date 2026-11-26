@@ -1,7 +1,6 @@
 import { describeValue } from '../internal/describe-value.mjs'
 import { ignore } from '../internal/promises.mjs'
 import { settledOrAborted } from '../internal/waiting.mjs'
-import { SseBody } from '../sse/sse-body.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -137,6 +136,7 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
   private failed = false
   private first: Promise<Chunk> | null = null
   private closing: Promise<void> | null = null
+  private isEvents = false
 
   /** @internal */
   constructor(
@@ -151,10 +151,19 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
    * What may be sent before the first chunk and means nothing to the client,
    * if there is such a thing: for a server that sends the headers of a
    * response together with the first bytes of its body, which an event stream
-   * may not have for a long time.
+   * may not have for a long time. Not `null` for an event stream, and only
+   * for one.
    */
   get opening(): string | null {
-    return this.body instanceof SseBody ? OPENING_COMMENT : null
+    return this.isEvents ? OPENING_COMMENT : null
+  }
+
+  /**
+   * Notes that the body is that of an event stream, as its response says.
+   * @internal
+   */
+  sendsEvents(): void {
+    this.isEvents = true
   }
 
   /**

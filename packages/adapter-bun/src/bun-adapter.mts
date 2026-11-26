@@ -2,7 +2,6 @@ import {
   bodyTooLarge,
   canonicalPath,
   encodeResult,
-  isEventStream,
   malformedPath,
   ManagedBody,
   RouteTable,
@@ -168,9 +167,9 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
    * has been sent for `idleTimeout`.
    */
   private keepOpen(response: RouteResponse, request: Request): RouteResponse {
-    const { body, headers, release } = response
+    const { body, release } = response
     const server = this.bunServer
-    if (server === null || !(body instanceof ManagedBody) || !isEventStream(headers)) {
+    if (server === null || !(body instanceof ManagedBody) || body.opening === null) {
       return response
     }
     const { idleTimeout = DEFAULT_IDLE_TIMEOUT } = (this.options.serve ?? {}) as {
