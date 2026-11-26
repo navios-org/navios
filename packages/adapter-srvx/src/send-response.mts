@@ -16,6 +16,7 @@ function streamFrom(
   opening: string | null,
   done: () => Promise<void>,
   abandon: (() => void) | undefined,
+  isCut: () => boolean,
 ): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -27,8 +28,15 @@ function streamFrom(
       try {
         const { done: ended, value } = await body.next()
         if (ended) {
-          controller.close()
           void done()
+          if (isCut()) {
+            // Closing has given up on the stream, and closed what produces
+            // it. The client must not take what it got for all of it.
+            controller.error()
+            abandon?.()
+          } else {
+            controller.close()
+          }
           return
         }
         controller.enqueue(typeof value === 'string' ? encoder.encode(value) : value)
@@ -48,7 +56,8 @@ function streamFrom(
 /**
  * The web `Response` of a route's response. `headers` are its headers, with
  * what the adapter has added. `finished` is called once, when the response
- * holds nothing any more.
+ * holds nothing any more. `isCut` says whether the server has stopped waiting
+ * for streams to end.
  */
 export function toResponse(
   response: RouteResponse,
@@ -56,6 +65,7 @@ export function toResponse(
   request: SrvxRequest,
   isTest: boolean,
   finished: () => void,
+  isCut: () => boolean,
 ): Response {
   const { status, body, release } = response
   if (!(body instanceof ManagedBody)) {
@@ -89,5 +99,5 @@ export function toResponse(
   const opening = isTest ? null : body.opening
   const native = request.runtime?.node?.res
   const abandon = native === undefined ? undefined : () => void native.destroy()
-  return new FastResponse(streamFrom(body, opening, done, abandon), { status, headers })
+  return new FastResponse(streamFrom(body, opening, done, abandon, isCut), { status, headers })
 }

@@ -12,8 +12,8 @@ export default defineProject({
     }),
   ],
   test: {
-    // What is in `e2e/bun` runs with `bun test`.
-    exclude: ['e2e/bun/**', '**/node_modules/**'],
+    // What is in `e2e/bun` runs with `bun test`, and what is in `e2e/deno` with `deno test`.
+    exclude: ['e2e/bun/**', 'e2e/deno/**', '**/node_modules/**'],
     typecheck: {
       enabled: true,
     },

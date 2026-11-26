@@ -35,6 +35,11 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version-file: .deno-version
+
       # Node 26 comes without it.
       - name: Enable Corepack
         run: npm install --global corepack@0.36.0 && corepack enable

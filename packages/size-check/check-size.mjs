@@ -36,7 +36,7 @@ const targets = [
   { name: 'server', budget: 138_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-fastify', budget: 19_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-bun', budget: 22_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
-  { name: 'adapter-srvx', budget: 16_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
+  { name: 'adapter-srvx', budget: 18_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
 ]
 
 /** Top-level ESM files: the main entry and the chunks it shares with subpaths. */

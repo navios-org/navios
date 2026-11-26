@@ -35,7 +35,7 @@
   "scripts": {
     "check": "tsc -b",
     "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
-    "test:ci": "vitest run && bun test e2e/bun",
+    "test:ci": "vitest run && bun test e2e/bun && deno test --allow-all --sloppy-imports --no-check e2e/deno",
     "build": "tsdown",
     "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
@@ -43,6 +43,8 @@
   "devDependencies": {
     "@navios/server": "workspace:^",
     "@types/bun": "^1.4.5",
+    "esbuild": "^0.28.2",
+    "miniflare": "^4.20260730.0",
     "srvx": "^1.0.8",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"

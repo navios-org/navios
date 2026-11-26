@@ -7,14 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
-The first version of the adapter.
+The first version of the adapter: for runtimes that the Fastify and the Bun adapter do not reach.
 
 ### Added
 
-- **`defineSrvxEnvironment(options)`** runs an application on [srvx](https://srvx.h3.dev). `app.listen({ port?, hostname? })` serves it on Node.js, Deno and Bun. Before `listen()`, `app.getServer()` is a server that does not listen, whose `fetch` handles a request: for a runtime that calls the application itself, such as Cloudflare Workers.
+- **`defineSrvxEnvironment(options)`** runs an application on [srvx](https://srvx.h3.dev), for Cloudflare Workers, AWS Lambda, Deno and other runtimes of the web platform.
+  - **Cloudflare Workers**: before `listen()`, `app.getServer()` is a server that does not listen, whose `fetch` handles a request. The Worker needs the `nodejs_compat` flag.
+  - **AWS Lambda**: that `fetch` goes to `handleLambdaEvent` of `srvx/aws-lambda`.
+  - **Deno**: `app.listen({ port?, hostname? })` serves with `Deno.serve`.
+  - **Node.js and Bun** are supported, for an application that also runs on one of the others. Their own adapters are the better choice there, and `listen()` logs a warning on Bun, where `@navios/adapter-bun` is faster.
 - **`serve`** takes the options of `serve()` of srvx. `silent` is on and `gracefulShutdown` off unless they are set: an application is closed with `app.close()`.
 - **`serve.maxRequestBodySize` is enforced by the adapter** on every runtime, with a 413 problem response. There is no limit when it is not set, as in srvx.
 - **`cors`**, with the options and the behaviour of the Bun adapter.
 - **`SrvxEnvironment`** for the `Register` declaration: `ctx.raw` is `{ request, server }`, the request of srvx with its `runtime`, `ip` and `waitUntil`.
-- **A warning on Bun**, logged by `listen()`: `@navios/adapter-bun` is the faster adapter there.
-- Routes are matched by the router of `@navios/server`. On Node.js a body with a declared length is read from the request of Node, and on Bun an event stream is not closed for being quiet.
+- Routes are matched by the router of `@navios/server`.
+- What a runtime does differently is evened out: the host of `ctx.url` for a request without a `Host` header on Node.js and Deno, `ctx.signal` of a client that left on Deno, a stream that closing cuts on Deno, and a quiet event stream on Bun. On Node.js a body with a declared length is read from the request of Node.

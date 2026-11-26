@@ -138,15 +138,27 @@ function readNodeBody(request: NodeServerRequest): Promise<Uint8Array> {
 /** What srvx puts in the place of a `Host` header that is not valid, on Node. */
 const INVALID_HOST = /^https?:\/\/_invalid_\//
 
+/** The path and the query of an absolute url. */
+function targetOf(url: string): string {
+  return url.slice(url.indexOf('/', url.indexOf('://') + 3))
+}
+
 /**
- * The url of a request, without a host that the request did not name: on
+ * The url of a request, without a host that the request did not name. On
  * Node, srvx fills in the address of the server for a request without a
- * `Host` header, and a placeholder for a header that is not valid.
+ * `Host` header, and a placeholder for a header that is not valid. Deno fills
+ * in `localhost` and the port of the server.
  */
 function requestUrl(request: SrvxRequest): string {
   const { url } = request
   const node = request.runtime?.node?.req
   if (node === undefined) {
+    const deno = request.runtime?.deno
+    if (deno !== undefined && !request.headers.get('host')) {
+      const port = (deno as { server?: { addr?: { port?: number } } }).server?.addr?.port
+      const filled = new RegExp(`^https?://localhost:${port}/`)
+      return filled.test(url) ? targetOf(url) : url
+    }
     return url
   }
   const target = node.url ?? ''

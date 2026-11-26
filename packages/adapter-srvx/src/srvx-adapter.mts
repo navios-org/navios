@@ -59,6 +59,8 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
   private srvxServer: SrvxServer | null = null
   private isListening = false
   private isClosing = false
+  /** Closes a server of Deno with its connections. */
+  private stop: AbortController | null = null
   /** The connections of a server of Node. */
   private readonly sockets = new Set<Socket>()
   private readonly table = new RouteTable<RouteExecutor>()
@@ -87,6 +89,9 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
 
   private create(listen: SrvxListenOptions): SrvxServer {
     const { serve: options } = this.options
+    const stop = new AbortController()
+    this.stop = stop
+    const given: AbortSignal | undefined = options?.deno?.signal
     return serve({
       silent: true,
       gracefulShutdown: false,
@@ -99,11 +104,24 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
         options?.maxRequestBodySize === undefined
           ? options?.bun
           : { maxRequestBodySize: Number.MAX_SAFE_INTEGER, ...options.bun },
+      // srvx only closes a server of Deno gracefully. The signal cuts what is left.
+      deno: {
+        ...options?.deno,
+        signal: given === undefined ? stop.signal : AbortSignal.any([given, stop.signal]),
+      },
       ...listen,
       manual: true,
       fetch: this.fetch,
     })
   }
+
+  private readonly finished = () => {
+    this.inFlight--
+  }
+
+  /** Whether `close()` has stopped waiting for the streams that are being sent. */
+  private isCut = false
+  private readonly cut = () => this.isCut
 
   /** Handles a request of the server. */
   private readonly fetch = (request: SrvxRequest): MaybePromise<Response> => {
@@ -191,9 +209,7 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
       if (test === undefined) {
         response = this.keepOpen(response, request)
       }
-      return toResponse(response, headers, request, test !== undefined, () => {
-        this.inFlight--
-      })
+      return toResponse(response, headers, request, test !== undefined, this.finished, this.cut)
     }
     const declared = request.headers.get('content-length')
     let isEmpty = declared === '0'
@@ -211,6 +227,11 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
       // counted while it is read. One of `inject()` has a declared length.
       limitBody(request, this.bodyLimit)
       isLimited = true
+    }
+    if (request.runtime?.name === 'deno') {
+      // The signal of Deno does not tell of a client that left before it was
+      // first read.
+      void request.signal
     }
     const input = new SrvxRouteInput(
       request,
@@ -351,11 +372,13 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
       // A request that has outlived the timeout learns of it when its
       // connection has been closed, and has to before the server releases
       // what it holds.
+      this.isCut = true
       const dropped = Array.from(this.sockets, (socket) => {
         const gone = new Promise<void>((resolve) => socket.once('close', () => resolve()))
         socket.destroy()
         return gone
       })
+      this.stop?.abort()
       await settledWithin(
         Promise.all([server.close(true).catch(() => {}), ...dropped]),
         FORCED_CLOSE_MS,

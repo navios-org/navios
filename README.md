@@ -87,7 +87,7 @@ The 2.0 alpha is published under the `next` tag. All `@navios` packages of a pro
 | [`@navios/core`](./packages/core)                       | Modules, plugins and lifecycle, without HTTP          | [Other transports](https://navios.tech/docs/server/guides/other-transports) |
 | [`@navios/adapter-fastify`](./packages/adapter-fastify) | Runs a server on Fastify and Node.js                  | [Fastify](https://navios.tech/docs/server/adapters/fastify)             |
 | [`@navios/adapter-bun`](./packages/adapter-bun)         | Runs a server on `Bun.serve`                          | [Bun](https://navios.tech/docs/server/adapters/bun)                     |
-| [`@navios/adapter-srvx`](./packages/adapter-srvx)       | Runs a server on srvx: Node.js, Deno, Bun, Workers    | [srvx](https://navios.tech/docs/server/adapters/srvx)                   |
+| [`@navios/adapter-srvx`](./packages/adapter-srvx)       | Runs a server on Workers, Lambda and Deno, with srvx  | [srvx](https://navios.tech/docs/server/adapters/srvx)                   |
 | [`@navios/adapter-xml`](./packages/adapter-xml)         | XML responses written as JSX                          | [XML responses](https://navios.tech/docs/server/adapters/xml)           |
 | [`@navios/jwt`](./packages/jwt)                         | Signing and verifying JSON Web Tokens                 | [Authentication](https://navios.tech/docs/server/guides/authentication) |
 | [`@navios/schedule`](./packages/schedule)               | Cron jobs                                             | [Scheduled jobs](https://navios.tech/docs/server/guides/scheduled-jobs) |

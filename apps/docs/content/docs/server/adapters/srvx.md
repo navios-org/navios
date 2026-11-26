@@ -4,13 +4,24 @@ title: srvx
 
 # srvx
 
-`@navios/adapter-srvx` runs a Navios application on [srvx](https://srvx.h3.dev), a server for the web platform's `Request` and `Response` that runs on Node.js, Deno and Bun, and that gives a `fetch` handler to runtimes that call the application themselves, such as Cloudflare Workers. The adapter finds the route of each `Request`, turns it into the input of a compiled route and builds a `Response` from the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter.
+`@navios/adapter-srvx` is the adapter for runtimes that the other adapters do not reach: Cloudflare Workers, AWS Lambda, Deno, and anything else that hands an application a web `Request` and takes a `Response`. [Fastify](/docs/server/adapters/fastify) needs Node.js and [`Bun.serve`](/docs/server/adapters/bun) needs Bun; this one is built on [srvx](https://srvx.h3.dev), which speaks the web platform on all of them.
 
-Use it for an application that has to run on more than one runtime, or on one that has no adapter of its own. On Node.js alone [Fastify](/docs/server/adapters/fastify) has more options, and on Bun alone the [Bun adapter](/docs/server/adapters/bun) uses Bun's router and has WebSockets.
+The adapter finds the route of each `Request`, turns it into the input of a compiled route and builds a `Response` from the result. Guards, validation and error mapping happen in `@navios/server` and behave the same as on every other adapter.
 
-:::warning
-On Bun, prefer `@navios/adapter-bun`. It registers the routes with the router of `Bun.serve` and writes streams to the connection directly, which this adapter cannot do through srvx, so it is the faster of the two. This adapter logs a warning when it listens on Bun. Use it there only for an application that has to run on other runtimes as well.
-:::
+## Where to use it
+
+| Runtime            | Use                                                 | How the adapter is tested there                         |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------------- |
+| Cloudflare Workers | this adapter, with [`fetch`](#cloudflare-workers)   | a bundled Worker in `workerd`                           |
+| AWS Lambda         | this adapter, with [`srvx/aws-lambda`](#aws-lambda) | events of API Gateway, on Node.js                       |
+| Deno               | this adapter, with [`app.listen()`](#deno)          | the whole conformance suite, on `Deno.serve`            |
+| Node.js            | [Fastify](/docs/server/adapters/fastify)            | the whole conformance suite; supported, not recommended |
+| Bun                | [Bun](/docs/server/adapters/bun)                    | the whole conformance suite; supported, not recommended |
+
+It runs on Node.js and on Bun, and an application that has to run there as well as on one of the others can use it everywhere. For an application that only runs on one of the two, their own adapters are the better choice:
+
+- On Bun, `@navios/adapter-bun` registers the routes with the router of `Bun.serve` and writes streams to the connection directly. This adapter cannot do either through srvx, and logs a warning when it listens on Bun.
+- On Node.js, Fastify has more options, takes over a response and has plugins. This adapter has not been measured to be faster there.
 
 ## Install and use
 
@@ -20,42 +31,37 @@ npm install @navios/adapter-srvx@next srvx
 
 srvx is a peer dependency, so the application chooses its version.
 
-```ts title="main.mts"
+An application is created the same way on every runtime:
+
+```ts title="app.mts"
 import { defineSrvxEnvironment } from '@navios/adapter-srvx'
 import { NaviosFactory } from '@navios/server'
 
 import { AppModule } from './app.module.mjs'
 
-const app = await NaviosFactory.create(AppModule, {
-  adapter: defineSrvxEnvironment({
-    cors: {
-      origin: ['https://app.example.com'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    },
-  }),
-})
-
-const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
+export function createApp() {
+  return NaviosFactory.create(AppModule, {
+    adapter: defineSrvxEnvironment({
+      cors: { origin: ['https://app.example.com'] },
+      serve: { maxRequestBodySize: 1024 * 1024 },
+    }),
+  })
+}
 ```
 
-`app.listen({ port?, hostname? })` resolves to the server's base URL. What is left out is decided by srvx: the port is the `PORT` environment variable or 3000, and the hostname the `HOST` environment variable or every interface. Pass `port: 0` for an ephemeral port.
+What differs is who takes the requests. Where the runtime has a port to listen on, the application listens. Where the runtime calls the application, it is initialised with `app.init()`, and `app.getServer().fetch` handles a request: before `listen()`, `app.getServer()` is a srvx server that does not listen.
 
 In tests, `app.inject()` builds a `Request` and runs it through the same routing and CORS handling without opening a socket. See [Testing](/docs/server/essentials/testing).
 
-## Runtimes that call `fetch`
-
-`app.getServer()` returns the srvx server. Before `listen()` it is one that does not listen, and its `fetch` handles a request. That is the whole application for a runtime that has no port to listen on.
+## Cloudflare Workers
 
 ```ts title="worker.mts"
-import { defineSrvxEnvironment } from '@navios/adapter-srvx'
-import { NaviosFactory } from '@navios/server'
-
 import type { CloudflareFetchHandler, Server } from 'srvx'
 
-import { AppModule } from './app.module.mjs'
+import { createApp } from './app.mjs'
 
 async function start(): Promise<CloudflareFetchHandler> {
-  const app = await NaviosFactory.create(AppModule, { adapter: defineSrvxEnvironment() })
+  const app = await createApp()
   await app.init()
   return (app.getServer() as unknown as Server<CloudflareFetchHandler>).fetch
 }
@@ -70,16 +76,62 @@ export default {
 } satisfies { fetch: CloudflareFetchHandler }
 ```
 
-- The bundler resolves `srvx` to its build for the runtime: `workerd` for Cloudflare Workers, and a generic one elsewhere. The types of `srvx` are those of every runtime, so the handler is named here.
+- **Set the `nodejs_compat` compatibility flag.** `@navios/server` imports `node:async_hooks`, `node:util`, `node:os` and `node:process`.
+- The bundler resolves `srvx` to its build for `workerd`. The types of `srvx` are those of every runtime, so the handler is named here.
 - The bindings and the execution context are in `ctx.raw.request.runtime.cloudflare`, and `ctx.raw.request.waitUntil()` keeps the Worker alive for work that outlives the response.
-- `@navios/server` imports `node:async_hooks`, `node:util`, `node:os` and `node:process`. On Cloudflare Workers that needs the `nodejs_compat` compatibility flag.
-- A Worker is built before it is deployed, and the build has to compile standard decorators, as esbuild does.
+- `ctx.ip` is the `cf-connecting-ip` header.
+- The application is created on the first request, not when the module is loaded: a Worker may do little before it is called.
+- A Worker is built before it is deployed. A build that compiles standard decorators, as esbuild does, is all an application with decorators needs.
 
-`listen()` creates a second server, the one that listens, and `app.getServer()` returns that one from then on. Do not keep the first.
+## AWS Lambda
 
-:::info
-The adapter's tests run on Node.js and on Bun, and against srvx's Cloudflare build under Node.js. They do not run inside `workerd` or Deno.
-:::
+A function of Lambda runs on Node.js, where srvx makes a `Request` of the event of API Gateway, a function URL or a load balancer, and a result of the `Response`:
+
+```ts title="lambda.mts"
+import { handleLambdaEvent } from 'srvx/aws-lambda'
+
+import type { AWSLambdaHandler } from 'srvx/aws-lambda'
+
+import { createApp } from './app.mjs'
+
+const ready = createApp().then(async (app) => {
+  await app.init()
+  return app.getServer().fetch
+})
+
+export const handler: AWSLambdaHandler = async (event, context) =>
+  handleLambdaEvent(await ready, event, context)
+```
+
+- The event and the context of Lambda are in `ctx.raw.request.runtime.awsLambda`.
+- `ctx.ip` is the source address that the event names.
+- `handleLambdaEvent` reads the whole response before it returns, so a stream reaches the client when it has ended. srvx has `handleLambdaEventWithStream` for functions with response streaming; the tests of this adapter do not cover it.
+- A body is limited by `serve.maxRequestBodySize`, and before that by what Lambda accepts.
+
+## Deno
+
+```ts title="main.mts"
+import { createApp } from './app.mjs'
+
+const app = await createApp()
+await app.listen({ port: 3000, hostname: '0.0.0.0' })
+```
+
+- `app.listen()` serves with `Deno.serve`, which `app.getServer().deno.server` is.
+- `ctx.ip` is the address of the connection, from the `info` that Deno passes with a request, which is `ctx.raw.request.runtime.deno.info`.
+- A request without a `Host` header has `localhost` as the host of `ctx.url`, as on the other adapters. Deno puts `localhost` and the port of the server into `request.url`.
+- The adapter reads `request.signal` for every request, so that `ctx.signal` knows of a client that has left. Deno prints a note about that signal once per process; the flag `--unstable-no-legacy-abort` that it names turns the note off, and the adapter works with and without it.
+
+## Node.js and Bun
+
+```ts title="main.mts"
+const app = await createApp()
+const url = await app.listen({ port: 3000, hostname: '0.0.0.0' })
+```
+
+`app.listen({ port?, hostname? })` resolves to the server's base URL. What is left out is decided by srvx: the port is the `PORT` environment variable or 3000, and the hostname the `HOST` environment variable or every interface. Pass `port: 0` for an ephemeral port.
+
+`listen()` creates a second server, the one that listens, and `app.getServer()` returns that one from then on. Do not keep the one from before.
 
 ## Options
 
@@ -138,7 +190,7 @@ What belongs to one runtime is in `ctx.raw.request.runtime`:
 | Deno               | `deno.info`, with the address of the connection       |
 | Cloudflare Workers | `cloudflare.env` and `cloudflare.context`             |
 
-srvx has no request id, so `ctx.id` is generated by `@navios/server` on first read. `ctx.signal` is the request's own `signal`. `ctx.ip` is `request.ip`: the address of the connection, the client's address behind the proxies that `serve.trustProxy` trusts, and on Cloudflare the `cf-connecting-ip` header.
+srvx has no request id, so `ctx.id` is generated by `@navios/server` on first read. `ctx.signal` is the request's own `signal`. `ctx.ip` is `request.ip`: the address of the connection, the client's address behind the proxies that `serve.trustProxy` trusts, on Cloudflare the `cf-connecting-ip` header and on Lambda the source address of the event.
 
 Code that uses `ctx.raw` runs on this adapter only, and what is in `runtime` on one runtime only. Prefer the adapter-neutral members of the context (`ctx.ip`, `ctx.headers`, `ctx.cookies`, `ctx.reply.header()`, `ctx.signal`) where they cover the need.
 
@@ -188,16 +240,18 @@ srvx has no router. Routes are matched by the router of `@navios/server`, which 
 - A path that is not valid percent-encoding is a 400.
 - Every method that the runtime accepts can be declared.
 
-On Node.js, a request without a `Host` header, or with one that is not a host, has `localhost` as the host of `ctx.url`, as on the other adapters. `ctx.raw.request.url` has what srvx puts there: the address of the server, or `_invalid_`.
+On Node.js and on Deno, a request without a `Host` header has `localhost` as the host of `ctx.url`, as on the other adapters, and so has one on Node.js whose header is not a host. `ctx.raw.request.url` has what the runtime puts there: the address of the server, or the `_invalid_` of srvx.
 
 ## Shutdown
 
 `app.close()` stops accepting connections and waits for requests in flight, streams included, for at most the application's `shutdownTimeout` (10 seconds by default). Then it closes the connections that are left, and the application continues with its shutdown hooks. A connection on which no request was sent is not waited for, and on Node.js a response that is sent while the server closes carries `connection: close`. [Application setup](/docs/server/essentials/application) describes the whole shutdown sequence.
 
-An application that never listened waits for the requests of `fetch` and `app.inject()` that are in flight.
+An application that never listened, as on Workers and on Lambda, waits for the requests of `fetch` and `app.inject()` that are in flight.
+
+A stream that is cut because it has outlived the timeout ends as a failure for the client, on every runtime.
 
 ## Requirements
 
 - srvx 1.0 or newer (peer dependency)
-- Node.js 24 or newer, Bun 1.4.5 or newer, or another runtime that srvx supports
+- A runtime that srvx supports. The adapter is tested in `workerd`, on Deno 2.9, Node.js 24 and 26, and Bun 1.4.5
 - `@navios/server` of the same version (peer dependency), with `@navios/builder`
