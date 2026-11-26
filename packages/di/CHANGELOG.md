@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `isRegistered()` and `optional()` follow an alias to its end, as resolving it does. An instance of a token halfway along a chain of aliases no longer makes the alias count as provided when what it points to in the end is not.
 - `@Injectable()` and `@Factory()` of `@navios/di/legacy-compat` throw `DIError` when they are applied to something other than a class, like the standard decorators, instead of registering what they were given.
 - A bundle made with rolldown, or a tool built on it such as tsdown, keeps the `Symbol.metadata` polyfill. rolldown left out an entry point that only re-exports, because `sideEffects` did not list it, and with it the import of the polyfill. Decorated classes then had no metadata, and `@navios/core` threw `Decorator metadata is not available` at start. The entry points are now listed.
 
