@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **An `HttpException` that a CORS origin function fails with keeps its status**, as on Fastify: a `ForbiddenException` is a 403. It was a 500, and logged as an unexpected error.
 - **An event stream that a generator declares itself**, with `ctx.reply.header('content-type', 'text/event-stream')`, gets its headers before its first event, opened with a comment as one of `sseStream()` is. Bun held them back until the first event.
+- **A CORS origin function is called once per request.** A preflight request that it refused, to a path with an `OPTIONS` route or to one without a route, called it a second time for the request that answers it.
+
+### Performance
+
+- With CORS on, a request that matches no route is no longer answered through a promise: whether it is a preflight is decided at once, and an origin that a list decides is too.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

@@ -52,6 +52,9 @@ const DEFAULT_IDLE_TIMEOUT = 10
 /** How often `close()` looks whether a request is still in flight. */
 const POLL_MS = 20
 
+/** The answer to a request that matched no route, before the server has set its own. */
+const NOT_FOUND: RouteExecutor = () => encodeResult({ status: 404, body: undefined, kind: 'empty' })
+
 export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
   BunEnvironment<WebSocketData>
 > {
@@ -86,19 +89,34 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
     return this.bunServer
   }
 
+  /**
+   * Asks CORS about the origin of the request, once, and then has it handled.
+   * A preflight request of an allowed origin is answered here.
+   */
   private run(
     execute: RouteExecutor,
     request: Request,
     params: Record<string, string>,
     test?: TestRequest,
+    isPreflight = false,
   ): MaybePromise<Response> {
+    const { cors } = this
+    if (cors === null) {
+      return this.handle(execute, request, params, test, null)
+    }
     // Asked first: if it fails, the handler must not have run.
-    const allowed = this.cors === null ? null : this.cors.check(request)
-    return allowed instanceof Promise
-      ? allowed.then(
-          (origin) => this.handle(execute, request, params, test, origin),
-          (error) => this.failure(error, request),
-        )
+    const allowed = cors.check(request)
+    if (allowed instanceof Promise) {
+      return allowed.then(
+        (origin) =>
+          isPreflight && origin !== null
+            ? cors.preflight(request, origin)
+            : this.handle(execute, request, params, test, origin),
+        (error) => this.failure(error, request),
+      )
+    }
+    return isPreflight && allowed !== null
+      ? cors.preflight(request, allowed)
       : this.handle(execute, request, params, test, allowed)
   }
 
@@ -202,12 +220,11 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
           `${METHODS.join(', ')}.`,
       )
     }
-    let handle: Handle = (request, params, test) => this.run(execute, request, params, test)
-    if (method === 'OPTIONS' && this.cors !== null) {
-      const inner = handle
-      handle = async (request, params, test) =>
-        (await this.preflight(request)) ?? inner(request, params, test)
-    }
+    const handle: Handle =
+      method === 'OPTIONS' && this.cors !== null
+        ? (request, params, test) =>
+            this.run(execute, request, params, test, Cors.isPreflight(request))
+        : (request, params, test) => this.run(execute, request, params, test)
     const sent = toSentPath(path)
     this.table.add(method, sent, handle)
     ;(this.routes[toBunPath(sent)] ??= {})[method] = this.matched(sent, handle)
@@ -257,30 +274,10 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
     return this.run(() => encodeResult(malformedPath(path)), request, {})
   }
 
-  /** The response to a CORS preflight request, or `null` for any other request. */
-  private async preflight(request: Request): Promise<Response | null> {
-    const { cors } = this
-    if (cors === null || !Cors.isPreflight(request)) {
-      return null
-    }
-    try {
-      const allowed = await cors.check(request)
-      return allowed === null ? null : cors.preflight(request, allowed)
-    } catch (error) {
-      return this.failure(error, request)
-    }
-  }
-
-  /** Handles a request that matched no route: CORS preflight, then 404. */
+  /** Handles a request that matched no route: a CORS preflight, or 404. */
   private fallback(request: Request, test?: TestRequest): MaybePromise<Response> {
-    const { notFound } = this
-    const answer = () =>
-      notFound === null
-        ? new Response(null, { status: 404 })
-        : this.run(notFound, request, {}, test)
-    return this.cors === null
-      ? answer()
-      : this.preflight(request).then((response) => response ?? answer())
+    const isPreflight = this.cors !== null && Cors.isPreflight(request)
+    return this.run(this.notFound ?? NOT_FOUND, request, {}, test, isPreflight)
   }
 
   async listen(options: BunListenOptions = {}): Promise<string> {
