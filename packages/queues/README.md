@@ -149,7 +149,7 @@ class UserService {
 | `QueueSenderToken`    | `{ messageDef, name? }`, a point-to-point one  | `QueueSender#send(payload)`                                                                  |
 | `QueueRequesterToken` | `{ messageDef, name? }`, a request/reply one   | `QueueRequester#request(payload)`, which resolves to the response parsed by `responseSchema` |
 
-`name` selects the queue client and defaults to `'default'`. A declaration of the wrong pattern is rejected when the service is resolved, with a `DIError` whose code is `TokenValidationError`.
+`name` selects the queue client and defaults to `'default'`. A declaration of the wrong pattern, or with an empty `topic` or `queue`, is rejected when the service is resolved, with a `DIError` whose code is `TokenValidationError`.
 
 ## Limitations
 

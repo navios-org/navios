@@ -1,6 +1,4 @@
 export {
-  abstractMessageConfigSchema,
-  abstractMessageDefinitionSchema,
   pointToPointMessageConfigSchema,
   pointToPointMessageDefinitionSchema,
   pubsubMessageConfigSchema,
@@ -9,8 +7,6 @@ export {
   requestReplyMessageDefinitionSchema,
 } from './message-config.mjs'
 export type {
-  AbstractMessageConfig,
-  AbstractMessageDefinition,
   BaseMessageConfig,
   MessageDefinition,
   MessagePattern,
@@ -22,11 +18,11 @@ export { messageBuilder } from './message-builder.mjs'
 export {
   QueuePublisher,
   QueuePublisherToken,
-  queuePublisherOptionsSchema,
-} from './queue-publisher.mjs'
-export { QueueSender, QueueSenderToken, queueSenderOptionsSchema } from './queue-sender.mjs'
-export {
   QueueRequester,
   QueueRequesterToken,
+  QueueSender,
+  QueueSenderToken,
+  queuePublisherOptionsSchema,
   queueRequesterOptionsSchema,
-} from './queue-requester.mjs'
+  queueSenderOptionsSchema,
+} from './message-services.mjs'

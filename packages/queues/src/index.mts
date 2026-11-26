@@ -44,8 +44,6 @@ export {
   QueueRequesterToken,
   QueueSender,
   QueueSenderToken,
-  abstractMessageConfigSchema,
-  abstractMessageDefinitionSchema,
   messageBuilder,
   pointToPointMessageConfigSchema,
   pointToPointMessageDefinitionSchema,
@@ -58,8 +56,6 @@ export {
   requestReplyMessageDefinitionSchema,
 } from './messaging/index.mjs'
 export type {
-  AbstractMessageConfig,
-  AbstractMessageDefinition,
   BaseMessageConfig,
   MessageDefinition,
   MessagePattern,

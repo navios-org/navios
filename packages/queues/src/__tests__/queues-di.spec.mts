@@ -264,6 +264,34 @@ describe('queues with @navios/di', () => {
       ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
     })
 
+    it('should reject a declaration with an empty topic or queue', async () => {
+      const payloadSchema = z.object({})
+      const responseSchema = z.object({})
+
+      await expect(
+        container.get(QueuePublisherToken, {
+          messageDef: builder.declarePubSub({ topic: '', payloadSchema }),
+        }),
+      ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+      await expect(
+        container.get(QueueSenderToken, {
+          messageDef: builder.declarePointToPoint({ queue: '', payloadSchema }),
+        }),
+      ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+      await expect(
+        container.get(QueueRequesterToken, {
+          messageDef: builder.declareRequestReply({ topic: '', payloadSchema, responseSchema }),
+        }),
+      ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+    })
+
+    it('should reject an invalid response', async () => {
+      client.request.mockResolvedValueOnce({ name: 1 })
+      const requester = await container.get(QueueRequesterToken, { messageDef: getUser })
+
+      await expect(requester.request({ id: '1' })).rejects.toThrow()
+    })
+
     it('should resolve a bound publisher token', async () => {
       const UserCreatedPublisher = InjectionToken.refineType<QueuePublisher<typeof userCreated>>(
         InjectionToken.bound(QueuePublisherToken, { messageDef: userCreated }),
