@@ -77,7 +77,7 @@ function own(result: RouteResult, ctx: RequestContext): RouteResult {
  * `RouteResponse` to write.
  *
  * Stage order: outer interceptors enter, guards, inner interceptors enter,
- * request validation (URL params, query, headers, cookies, then the body),
+ * request validation (cookies, URL params, query, headers, then the body),
  * handler, response validation, interceptors exit, encoding. Anything thrown
  * is mapped to a response at the end.
  *

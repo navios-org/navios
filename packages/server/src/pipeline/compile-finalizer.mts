@@ -17,6 +17,19 @@ import { validateSchema } from './validate-schema.mjs'
 
 import type { ResponseEncoder } from './response-encoder.mjs'
 
+/** A JSON result of what `schema` makes of `body`. */
+function validatedBody(
+  status: number,
+  schema: SchemaLike,
+  body: unknown,
+): MaybePromise<RouteResult> {
+  const result = validateSchema(schema, body, 'response')
+  if (isPromise(result)) {
+    return result.then((value) => ({ status, body: value, kind: 'json' }))
+  }
+  return { status, body: result, kind: 'json' }
+}
+
 function withBody(
   status: number,
   schema: SchemaLike | null | undefined,
@@ -29,11 +42,7 @@ function withBody(
   if (schema === undefined || !validate) {
     return { status, body, kind: 'json' }
   }
-  const result = validateSchema(schema, body, 'response')
-  if (isPromise(result)) {
-    return result.then((value) => ({ status, body: value, kind: 'json' }))
-  }
-  return { status, body: result, kind: 'json' }
+  return validatedBody(status, schema, body)
 }
 
 /**
@@ -119,16 +128,8 @@ export function compileFinalizer(
   }
 
   if (responseSchema !== undefined && validate) {
-    return (value) => {
-      if (isEndpointReply(value)) {
-        return fromReply(value)
-      }
-      const result = validateSchema(responseSchema, value, 'response')
-      if (isPromise(result)) {
-        return result.then((body) => ({ status: 200, body, kind: 'json' }))
-      }
-      return { status: 200, body: result, kind: 'json' }
-    }
+    return (value) =>
+      isEndpointReply(value) ? fromReply(value) : validatedBody(200, responseSchema, value)
   }
 
   return (value) =>
