@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Fixed
+
+- A bundle made with rolldown, or a tool built on it such as tsdown, keeps the `Symbol.metadata` polyfill. rolldown left out an entry point that only re-exports, because `sideEffects` did not list it, and with it the import of the polyfill. Decorated classes then had no metadata, and `@navios/core` threw `Decorator metadata is not available` at start. The entry points are now listed.
+
 ## [2.0.0-alpha.0] - Unreleased
 
 The resolution engine was rewritten. See the [migration guide](https://navios.tech/docs/di/reference/migrating-to-2) for old and new API side by side.

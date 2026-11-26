@@ -19,7 +19,15 @@
   ],
   "sideEffects": [
     "./src/symbol-metadata.mts",
-    "./lib/symbol-metadata-*"
+    "./src/index.mts",
+    "./src/internal/index.mts",
+    "./src/testing/index.mts",
+    "./src/legacy-compat/index.mts",
+    "./lib/symbol-metadata-*",
+    "./lib/index.*",
+    "./lib/internal/index.*",
+    "./lib/testing/index.*",
+    "./lib/legacy-compat/index.*"
   ],
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
@@ -95,6 +103,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
+    "rolldown": "~1.3.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "zod": "^4.6.7"
