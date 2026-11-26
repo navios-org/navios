@@ -31,6 +31,13 @@ describe('SchedulerService registration and ticks', () => {
     vi.clearAllMocks()
   })
 
+  it('should keep the steps of the transport out of its public methods', () => {
+    const methods = Object.getOwnPropertyNames(SchedulerService.prototype)
+
+    expect(methods).not.toContain('prepare')
+    expect(methods).not.toContain('warnAboutUnregistered')
+  })
+
   describe('invalid cron expression', () => {
     it('should name the class and method and register nothing', () => {
       @Schedulable()

@@ -16,6 +16,20 @@ import type { ScheduleSettings } from './transport/schedule-settings.mjs'
 
 const DEFAULT_STOP_TIMEOUT_MS = 10_000
 
+/**
+ * Builds the registered classes that are singletons, so that a mistake in
+ * their wiring fails the start of the application instead of a run.
+ * `scheduleTransport()` calls it when the application initialises.
+ */
+export const prepareJobs = Symbol('prepareJobs')
+
+/**
+ * Warns about the schedulable classes that the application has built and
+ * that are registered nowhere. Never throws. `scheduleTransport()` calls it
+ * when the application starts.
+ */
+export const warnAboutUnregistered = Symbol('warnAboutUnregistered')
+
 /** The methods of a class that can be jobs. */
 type JobMethod<T> = {
   [K in keyof T]: T[K] extends (run: JobRun) => unknown ? K : never
@@ -103,7 +117,7 @@ export class SchedulerService implements OnServiceDestroy {
     for (const { classMethod, cronTime, timeZone, overlap, disabled } of metadata.jobs) {
       const job = new SchedulerJob({
         name: `${metadata.name}.${classMethod}()`,
-        cronTime: cronTime!,
+        cronTime,
         timeZone: timeZone ?? settings?.timeZone,
         overlap,
         disabled,
@@ -181,12 +195,8 @@ export class SchedulerService implements OnServiceDestroy {
     await this.halt(timeoutMs, () => true)
   }
 
-  /**
-   * Builds the registered classes that are singletons, so that a mistake in
-   * their wiring fails the start of the application instead of a run.
-   * @internal
-   */
-  async prepare(): Promise<void> {
+  // Not methods of the public API: the transport calls them by these keys.
+  async [prepareJobs](): Promise<void> {
     for (const service of this.services.keys()) {
       if (this.container.getProvider(service)?.scope === InjectableScope.Singleton) {
         await this.container.get(service)
@@ -194,12 +204,7 @@ export class SchedulerService implements OnServiceDestroy {
     }
   }
 
-  /**
-   * Warns about the schedulable classes that the application has built and
-   * that are registered nowhere. Never throws.
-   * @internal
-   */
-  warnAboutUnregistered(): void {
+  [warnAboutUnregistered](): void {
     for (const service of new Set(constructedInstances(this.container).map(classOf))) {
       if (service !== undefined && !this.services.has(service)) {
         this.logger.warn(

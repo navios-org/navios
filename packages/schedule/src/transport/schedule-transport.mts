@@ -3,7 +3,7 @@ import { defineTransport } from '@navios/core/transport'
 import type { ClassType, Transport } from '@navios/core'
 import type { ModuleNode, TransportHost } from '@navios/core/transport'
 
-import { SchedulerService } from '../scheduler-service.mjs'
+import { prepareJobs, SchedulerService, warnAboutUnregistered } from '../scheduler-service.mjs'
 
 import type { JobRun } from '../jobs/scheduled-job.mjs'
 
@@ -76,11 +76,11 @@ export const scheduleTransport = defineTransport<ScheduleTransportOptions | void
         for (const service of new Set([...services, ...graph.flatMap(moduleJobs)])) {
           scheduler.register(service)
         }
-        await scheduler.prepare()
+        await scheduler[prepareJobs]()
       },
       start() {
         if (enabled) {
-          scheduler!.warnAboutUnregistered()
+          scheduler![warnAboutUnregistered]()
           scheduler!.start()
         }
       },
