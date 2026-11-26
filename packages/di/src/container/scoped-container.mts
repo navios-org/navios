@@ -42,8 +42,6 @@ export class ScopedContainer implements IContainer {
   /** @internal */
   readonly isScope = true
   /** @internal */
-  readonly facade: IContainer = this
-  /** @internal */
   looseTransients: Entry[] | null = null
   /** @internal */
   background: Set<Promise<unknown>> | null = null

@@ -2,7 +2,7 @@ import { misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { instancesOf, readyEntries } from '../internal/access.mjs'
 import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
-import { destroyAll, destroyLoose } from '../internal/destruction.mjs'
+import { destroyAll } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
 import {
@@ -77,11 +77,7 @@ export class Container implements IContainer {
   /** @internal */
   readonly isScope = false
   /** @internal */
-  readonly facade: IContainer = this
-  /** @internal */
   disposed = false
-  /** @internal */
-  looseTransients: Entry[] | null = null
   /** @internal */
   background: Set<Promise<unknown>> | null = null
   /** @internal */
@@ -300,7 +296,6 @@ export class Container implements IContainer {
     await abandonBuilds(this)
     await settleHost(this)
     try {
-      await destroyLoose(this)
       await destroyAll(this.store.entries().filter((entry) => entry !== self))
       await destroyAll(
         Array.from(this.factoryValues.values()).filter(

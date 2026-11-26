@@ -7,7 +7,7 @@ import { dependentsOf, unlink } from './links.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { DestroyListener, Entry } from './entry.mjs'
-import type { Host } from './host.mjs'
+import type { ScopeHost } from './host.mjs'
 
 /**
  * One `invalidate()` or `dispose()` call: the entries it destroyed that
@@ -289,10 +289,10 @@ const byNewest = (a: Entry, b: Entry): number => b.seq - a.seq
  * Destroys the transients a container has handed out to nobody who would
  * destroy them.
  */
-export function destroyLoose(host: Host): void | Promise<void> {
-  const loose = host.looseTransients
+export function destroyLoose(scope: ScopeHost): void | Promise<void> {
+  const loose = scope.looseTransients
   if (loose !== null) {
-    host.looseTransients = null
+    scope.looseTransients = null
     return destroyAll(loose)
   }
 }

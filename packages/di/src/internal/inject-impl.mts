@@ -329,7 +329,7 @@ export function createFactoryContext(entry: Entry): FactoryContext {
   const { host } = entry
   return {
     inject: (token: any, args?: unknown) => contextInject(entry, token, args),
-    container: host.facade,
+    container: host,
     addDestroyListener: (listener) => {
       if (entry.status <= EntryStatus.Ready || entry.status === EntryStatus.Leaving) {
         ;(entry.destroyListeners ??= []).push(listener)
