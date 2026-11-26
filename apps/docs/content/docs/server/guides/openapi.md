@@ -237,7 +237,7 @@ The in-memory adapter opens no port, so the script needs nothing but the applica
 | `extractOpenApiMetadata(route)`                          | What the attributes say about a `RouteInfo` (`ctx.route` or an entry of `app.routes()`), as `OpenApiEndpointMetadata` |
 | `SchemaConverter`                                        | The class that turns Standard Schemas into JSON Schema and collects shared components                    |
 | `describeMultipartFields`, `isBinarySchema`              | The multipart rule above: marks unconstrained fields as binary strings, and tests for one                |
-| `toOpenApiPath`, `extractUrlParamNames`                  | `/users/$userId` to `/users/{userId}`, and the parameter names of a URL                                  |
+| `toOpenApiPath`                                          | `/users/$userId` to `/users/{userId}`. The parameter names of a route are its `RouteInfo.params`          |
 | `ApiTagToken`, `ApiOperationToken`, `ApiSummaryToken`, `ApiDeprecatedToken`, `ApiSecurityToken`, `ApiExcludeToken`, `ApiStreamToken` | The symbols the attributes are stored under |
 | `OpenApiPluginOptions`, `OpenApiDocumentOptions`, `ScalarOptions`, `ToJsonSchema`, `OpenApiDocument` and the other document types | Types |
 

@@ -7,7 +7,7 @@ export type {
   OpenApiDocumentOptions,
   OpenApiGenerationOptions,
 } from './document/generate-document.mjs'
-export { extractUrlParamNames, toOpenApiPath } from './document/openapi-path.mjs'
+export { toOpenApiPath } from './document/openapi-path.mjs'
 export type {
   OpenApiDocument,
   OpenApiExternalDocs,
