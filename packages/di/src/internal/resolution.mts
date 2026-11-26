@@ -468,7 +468,12 @@ function complete(entry: Entry, produced: unknown): void {
   if (entry.record.kind === 'class') {
     const instance = produced as { onServiceDestroy?: () => void | Promise<void> }
     if (typeof instance.onServiceDestroy === 'function') {
-      ;(entry.destroyListeners ??= []).push(() => instance.onServiceDestroy!())
+      const listener = () => instance.onServiceDestroy!()
+      if (entry.destroyListeners === null) {
+        entry.destroyListeners = [listener]
+      } else {
+        entry.destroyListeners.push(listener)
+      }
     }
   }
   let value = produced

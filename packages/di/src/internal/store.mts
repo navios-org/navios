@@ -21,7 +21,10 @@ export class Store {
 
   private readonly plain = new Map<InjectionToken<any, any>, Entry>()
   private keyed: Map<InjectionToken<any, any>, Map<string, Entry>> | null = null
-  /** Entries by instance. Two tokens may hold the same object. */
+  /**
+   * Entries by instance. Two tokens may hold the same object. Built when it is
+   * first needed: most stores, such as that of a request scope, never are.
+   */
   private byInstance: WeakMap<object, Entry | Holders> | null = null
   private listeners: Map<InjectionToken<any, any>, Map<string, Set<InvalidateListener>>> | null =
     null
@@ -91,15 +94,10 @@ export class Store {
     return all
   }
 
+  /** Notes that `entry` has become ready. */
   trackInstance(entry: Entry): void {
-    const instance = entry.instance
-    if (instance !== null && (typeof instance === 'object' || typeof instance === 'function')) {
-      const known = (this.byInstance ??= new WeakMap()).get(instance)
-      if (known instanceof Holders) {
-        known.add(entry)
-      } else {
-        this.byInstance.set(instance, known === undefined ? entry : new Holders(known, entry))
-      }
+    if (this.byInstance !== null) {
+      index(this.byInstance, entry)
     }
   }
 
@@ -108,7 +106,16 @@ export class Store {
     if (instance === null || (typeof instance !== 'object' && typeof instance !== 'function')) {
       return none
     }
-    const found = this.byInstance?.get(instance)
+    if (this.byInstance === null) {
+      const byInstance = new WeakMap<object, Entry | Holders>()
+      for (const entry of this.entries().sort(byReadiness)) {
+        if (isReady(entry)) {
+          index(byInstance, entry)
+        }
+      }
+      this.byInstance = byInstance
+    }
+    const found = this.byInstance.get(instance)
     if (found === undefined) {
       return none
     }
@@ -160,6 +167,20 @@ export class Store {
 const none: Entry[] = []
 
 const isReady = (entry: Entry): boolean => entry.status === EntryStatus.Ready
+
+const byReadiness = (a: Entry, b: Entry): number => a.readySeq - b.readySeq
+
+function index(byInstance: WeakMap<object, Entry | Holders>, entry: Entry): void {
+  const instance = entry.instance
+  if (instance !== null && (typeof instance === 'object' || typeof instance === 'function')) {
+    const known = byInstance.get(instance)
+    if (known instanceof Holders) {
+      known.add(entry)
+    } else {
+      byInstance.set(instance, known === undefined ? entry : new Holders(known, entry))
+    }
+  }
+}
 
 // The entries that hold one object, and some that no longer do.
 class Holders {

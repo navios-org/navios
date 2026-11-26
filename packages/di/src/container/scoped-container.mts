@@ -177,10 +177,7 @@ export class ScopedContainer implements IContainer {
       return
     }
     const entries = this.store.entries()
-    if (
-      (this.background !== null && this.background.size > 0) ||
-      entries.some((entry) => entry.status === EntryStatus.Creating)
-    ) {
+    if ((this.background !== null && this.background.size > 0) || entries.some(isCreating)) {
       return settleHost(this).then(() => this.destroyOwned())
     }
     const loose = destroyLoose(this)
@@ -194,6 +191,20 @@ export class ScopedContainer implements IContainer {
 ScopedContainer.prototype.peek = peek as OptionalResolve
 
 const resolved: Promise<void> = Promise.resolve()
+
+const isCreating = (entry: Entry): boolean => entry.status === EntryStatus.Creating
+
+/**
+ * Disposes `scope` as `dispose()` does, and returns `undefined` where that
+ * returns a promise that is already fulfilled: nothing had a destroy hook that
+ * returned a promise, and nothing was still being built (or it was called from
+ * a lifecycle hook of the scope). A caller that disposes a scope per request
+ * then needs no promise to wait on. Exported through `@navios/di/internal`.
+ */
+export function disposeScope(scope: ScopedContainer): Promise<void> | undefined {
+  const disposal = scope.dispose()
+  return disposal === resolved ? undefined : disposal
+}
 
 /** What `inject(ScopedContainer)` asks for. */
 export const scopeToken = new InjectionToken<ScopedContainer, undefined>(

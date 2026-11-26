@@ -1,3 +1,5 @@
+import { dependentsOf } from '../internal/links.mjs'
+
 import type { Entry } from '../internal/entry.mjs'
 
 /**
@@ -44,7 +46,7 @@ export function buildDependencyGraph(entries: Entry[]): DependencyGraph {
 
   for (const entry of entries) {
     const name = nodeName(entry)
-    const dependents = namesOf(entry.dependents)
+    const dependents = namesOf(dependentsOf(entry))
     nodes[name] = {
       token: entry.token.toString(),
       instanceName: name,
