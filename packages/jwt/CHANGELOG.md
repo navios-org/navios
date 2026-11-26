@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING**: The peer dependency is `@navios/di` instead of `@navios/core`. The package only uses the container, so it works in an application of `@navios/di` alone. A project that lists `@navios/core` but not `@navios/di` adds `@navios/di` with the same version.
 
+### Added
+
+- The types `SignOptions` and `VerifyOptions` of `JwtServiceOptions.signOptions` and `JwtServiceOptions.verifyOptions` are exported.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 Ported to `@navios/core` 2.0 and `@navios/di` 2.0.

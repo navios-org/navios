@@ -164,7 +164,8 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | a call without a key, or with a wrong verify option, threw a `JsonWebTokenError` | a plain `Error`, which is not answered as a wrong token |
 | an option that is `undefined` switched off the configured one | it is not given. An empty `audience` or `issuer` is an error |
 | `secretOrKeyProvider` won over a key passed to the call, and the `secret` of the service over a passed key pair | a key passed to the call always wins; one that is `undefined` or empty is an error |
-| `Secret`, `SignOptions`, `VerifyOptions`, `RequestType`, `GetSecretKeyResult`, `allowInvalidAsymmetricKeyTypes` | removed. `JwtPrivateKey` and `JwtKey` are the key types |
+| `Secret`, `RequestType`, `GetSecretKeyResult`, `allowInvalidAsymmetricKeyTypes` | removed. `JwtPrivateKey` and `JwtKey` are the key types |
+| `SignOptions`, `VerifyOptions` | plain types of `signOptions` and `verifyOptions`. The options of one call are `JwtSignOptions` and `JwtVerifyOptions` |
 | `@navios/core` as a peer dependency | `@navios/di`. A project that lists `@navios/core` but not `@navios/di` adds it, with the same version |
 | `zod` as a peer dependency                                                                                     | not required                                                                                                                             |
 
