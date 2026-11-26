@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A promise in the tree, such as `<channel>{loadItems()}</channel>`, is awaited like the result of an async component: the components it resolves to run, and pretty printing lays out what they yield. A promise of an array threw a `TypeError`, and so did a promise passed to `renderToXml` that resolved to a component.
 - An array returned by a component or a promise is rendered like a fragment. It threw a `TypeError`.
 
+### Removed
+
+- **Breaking:** `AsyncComponent` and `AsyncXmlNode`. Nothing created such a node; put the promise in the tree instead, as in `<item>{loadTitle()}</item>`.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 Ported to `@navios/core` 2.0 and `@navios/di` 2.0. See "Migrating from 1.x" in the README.

@@ -440,15 +440,6 @@ describe('renderToXml', () => {
         renderToXml(createElement('root', null, createElement(Broken, null))),
       ).rejects.toThrow('broken component')
     })
-
-    it('should await a promise node', async () => {
-      const node = {
-        type: Symbol.for('xml.async'),
-        promise: Promise.resolve(createElement('late', null)),
-      } as any
-
-      expect(await renderToXml(node, { declaration: false })).toBe('<late/>')
-    })
   })
 
   describe('complex RSS-like structure', () => {

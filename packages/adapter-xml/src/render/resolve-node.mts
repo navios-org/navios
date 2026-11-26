@@ -1,18 +1,8 @@
 import { flattenChildren } from '../jsx/create-element.mjs'
-import {
-  AsyncComponent,
-  ClassComponent,
-  Fragment,
-  FunctionComponentSymbol,
-} from '../nodes/xml-node.mjs'
+import { ClassComponent, Fragment, FunctionComponentSymbol } from '../nodes/xml-node.mjs'
 
 import type { XmlComponent } from '../components/xml-component.mjs'
-import type {
-  AnyXmlNode,
-  AsyncXmlNode,
-  ClassComponentNode,
-  FunctionComponentNode,
-} from '../nodes/xml-node.mjs'
+import type { AnyXmlNode, ClassComponentNode, FunctionComponentNode } from '../nodes/xml-node.mjs'
 
 import { MissingContainerError } from './errors.mjs'
 
@@ -44,8 +34,6 @@ export async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Pro
         current.props,
       )) as XmlComponent
       current = (await instance.render(env.ctx)) as AnyXmlNode
-    } else if (isAsyncNode(current)) {
-      current = await current.promise
     } else if (isThenable(current)) {
       // A promise in the tree, such as `<item>{load()}</item>`, is awaited
       // like the result of an async component, and its value resolved again.
@@ -75,8 +63,4 @@ function isFunctionComponentNode(node: unknown): node is FunctionComponentNode {
 
 function isClassComponentNode(node: unknown): node is ClassComponentNode {
   return node !== null && typeof node === 'object' && 'type' in node && node.type === ClassComponent
-}
-
-function isAsyncNode(node: unknown): node is AsyncXmlNode {
-  return node !== null && typeof node === 'object' && 'type' in node && node.type === AsyncComponent
 }

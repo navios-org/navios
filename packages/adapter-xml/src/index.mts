@@ -1,7 +1,6 @@
 // Nodes
 export type {
   XmlNode,
-  AsyncXmlNode,
   CDataNode,
   RawXmlNode,
   ClassComponentNode,
@@ -11,7 +10,6 @@ export type {
 } from './nodes/index.mjs'
 export {
   Fragment,
-  AsyncComponent,
   CDataSymbol,
   RawXmlSymbol,
   ClassComponent,

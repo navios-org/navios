@@ -5,7 +5,6 @@ import type { CDataNode } from './cdata.mjs'
 import type { RawXmlNode } from './raw-xml.mjs'
 
 export const Fragment = Symbol.for('xml.fragment')
-export const AsyncComponent = Symbol.for('xml.async')
 export const ClassComponent = Symbol.for('xml.class-component')
 export const FunctionComponentSymbol = Symbol.for('xml.function-component')
 
@@ -29,26 +28,20 @@ export interface XmlNode {
   children: AnyXmlNode[]
 }
 
-/** Represents a promise of a node, awaited when the tree is rendered */
-export interface AsyncXmlNode {
-  type: typeof AsyncComponent
-  promise: Promise<AnyXmlNode>
-}
-
 /**
  * What a JSX expression evaluates to, as far as the type checker knows.
  *
  * The package's JSX typings (`@navios/adapter-xml/jsx`) declare `JSX.Element`
  * loosely, as any object, so every place that takes the result of a JSX
  * expression has to accept `object` next to the precise node types. At run
- * time the value is always an `AnyXmlNode`.
+ * time the value is an `AnyXmlNode`, an array of them, or a promise of either,
+ * which is awaited when the tree is rendered.
  */
 export type XmlRenderable = AnyXmlNode | object
 
 /** Union type for all possible node types */
 export type AnyXmlNode =
   | XmlNode
-  | AsyncXmlNode
   | CDataNode
   | RawXmlNode
   | ClassComponentNode
