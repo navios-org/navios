@@ -258,16 +258,14 @@ Extends `Container`.
 | Member                                                       | Description                                                                                  |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `bind(target)`                                               | Returns a `BindingBuilder` with `toValue(value)`, `toClass(cls)` and `toFactory(fn)`         |
-| `clear()`                                                    | Destroys all instances and resets recorded calls and events. Bindings stay, and the container stays usable |
+| `clear()`                                                    | Destroys all instances and resets recorded calls. Bindings stay, and the container stays usable |
 | `expectResolved(target)`, `expectNotResolved(target)`        | Whether the container holds an instance for the token                                        |
 | `expectSingleton(target)`, `expectTransient(target)`, `expectRequestScoped(target)` | The scope of the provider in use                                      |
 | `expectSameInstance(target)`, `expectDifferentInstances(target)` | Resolves twice and compares. Both return a promise                                       |
 | `recordMethodCall(target, method, args, result?, error?)`    | Reports a call, for use inside a fake                                                        |
-| `expectCalled(target, method)`, `expectCalledWith(target, method, args)`, `expectCallCount(target, method, count)` | Assert on reported calls              |
+| `expectCalled(target, method)`, `expectNotCalled(target, method)`, `expectCalledWith(target, method, args)`, `expectCallCount(target, method, count)` | Assert on reported calls |
 | `getMethodCalls(target)`, `clearMethodCalls()`               | Read and reset reported calls                                                                |
-| `recordLifecycleEvent(target, event, instanceName)`          | Reports `'created'`, `'initialized'` or `'destroyed'`                                        |
-| `expectInitialized(target)`, `expectDestroyed(target)`, `expectNotDestroyed(target)` | Assert on reported lifecycle events                                  |
-| `getServiceStats(target)`                                    | `{ instanceCount, methodCalls, lifecycleEvents }`                                            |
+| `getServiceStats(target)`                                    | `{ methodCalls }`                                                                            |
 | `getDependencyGraph()`                                       | `{ nodes, rootTokens }` for the resolved instances, with scope, dependencies and dependents  |
 | `getSimplifiedDependencyGraph()`                             | `Record<string, string[]>`: token name to sorted dependency names                            |
 
@@ -292,17 +290,15 @@ Extends `Container` in strict mode. Objects returned by `get()` and `getSync()`,
 
 | Member                                                       | Description                                                                 |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `clear()`                                                    | Destroys all instances and resets recorded calls and events. Providers stay, and the container stays usable |
+| `clear()`                                                    | Destroys all instances and resets recorded calls and auto-mocks. Providers stay, and the container stays usable |
 | `enableAutoMocking()`, `disableAutoMocking()`                | Switch `allowUnregistered` on or off. Both return the container             |
 | `expectResolved(target)`, `expectNotResolved(target)`        | Whether the container holds an instance for the token                       |
 | `expectAutoMocked(target)`, `expectNotAutoMocked(target)`    | Whether a placeholder was handed out for the token                          |
 | `expectCalled(target, method)`, `expectNotCalled(target, method)`, `expectCalledWith(target, method, args)`, `expectCallCount(target, method, count)` | Assert on recorded calls |
 | `getMethodCalls(target)`, `clearMethodCalls()`               | Read and reset recorded calls                                               |
-| `recordLifecycleEvent(target, event, instanceName)`          | Reports a lifecycle event                                                   |
-| `expectInitialized(target)`, `expectDestroyed(target)`, `expectNotDestroyed(target)` | Assert on reported lifecycle events                 |
-| `getServiceStats(target)`                                    | `{ instanceCount, methodCalls, lifecycleEvents }`                           |
+| `getServiceStats(target)`                                    | `{ methodCalls }`                                                           |
 | `getRegisteredTokens()`, `getAutoMockedTokens()`             | `ReadonlySet<InjectionToken>` of listed and auto-mocked tokens              |
 
 ### Testing types
 
-`BindingBuilder<T>`, `ProviderConfig<T>`, `TestContainerOptions`, `UnitTestContainerOptions`, `MethodCallRecord` (`{ method, args, timestamp, result?, error? }`), `LifecycleRecord` (`{ event, timestamp, instanceName }`), `MockServiceStats`, `DependencyNode`, `DependencyGraph`.
+`BindingBuilder<T>`, `ProviderConfig<T>`, `TestContainerOptions`, `UnitTestContainerOptions`, `MethodCallRecord` (`{ method, args, timestamp, result?, error? }`), `MockServiceStats` (`{ methodCalls }`), `DependencyNode`, `DependencyGraph`.

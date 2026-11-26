@@ -14,22 +14,10 @@ export interface MethodCallRecord {
 }
 
 /**
- * Tracks lifecycle events for a service.
- */
-export interface LifecycleRecord {
-  event: 'created' | 'initialized' | 'destroyed'
-  timestamp: number
-  /** The token's name (`token.toString()`), or whatever the recorder passed. */
-  instanceName: string
-}
-
-/**
- * Statistics about a mocked service.
+ * What was recorded for a service.
  */
 export interface MockServiceStats {
-  instanceCount: number
   methodCalls: MethodCallRecord[]
-  lifecycleEvents: LifecycleRecord[]
 }
 
 /**

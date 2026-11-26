@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- `@navios/di/testing`: the lifecycle records are removed. `recordLifecycleEvent()`, `expectInitialized()`, `expectDestroyed()`, `expectNotDestroyed()` and the type `LifecycleRecord` are gone, and `getServiceStats()` returns `{ methodCalls }`: the containers never observed a hook, so the assertions only checked what a test had recorded itself. Let a fake record its hooks, or spy on them.
 - `get()` and `getSync()` of `Container` and `ScopedContainer` are methods on the prototype, like `peek()`, instead of functions bound to each instance. Call them on the container; `const { get } = container` loses the container. A scope allocates two closures fewer.
 - `registerProvider()` takes no third argument. Give a class or a factory its scope in the provider: `registerProvider(TOKEN, { class: Impl, scope })`. `RegisterProviderOptions` is deprecated and will be removed.
+
+### Added
+
+- `TestContainer` has `expectNotCalled()`, as `UnitTestContainer` does. A failed `expectCalledWith()` lists the recorded calls in both containers.
 
 ### Changed
 

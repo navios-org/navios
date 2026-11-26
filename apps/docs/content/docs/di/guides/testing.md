@@ -154,7 +154,7 @@ expect(container.getSimplifiedDependencyGraph()).toEqual({
 })
 ```
 
-The [API reference](/docs/di/reference/api#testcontainer) lists every assertion. The scope assertions (`expectSingleton` and friends) check the scope of the provider in use. The call and lifecycle assertions (`expectCalled`, `expectInitialized` and friends) only see what a test or a fake reported through `recordMethodCall()` and `recordLifecycleEvent()`; the container does not observe real instances.
+The [API reference](/docs/di/reference/api#testcontainer) lists every assertion. The scope assertions (`expectSingleton` and friends) check the scope of the provider in use. The call assertions (`expectCalled` and friends) only see what a test or a fake reported through `recordMethodCall()`; the container does not observe real instances. To check that `onServiceInit()` or `onServiceDestroy()` ran, let the fake record it, or spy on the hook.
 
 ## UnitTestContainer
 
