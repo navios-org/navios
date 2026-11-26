@@ -1130,13 +1130,11 @@ __metadata:
   resolution: "@navios/microservice@workspace:packages/microservice"
   dependencies:
     "@navios/core": "workspace:^"
-    "@navios/di": "workspace:^"
     "@navios/queues": "workspace:^"
     typescript: "npm:^7.0.2"
     zod: "npm:^4.6.7"
   peerDependencies:
     "@navios/core": "workspace:*"
-    "@navios/di": "workspace:*"
     "@navios/queues": "workspace:*"
     zod: ^3.25.0 || ^4.0.0
   languageName: unknown
