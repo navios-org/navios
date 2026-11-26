@@ -18,7 +18,8 @@ import {
   NotFoundResponderToken,
   provide,
 } from '../index.mjs'
-import { defineInMemoryEnvironment, InMemoryAdapter } from '../testing/index.mjs'
+import { InMemoryAdapter } from '../testing/in-memory-adapter.mjs'
+import { defineInMemoryEnvironment } from '../testing/index.mjs'
 
 import type { AdapterDefinition } from '../adapter/index.mjs'
 import type { ExecutionContext, HttpAdapterEnvironment, NaviosApplication } from '../index.mjs'

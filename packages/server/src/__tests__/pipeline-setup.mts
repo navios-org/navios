@@ -6,7 +6,7 @@ import {
   InternalServerErrorResponder,
   NotFoundResponder,
   ValidationErrorResponder,
-} from '../errors/index.mjs'
+} from '../errors/error-responders.mjs'
 import { compileRoute } from '../pipeline/compile-route.mjs'
 import { compileRoutePath } from '../routing/route-path.mjs'
 
