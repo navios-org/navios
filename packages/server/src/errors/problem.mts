@@ -22,15 +22,30 @@ export function problem(
   detail?: string,
   extra?: Record<string, unknown>,
 ): RouteResult {
-  const body: ProblemDetails = {
-    type: 'about:blank',
-    title: statusTitle(status),
-    status,
-    ...(detail === undefined ? null : { detail }),
-    ...extra,
+  let body: ProblemDetails
+  if (extra === undefined) {
+    // What a thrown HttpException with a text comes to. Literals, not
+    // spreads, which cost more than the rest of the mapping on Bun.
+    body =
+      detail === undefined
+        ? { type: 'about:blank', title: statusTitle(status), status }
+        : { type: 'about:blank', title: statusTitle(status), status, detail }
+  } else {
+    body = {
+      type: 'about:blank',
+      title: statusTitle(status),
+      status,
+      ...(detail === undefined ? null : { detail }),
+      ...extra,
+    }
+    // Extra fields may refine `type` and `title` (RFC 9457), but a body that
+    // says `status: 200` must not contradict the response.
+    body.status = status
   }
-  // Extra fields may refine `type` and `title` (RFC 9457), but a body that
-  // says `status: 200` must not contradict the response.
-  body.status = status
-  return { status, headers: { ...PROBLEM_HEADERS }, body, kind: 'json' }
+  return {
+    status,
+    headers: { 'content-type': PROBLEM_HEADERS['content-type'] },
+    body,
+    kind: 'json',
+  }
 }

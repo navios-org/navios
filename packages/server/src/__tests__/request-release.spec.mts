@@ -1,9 +1,10 @@
 import { enableAsyncContext } from '@navios/core/testing'
-import { Container, Injectable, InjectableScope } from '@navios/di'
+import { Container, Injectable, InjectableScope, ScopedContainer } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { currentContext } from '../context/current-request-context.mjs'
 import { RequestValue } from '../context/index.mjs'
+import { LiveRequests } from '../context/live-requests.mjs'
 import { HttpException, NotFoundException } from '../errors/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
@@ -234,6 +235,82 @@ describe('the release of a request', () => {
     const plain = setup({}, () => 'ok', { live })
     await plain.execute(input())
     expect(live.size).toBe(0)
+  })
+
+  it('takes requests out of the list the transport keeps, in any order', async () => {
+    const { UnitOfWork } = tracked()
+    const live = new LiveRequests()
+    const { execute } = setup({}, (_params, ctx: RequestContext) => ctx.use(UnitOfWork) && 'ok', {
+      live,
+    })
+    const answers = await Promise.all([execute(input()), execute(input()), execute(input())])
+    expect(live.size).toBe(3)
+    await answers[1].release!()
+    expect(live.size).toBe(2)
+    await Promise.all(answers.map((answer) => answer.release!()))
+    expect(live.size).toBe(0)
+    expect([...live]).toEqual([])
+  })
+
+  it('waits for an asynchronous destroy hook of a request-scoped service', async () => {
+    const events: string[] = []
+
+    @Injectable({ scope: InjectableScope.Request })
+    class Connection {
+      async onServiceDestroy() {
+        await tick(5)
+        events.push('closed')
+      }
+    }
+
+    const live = new LiveRequests()
+    const { execute } = setup({}, (_params, ctx: RequestContext) => ctx.use(Connection) && 'ok', {
+      live,
+    })
+    const answer = await execute(input())
+    const releasing = answer.release!()
+    await tick(1)
+    expect(events).toEqual([])
+    expect(live.size).toBe(1)
+    await releasing
+    expect(events).toEqual(['closed'])
+    expect(live.size).toBe(0)
+  })
+
+  it('does not dispose the scope before the adapter has returned', async () => {
+    const { events, UnitOfWork } = tracked()
+    const { execute } = setup({}, (_params, ctx: RequestContext) => ctx.use(UnitOfWork) && 'ok')
+    const answer = await execute(input())
+    const releasing = answer.release!()
+    // A listener of `ctx.signal` that runs after the adapter's own hears of a
+    // disconnect before the services it may use are gone.
+    expect(events).toEqual([])
+    await releasing
+    expect(events).toEqual(['destroy'])
+  })
+
+  it('logs a disposal of the scope that fails, and still lets go of the request', async () => {
+    const { UnitOfWork } = tracked()
+    const error = vi.fn()
+    const live = new LiveRequests()
+    const failing = vi
+      .spyOn(ScopedContainer.prototype, 'dispose')
+      .mockImplementation(() => Promise.reject(new Error('stuck')))
+    try {
+      const { execute } = setup({}, (_params, ctx: RequestContext) => ctx.use(UnitOfWork) && 'ok', {
+        live,
+        logger: { error },
+      })
+      const answer = await execute(input())
+      await answer.release!()
+      expect(error).toHaveBeenCalledWith(
+        'Error in the disposal of the request scope of GET /test',
+        expect.objectContaining({ message: 'stuck' }),
+      )
+      expect(live.size).toBe(0)
+    } finally {
+      failing.mockRestore()
+    }
   })
 })
 

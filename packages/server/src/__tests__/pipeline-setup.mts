@@ -10,7 +10,7 @@ import {
 import { compileRoute } from '../pipeline/compile-route.mjs'
 import { compileRoutePath } from '../routing/route-path.mjs'
 
-import type { RequestContext } from '../context/index.mjs'
+import type { LiveRequestSet } from '../context/live-requests.mjs'
 import type { ErrorPipelineOptions } from '../errors/error-pipeline.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
@@ -74,7 +74,7 @@ export interface SetupOptions {
   encoders?: Record<string, ResponseEncoder>
   logger?: CompileOptions['host']['logger']
   asyncContext?: boolean
-  live?: Set<RequestContext>
+  live?: LiveRequestSet
 }
 
 /** A response with its JSON body parsed. */
