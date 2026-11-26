@@ -17,6 +17,7 @@ Rewritten as a transport of a `@navios/core` 2.0 application. Earlier versions d
 - **Guards receive a `MessageContext`**: `canActivate(ctx)`, with `ctx.message`, `ctx.payload` and `ctx.raw`. `MessageExecutionContext` is removed. `MessageGuard` is `Guard<MessageContext>`.
 - **A handler receives the validated payload**, the output of `payloadSchema`.
 - The metadata helpers `getMessageModuleMetadata`, `hasMessageModuleMetadata`, `getMessageHandlerMetadata` and the `MessageMetadata`, `MessageModuleMetadata` and `MessageHandlerMetadata` types are removed.
+- **The attributes `Ack`, `NoAck`, `ManualAck`, `Retry`, `DeadLetterQueue`, `Concurrency`, `Timeout`, `ErrorHandling`, `Idempotency`, `RateLimit`, `BatchProcessing` and `Priority` are removed.** Nothing acted on them; acknowledgement and retries are what the queue client does when a handler resolves or rejects. `zod` is no longer imported at runtime, only by the `MessageParams` and `MessageResult` types.
 
 ### Added
 
@@ -27,7 +28,3 @@ Rewritten as a transport of a `@navios/core` 2.0 application. Earlier versions d
 - `MessageInterceptor`, `isMessageContext`.
 - `app.close()` waits for the messages in flight.
 - A module that lists something other than a class in `messageControllers`, as an import cycle between files leaves `undefined` behind, fails at `init()` with the name of the module.
-
-### Not yet
-
-- The attributes `Ack`, `NoAck`, `ManualAck`, `Retry`, `DeadLetterQueue`, `Concurrency`, `Timeout`, `ErrorHandling`, `Idempotency`, `RateLimit`, `BatchProcessing` and `Priority` are stored on handlers but not acted on.
