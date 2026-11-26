@@ -205,7 +205,7 @@ Most responses have no `release`. Check for it before installing any listener.
 
 ### The adapter's own responses
 
-`inject()` turns a `TestRequest` into what is sent over HTTP with `toTestMessage(request)`, and answers with `toTestResponse(status, headers, text)`, so that a test sees the same on every adapter.
+`inject()` turns a `TestRequest` into what is sent over HTTP with `toTestMessage(request)`, and answers with `toTestResponse(status, headers, text)`, where `headers` are a record or web `Headers`, so that a test sees the same on every adapter.
 
 An error of the server itself, which never reached an executor or came after it, is answered with `context.errors.unexpected(error, { method, path })`. It maps the error as a route does without error mappers, and returns the `RouteResponse` to write: an `HttpException` keeps its status, and anything else is reported and answered with a 500. A response of the adapter's own is an encoded result: `encodeResult(malformedPath(path))` for a request whose path is not valid percent-encoding, for a router that does not refuse it, or `encodeResult(problem(status, detail))`.
 

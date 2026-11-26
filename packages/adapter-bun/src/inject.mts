@@ -10,18 +10,9 @@ export async function injectRequest(
   const { method, url, headers, bytes } = await toTestMessage(request)
   const native = new Request(url, { method, headers: { ...headers }, body: bytes })
   const response = await handle(native, url.pathname)
-
-  const responseHeaders: Record<string, string | string[]> = {}
-  response.headers.forEach((value, name) => {
-    responseHeaders[name] = value
-  })
-  const cookies = response.headers.getSetCookie()
-  if (cookies.length > 0) {
-    responseHeaders['set-cookie'] = cookies
-  }
   // The server drops the body of a `HEAD`. There is none here.
   const text = method === 'HEAD' ? '' : await response.text().catch(incomplete)
-  return toTestResponse(response.status, responseHeaders, text)
+  return toTestResponse(response.status, response.headers, text)
 }
 
 /** A stream that failed, which has been reported. */

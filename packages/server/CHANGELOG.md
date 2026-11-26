@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ConformanceCors.origin` may be a function** `(origin, callback)`, `ConformanceOriginFunction`, and the conformance suite checks that an `HttpException` it fails with keeps its status.
 - **Request helpers in `@navios/server/adapter`** that adapters wrote each for themselves: `parseQuery(search)`, the query as `RouteInput.query()` gives it; `bodyTooLarge()` and `incompleteBody(cause?)`, the 413 and 400 of a body; `malformedPath(path)`, the 400 of a path that is not valid percent-encoding; and `settledWithin(work, ms)` of `@navios/core/transport`, for an adapter that peers on the server only.
 - **`RouteInfo.params`**, the names of the url params of a route's path, prefixes included, in order: what the server takes the path apart into, so that a plugin does not parse it again.
+- **`toTestResponse()` takes web `Headers`** as well as a record, for an adapter whose server answers with a web `Response`.
 
 ### Changed
 
