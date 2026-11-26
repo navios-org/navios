@@ -1,7 +1,5 @@
 import { accessBeforeInit, misuse, outsideInjectionContext } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { validateSync } from '../schema/standard-schema.mjs'
-import { FactoryInjectionToken } from '../token/injection-token.mjs'
 
 import type {
   AsyncResolve,
@@ -11,26 +9,16 @@ import type {
 import type { FactoryContext } from '../provider/factory-context.mjs'
 import type {
   AnyInjectableType,
-  InjectionToken,
+  FactoryInjectionToken,
   InjectionTokenType,
 } from '../token/injection-token.mjs'
 
-import { keyOf } from './args-key.mjs'
 import { inBackground } from './background.mjs'
 import { discard, runDestroyListener } from './destruction.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
 import { current, runHook } from './frame.mjs'
-import { addWaitEdge, isIntact, linkTo, relink } from './links.mjs'
-import {
-  finalRecord,
-  finalToken,
-  followAlias,
-  hasInstance,
-  hasProvider,
-  normalize,
-  normArgs,
-  normToken,
-} from './normalize.mjs'
+import { addWaitEdge, linkTo } from './links.mjs'
+import { finalRecord, hasProvider, normalize, normArgs, normToken } from './normalize.mjs'
 import {
   assertInTime,
   assertSettles,
@@ -95,57 +83,8 @@ function suspend(
   return placeholder(name)
 }
 
-// Throws what `token` failed with while an earlier pass was waiting for it.
-function rethrowFailure(frame: Frame, token: InjectionTokenType, key: string | null): void {
-  const known = frame.failures?.find((failure) => failure.token === token && failure.key === key)
-  if (known !== undefined) {
-    throw known.error
-  }
-}
-
-// What an earlier pass already came to for this request: a transient it
-// built, which is handed back, or the error of a dependency that failed.
-// Both are known by what an alias points to, unless it has an instance itself.
-function fromEarlierPass(
-  frame: Frame,
-  asked: InjectionToken<any, any>,
-  rawArgs: unknown,
-): Entry | null {
-  const { host } = frame.entry
-  const followed = !hasInstance(host, asked)
-  const target = followed ? followAlias(host, asked) : asked
-  if (target instanceof FactoryInjectionToken) {
-    rethrowFailure(frame, target, null)
-  }
-  if (normalize(host, target, rawArgs) !== null) {
-    return null
-  }
-  let args = normArgs
-  const token = followed ? finalToken(host, normToken)! : asked
-  if (token.schema !== undefined) {
-    args = validateSync(token.schema, args, token.toString())
-  }
-  const key = keyOf(args)
-  rethrowFailure(frame, token, key)
-  const index =
-    frame.reuse?.findIndex((candidate) => candidate.token === token && candidate.key === key) ?? -1
-  if (index < 0) {
-    return null
-  }
-  const [reused] = frame.reuse!.splice(index, 1)
-  if (reused.status === EntryStatus.Ready && isIntact(reused)) {
-    relink(reused)
-    return reused
-  }
-  discard(reused)
-  return null
-}
-
 function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const frame = requireFrame('inject')
-  if (frame.failures !== null && raw instanceof FactoryInjectionToken) {
-    rethrowFailure(frame, raw, null)
-  }
   const value = normalize(frame.entry.host, raw, rawArgs)
   if (value !== null) {
     addWaitEdge(frame.entry, value)
@@ -156,14 +95,6 @@ function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   if (args === undefined) {
     // A request with args is never planned: the args are those of this build.
     frame.requests?.push(token)
-  }
-
-  if (frame.reuse !== null || frame.failures !== null) {
-    const reused = fromEarlierPass(frame, token, args)
-    if (reused !== null) {
-      ;(frame.used ??= []).push(reused)
-      return reused.instance
-    }
   }
 
   const resolved = resolve(frame.entry.host, token, args)

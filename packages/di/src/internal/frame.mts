@@ -48,6 +48,17 @@ export interface Frame {
   stopWhenPending: boolean
 }
 
+/**
+ * Throws what `token` / `key` failed with while an earlier pass of `frame`
+ * was waiting for it: waiting again would not change it.
+ */
+export function rethrowFailure(frame: Frame, token: InjectionTokenType, key: string | null): void {
+  const known = frame.failures?.find((failure) => failure.token === token && failure.key === key)
+  if (known !== undefined) {
+    throw known.error
+  }
+}
+
 /** The construction `inject()` belongs to. */
 export let current: Frame | null = null
 

@@ -22,10 +22,19 @@ import { keyOf } from './args-key.mjs'
 import { inBackground, trackBuild } from './background.mjs'
 import { discard, rejectWith, runDestroyListeners } from './destruction.mjs'
 import { createEntry, EntryStatus, isLeaving, markReady } from './entry.mjs'
-import { current, enter, framePath, hookOwner, onStack, outside, runHook } from './frame.mjs'
+import {
+  current,
+  enter,
+  framePath,
+  hookOwner,
+  onStack,
+  outside,
+  rethrowFailure,
+  runHook,
+} from './frame.mjs'
 import { createFactoryContext } from './inject-impl.mjs'
 import { isDestroying, leavingIn } from './leaving.mjs'
-import { addWaitEdge, unlink } from './links.mjs'
+import { addWaitEdge, isIntact, relink, unlink } from './links.mjs'
 import { assertLive, disposedError, isDisposed } from './liveness.mjs'
 import {
   baseToken,
@@ -143,6 +152,9 @@ export function resolve(
     args = validateSync(token.schema, rawArgs, token.toString())
   }
   const key = keyOf(args)
+  if (current !== null && current.failures !== null) {
+    rethrowFailure(current, token, key)
+  }
 
   for (;;) {
     const existing = findStored(host, token, key)
@@ -192,14 +204,41 @@ export function resolve(
         }
         assertLive(host)
         return build(host, host.store, record, token, key, args)
-      default:
+      default: {
         assertLive(host)
+        const reused = current?.reuse != null ? reuseTransient(current, token, key) : null
+        if (reused !== null) {
+          return reused
+        }
         if (current !== null || startedBy !== null) {
           assertNoTransientCycle(token, key)
         }
         return build(host, null, record, token, key, args)
+      }
     }
   }
+}
+
+// The transient that a discarded pass of `frame` built for the same request,
+// handed back to the pass that repeats it, unless something it injected has
+// gone since.
+function reuseTransient(
+  frame: Frame,
+  token: InjectionToken<any, any>,
+  key: string | null,
+): Entry | null {
+  const reuse = frame.reuse!
+  const index = reuse.findIndex((candidate) => candidate.token === token && candidate.key === key)
+  if (index < 0) {
+    return null
+  }
+  const [reused] = reuse.splice(index, 1)
+  if (reused.status === EntryStatus.Ready && isIntact(reused)) {
+    relink(reused)
+    return reused
+  }
+  discard(reused)
+  return null
 }
 
 function resolveAlias(host: Host, alias: InjectionToken<any, any>, rawArgs: unknown): Entry | Wait {

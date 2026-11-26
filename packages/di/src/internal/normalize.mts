@@ -16,6 +16,7 @@ import type { AnyInjectableType } from '../token/injection-token.mjs'
 
 import { EntryStatus } from './entry.mjs'
 import { factoryValue } from './factory-value.mjs'
+import { current, rethrowFailure } from './frame.mjs'
 
 import type { Entry } from './entry.mjs'
 import type { Host, RootHost } from './host.mjs'
@@ -51,6 +52,9 @@ export function normalize(host: Host, raw: AnyInjectableType, rawArgs: unknown):
     return null
   }
   if (raw instanceof FactoryInjectionToken) {
+    if (current !== null && current.failures !== null) {
+      rethrowFailure(current, raw, null)
+    }
     const value = factoryValue(host.root, raw)
     if (value.status === EntryStatus.Creating) {
       return value
