@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
-import { Injectable } from '../decorators/index.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import {
   BoundInjectionToken,

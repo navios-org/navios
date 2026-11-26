@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 import { Container } from '../container/container.mjs'
-import { Injectable } from '../decorators/index.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { asyncInject, inject } from '../injection/injectors.mjs'
+import { asyncInject, inject } from '../internal/inject-impl.mjs'
 
 describe('Concurrent Operations', () => {
   let container: Container

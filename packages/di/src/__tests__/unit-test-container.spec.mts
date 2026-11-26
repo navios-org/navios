@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { Injectable } from '../decorators/injectable.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
-import { asyncInject, inject, optional } from '../injection/injectors.mjs'
+import { asyncInject, inject, optional } from '../internal/inject-impl.mjs'
 import { UnitTestContainer } from '../testing/unit-test-container.mjs'
 import { getInjectableToken } from '../token/injectable-token.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'

@@ -1,8 +1,9 @@
 import { assertType, describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod/v4'
 
-import { Factory, Injectable } from '../decorators/index.mjs'
-import { asyncInject, inject, optional } from '../injection/injectors.mjs'
+import { Factory } from '../decorators/factory.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
+import { asyncInject, inject, optional } from '../internal/inject-impl.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
 import type { Factorable } from '../provider/factorable.mjs'

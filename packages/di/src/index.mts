@@ -1,54 +1,46 @@
 import './symbol-metadata.mjs'
 
-export { Container, ScopedContainer } from './container/index.mjs'
-export { Factory, Injectable } from './decorators/index.mjs'
-export { DIError, DIErrorCode } from './errors/index.mjs'
+export { Container } from './container/container.mjs'
+export { ScopedContainer } from './container/scoped-container.mjs'
+export { Factory } from './decorators/factory.mjs'
+export { Injectable } from './decorators/injectable.mjs'
+export { DIError, DIErrorCode } from './errors/di-error.mjs'
 export { InjectableScope } from './injectable-scope.mjs'
-export { asyncInject, inject, optional } from './injection/index.mjs'
-export {
-  provide,
-  registerFactory,
-  registerInjectable,
-  registerProvider,
-} from './provider/index.mjs'
+export { asyncInject, inject, optional } from './internal/inject-impl.mjs'
+export { provide } from './provider/provide.mjs'
+export { registerFactory, registerInjectable, registerProvider } from './provider/registration.mjs'
+export { getInjectableToken } from './token/injectable-token.mjs'
 export {
   BoundInjectionToken,
   FactoryInjectionToken,
-  getInjectableToken,
   InjectionToken,
-} from './token/index.mjs'
+} from './token/injection-token.mjs'
 
-export type { ContainerOptions, IContainer } from './container/index.mjs'
-export type { FactoryOptions, InjectableOptions } from './decorators/index.mjs'
-export type {
-  AsyncResolve,
-  MissingArgsError,
-  OptionalResolve,
-  SyncResolve,
-} from './injection/index.mjs'
+export type { ContainerOptions } from './container/container.mjs'
+export type { IContainer } from './container/i-container.mjs'
+export type { FactoryOptions } from './decorators/factory.mjs'
+export type { InjectableOptions } from './decorators/injectable.mjs'
+export type { MissingArgsError } from './injection/missing-args-error.mjs'
+export type { AsyncResolve, OptionalResolve, SyncResolve } from './injection/resolve-signatures.mjs'
 export type { OnServiceDestroy, OnServiceInit } from './lifecycle-hooks.mjs'
+export type { Factorable, FactorableWithArgs, ResolvedInstance } from './provider/factorable.mjs'
+export type { FactoryContext } from './provider/factory-context.mjs'
+export type { Provider, ProviderInput } from './provider/provide.mjs'
+export type { ProviderInfo } from './provider/provider-record.mjs'
 export type {
-  Factorable,
-  FactorableWithArgs,
-  FactoryContext,
-  Provider,
-  ProviderInfo,
-  ProviderInput,
   RegisterFactoryOptions,
   RegisterInjectableOptions,
   RegisterProviderOptions,
-  ResolvedInstance,
-} from './provider/index.mjs'
+} from './provider/registration.mjs'
 export type {
   InferInput,
   InferOutput,
   StandardSchemaIssue,
   StandardSchemaV1,
-} from './schema/index.mjs'
+} from './schema/standard-schema.mjs'
+export type { ClassType, ClassTypeWithInstance } from './token/class-type.mjs'
 export type {
   AnyInjectableType,
-  ClassType,
-  ClassTypeWithInstance,
   InjectionTokenOptions,
   InjectionTokenType,
-} from './token/index.mjs'
+} from './token/injection-token.mjs'

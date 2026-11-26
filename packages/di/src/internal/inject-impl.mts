@@ -3,6 +3,11 @@ import { InjectableScope } from '../injectable-scope.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
 import { FactoryInjectionToken } from '../token/injection-token.mjs'
 
+import type {
+  AsyncResolve,
+  OptionalResolve,
+  SyncResolve,
+} from '../injection/resolve-signatures.mjs'
 import type { FactoryContext } from '../provider/factory-context.mjs'
 import type {
   AnyInjectableType,
@@ -136,7 +141,7 @@ function fromEarlierPass(
   return null
 }
 
-export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
+function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const frame = requireFrame('inject')
   if (frame.failures !== null && raw instanceof FactoryInjectionToken) {
     rethrowFailure(frame, raw, null)
@@ -182,7 +187,22 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   return resolved.instance
 }
 
-export function optionalImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
+/**
+ * Injects a dependency while a class is being constructed (in a field
+ * initialiser or the constructor).
+ *
+ * Returns the real instance whenever it can be built synchronously, including
+ * transients (each call gets its own instance).
+ */
+export const inject: SyncResolve = injectImpl
+
+/**
+ * Like `inject`, but returns `null` when nothing provides the token. Any
+ * other failure, such as a constructor that throws, propagates.
+ */
+export const optional: OptionalResolve = optionalImpl
+
+function optionalImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const frame = requireFrame('optional')
   if (!hasProvider(frame.entry.host, raw)) {
     return null
@@ -213,7 +233,7 @@ class InjectionPromise<T> extends Promise<T> {
   }
 }
 
-export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any> {
+function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any> {
   const frame = requireFrame('asyncInject')
   const host = frame.entry.host
   const requester = frame.entry
@@ -319,6 +339,13 @@ export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Prom
     return entry.instance
   }
 }
+
+/**
+ * Injects a dependency as a promise. It starts resolving after the current
+ * construction has returned, so it can be used to break a circular dependency
+ * deliberately.
+ */
+export const asyncInject: AsyncResolve = asyncInjectImpl as AsyncResolve
 
 function isTransient(host: Host, raw: AnyInjectableType): boolean {
   const token = finalToken(host, raw)

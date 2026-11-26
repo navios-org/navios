@@ -14,7 +14,7 @@ import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.mjs'
 import { InjectionToken } from '../../index.mjs'
 import { InjectableScope } from '../../injectable-scope.mjs'
-import { asyncInject } from '../../injection/injectors.mjs'
+import { asyncInject } from '../../internal/inject-impl.mjs'
 
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 

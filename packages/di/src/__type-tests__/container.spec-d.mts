@@ -3,7 +3,8 @@ import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
 import { ScopedContainer } from '../container/scoped-container.mjs'
-import { Injectable, Factory } from '../decorators/index.mjs'
+import { Factory } from '../decorators/factory.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
 import type { Factorable } from '../provider/factorable.mjs'

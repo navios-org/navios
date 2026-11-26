@@ -2,7 +2,8 @@ import { assertType, describe, test } from 'vitest'
 import { z } from 'zod/v4'
 
 import { Container } from '../container/container.mjs'
-import { Factory, Injectable } from '../decorators/index.mjs'
+import { Factory } from '../decorators/factory.mjs'
+import { Injectable } from '../decorators/injectable.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
 import type { Factorable } from '../provider/factorable.mjs'
