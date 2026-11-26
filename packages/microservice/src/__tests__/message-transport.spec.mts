@@ -598,6 +598,20 @@ describe('messageTransport', () => {
     )
   })
 
+  it('names the module that lists something other than a class', async () => {
+    @Module({ messageControllers: [undefined as never] })
+    class CyclicModule {}
+    const app = createApplication(CyclicModule, {
+      logger: false,
+      transports: [messageTransport({})],
+    })
+    apps.push(app)
+
+    await expect(app.init()).rejects.toThrow(
+      '[Navios] Module CyclicModule lists undefined in messageControllers.',
+    )
+  })
+
   it('fails to dispatch a message nothing handles', async () => {
     @Module({})
     class AppModule {}
