@@ -30,7 +30,7 @@ Return a user without `email`, or answer with a status the declaration does not 
 - **Typed handlers.** Parameters, return values and status codes are checked against the declaration at compile time, and validated again at run time.
 - **Any schema library.** Every schema slot accepts a [Standard Schema](https://standardschema.dev): Zod, Valibot, ArkType and others. These docs use Zod in examples.
 - **Standard decorators.** Navios uses TC39 decorators, the kind TypeScript compiles without `experimentalDecorators` and Bun runs natively.
-- **Adapters.** The HTTP server is Fastify on Node.js or `Bun.serve` on Bun. Application code is the same on both.
+- **Adapters.** The HTTP server is Fastify on Node.js, `Bun.serve` on Bun, or srvx on either, on Deno and on runtimes that call a `fetch` handler. Application code is the same on all of them.
 - **Singletons by default.** Controllers, guards and interceptors are created once at start-up. Per-request data travels in a typed request context, so nothing is constructed per request unless you ask for it.
 - **One error format.** Every error response the framework produces is `application/problem+json`, unless the endpoint declares its own body for that status.
 - **Dependency injection.** Services are wired by [`@navios/di`](/docs/di/), which `@navios/server` re-exports.
@@ -43,6 +43,7 @@ Return a user without `email`, or answer with a status the declaration does not 
 | `@navios/builder`         | Endpoint declarations, shared with clients                                        |
 | `@navios/adapter-fastify` | [Fastify adapter](/docs/server/adapters/fastify) for Node.js                      |
 | `@navios/adapter-bun`     | [Bun adapter](/docs/server/adapters/bun)                                          |
+| `@navios/adapter-srvx`    | [srvx adapter](/docs/server/adapters/srvx) for Node.js, Deno, Bun and Workers     |
 | `@navios/adapter-xml`     | [XML responses](/docs/server/adapters/xml) written as JSX                         |
 | `@navios/jwt`             | [Signing and verifying JSON Web Tokens](/docs/server/guides/authentication)       |
 | `@navios/schedule`        | [Cron jobs](/docs/server/guides/scheduled-jobs)                                   |

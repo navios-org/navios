@@ -173,6 +173,10 @@ const app = await NaviosFactory.create(AppModule, {
 bun main.mts
 ```
 
+### On other runtimes
+
+[`@navios/adapter-srvx`](/docs/server/adapters/srvx) runs the same code on Node.js, Deno and Bun, and on runtimes that call a `fetch` handler, such as Cloudflare Workers.
+
 ## Try it
 
 ```bash

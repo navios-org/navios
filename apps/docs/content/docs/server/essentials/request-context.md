@@ -50,7 +50,7 @@ Most members are created on first access, so a request that never reads cookies 
 
 `ctx.url.host` is what the client says in its `Host` header, or `localhost` when that is not a valid host. Do not build links that you send to somebody else from it.
 
-`ctx.ip` is the address of the connection. Behind a proxy that is the proxy's address, unless the adapter is told which proxies to trust: set `trustProxy` on [Fastify](/docs/server/adapters/fastify); Bun has no such option, so read the header your proxy sets. It is `undefined` for `app.inject()` without a `remoteAddress`.
+`ctx.ip` is the address of the connection. Behind a proxy that is the proxy's address, unless the adapter is told which proxies to trust: set `trustProxy` on [Fastify](/docs/server/adapters/fastify), or `serve.trustProxy` on [srvx](/docs/server/adapters/srvx); Bun has no such option, so read the header your proxy sets. It is `undefined` for `app.inject()` without a `remoteAddress`.
 
 ### The raw body
 
@@ -151,6 +151,7 @@ When `app.close()` has to give up on a request, its callbacks run and its state 
 | ----------------- | -------------------------------------------------- |
 | Fastify           | `{ request: FastifyRequest; reply: FastifyReply }` |
 | Bun               | `{ request: Request; server: Server \| null }`     |
+| srvx              | `{ request: ServerRequest; server: Server \| null }` |
 | In-memory (tests) | `{ request: TestRequest }`                         |
 
 Without further setup `ctx.raw` is `unknown`. Its type comes from one declaration in the application, which tells TypeScript which adapter the application runs on:
@@ -165,13 +166,13 @@ declare module '@navios/server' {
 }
 ```
 
-On Bun the type is `BunEnvironment` from `@navios/adapter-bun`.
+On Bun the type is `BunEnvironment` from `@navios/adapter-bun`, and on srvx `SrvxEnvironment` from `@navios/adapter-srvx`.
 
 - The declaration also types `app.getServer()` and the options of `app.listen()`. `NaviosApplication` without an argument is then an application on that adapter; a helper that takes an application on any adapter, such as one for tests, takes `NaviosApplication<any>`.
 - An adapter does not register itself when imported, because a shared package may have both adapters installed. The application decides.
 - Code that must compile without the declaration, such as a library used on several adapters, narrows explicitly: `const { request } = ctx.raw as FastifyEnvironment['raw']`.
 
-Code that uses `ctx.raw` runs on one adapter only. Prefer the adapter-neutral members when they cover the need. What each adapter exposes is described on the [Fastify](/docs/server/adapters/fastify) and [Bun](/docs/server/adapters/bun) pages.
+Code that uses `ctx.raw` runs on one adapter only. Prefer the adapter-neutral members when they cover the need. What each adapter exposes is described on the [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun) and [srvx](/docs/server/adapters/srvx) pages.
 
 ## Reading the context without passing it
 

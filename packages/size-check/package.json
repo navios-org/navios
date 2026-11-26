@@ -9,6 +9,7 @@
   "devDependencies": {
     "@navios/adapter-bun": "workspace:^",
     "@navios/adapter-fastify": "workspace:^",
+    "@navios/adapter-srvx": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
     "@navios/server": "workspace:^"
