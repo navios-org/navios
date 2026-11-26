@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import type { StandardSchemaV1 } from '@navios/di'
 
+import { AttributeFactory } from '../attributes/attribute-factory.mjs'
 import { applyAttributes } from '../attributes/attribute-value.mjs'
-import { AttributeFactory } from '../attributes/index.mjs'
-import { UseGuards } from '../guards/index.mjs'
-import { buildModuleGraph, getModuleMetadata, Module, registerModule } from '../modules/index.mjs'
+import { UseGuards } from '../guards/use-guards.mjs'
+import { buildModuleGraph } from '../modules/module-graph.mjs'
+import { getModuleMetadata } from '../modules/module-metadata.mjs'
+import { Module, registerModule } from '../modules/module.mjs'
 
-import type { ModuleOptions } from '../modules/index.mjs'
+import type { ModuleOptions } from '../modules/module-options.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

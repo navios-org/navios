@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { ClassType } from '@navios/di'
 
-import { AttributeFactory } from '../attributes/index.mjs'
-import { getModuleMetadata } from '../modules/index.mjs'
+import { AttributeFactory } from '../attributes/attribute-factory.mjs'
+import { getModuleMetadata } from '../modules/module-metadata.mjs'
 
 import type { HandlerClassMetadata } from '../metadata/handler-class.mjs'
 

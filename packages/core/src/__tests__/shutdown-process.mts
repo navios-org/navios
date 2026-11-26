@@ -1,7 +1,7 @@
 // A process for shutdown-signals.spec.mts to send signals to.
 import { createApplication } from '../application/application.mjs'
 import { inject, registerInjectable } from '../index.mjs'
-import { registerModule } from '../modules/index.mjs'
+import { registerModule } from '../modules/module.mjs'
 
 const mode = process.argv[2]
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

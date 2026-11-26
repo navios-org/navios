@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { AttributeFactory } from '../attributes/index.mjs'
+import { AttributeFactory } from '../attributes/attribute-factory.mjs'
 import { describeHandlerClass } from '../metadata/handler-class.mjs'
 
 import type { HandlerClassMetadata } from '../metadata/handler-class.mjs'
