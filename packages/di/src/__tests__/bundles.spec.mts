@@ -7,9 +7,11 @@ import { promisify } from 'node:util'
 import { runInNewContext } from 'node:vm'
 
 import { build } from 'esbuild'
+import { rolldown } from 'rolldown'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Format, Platform } from 'esbuild'
+import type { ModuleFormat } from 'rolldown'
 
 const run = promisify(execFile)
 const source = fileURLToPath(new URL('../index.mts', import.meta.url))
@@ -37,6 +39,40 @@ async function bundle(contents: string, format: Format, platform: Platform): Pro
   return outputFiles[0].text
 }
 
+/** The same, as rolldown bundles it with its default options. */
+async function bundleWithRolldown(contents: string, format: ModuleFormat): Promise<string> {
+  const id = '\0app'
+  const bundler = await rolldown({
+    input: id,
+    platform: 'node',
+    logLevel: 'silent',
+    plugins: [
+      {
+        name: 'app',
+        resolveId: (name) => (name === id ? id : null),
+        load: (name) => (name === id ? contents : null),
+      },
+    ],
+  })
+  try {
+    const { output } = await bundler.generate({ format })
+    return output[0].code
+  } finally {
+    await bundler.close()
+  }
+}
+
+/**
+ * The app, followed by the test tsc emits ahead of a class with standard
+ * decorators: the class gets a metadata object only if `Symbol.metadata`
+ * exists when it is defined. Node.js has no `Symbol.metadata` at the time of
+ * writing, so the polyfill in the bundle is what defines it.
+ */
+const decorated = `${app}
+  const metadata = typeof Symbol === 'function' && Symbol.metadata ? Object.create(null) : void 0
+  console.log(metadata !== undefined)
+`
+
 describe('a bundle of the package', () => {
   let directory: string
 
@@ -62,6 +98,21 @@ describe('a bundle of the package', () => {
   ])('runs in Node.js as %s', async (format, name) => {
     const { stdout, stderr } = await runFile(name, await bundle(app, format, 'node'))
     expect(stdout).toBe('true\n')
+    expect(stderr).toBe('')
+  })
+
+  // rolldown leaves out an entry point that only re-exports unless
+  // `sideEffects` lists it, and the polyfill it imports with it.
+  it.each<[string, string, () => Promise<string>]>([
+    ['rolldown', 'esm', () => bundleWithRolldown(decorated, 'esm')],
+    ['rolldown', 'cjs', () => bundleWithRolldown(decorated, 'cjs')],
+    ['esbuild', 'esm', () => bundle(decorated, 'esm', 'node')],
+  ])('gives decorated classes metadata when %s bundles it as %s', async (_, format, make) => {
+    const { stdout, stderr } = await runFile(
+      `app.${format === 'cjs' ? 'cjs' : 'mjs'}`,
+      await make(),
+    )
+    expect(stdout).toBe('true\ntrue\n')
     expect(stderr).toBe('')
   })
 
