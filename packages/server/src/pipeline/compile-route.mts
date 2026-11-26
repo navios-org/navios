@@ -122,40 +122,27 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     pipeline = intercepted(pipeline, outer[i], errors)
   }
 
-  // The error pipeline calls user code: mappers, responders and the logger.
-  // If that throws as well, the adapter must still get a response, with the
-  // release of whatever the request holds.
-  const fallback = (ctx: RequestContext): RouteResponse => {
-    ctx.responseHeaders = null
-    ctx.responseCookies = null
-    return encodeResponse(problem(500), ctx)
-  }
-
+  // What error mapping answers with may not be sendable either: the result of
+  // a mapper or a responder. The adapter still gets a response, a plain 500
+  // without what was set through `ctx.reply`, with the release of whatever
+  // the request holds.
   const respondToFailure = (result: RouteResult, ctx: RequestContext): RouteResponse => {
     try {
       return encodeResponse(result, ctx)
     } catch (defect) {
-      try {
-        return encodeResponse(errors.defect(defect, ctx), ctx)
-      } catch {
-        return fallback(ctx)
-      }
+      errors.report(defect, ctx)
+      ctx.responseHeaders = null
+      ctx.responseCookies = null
+      return encodeResponse(problem(500), ctx)
     }
   }
 
+  // The error pipeline answers every error, and guards the code it calls.
   const fail = (error: unknown, ctx: RequestContext): MaybePromise<RouteResponse> => {
     ctx.dropSuccessHeaders()
-    let mapped: MaybePromise<RouteResult>
-    try {
-      mapped = errors.toResult(error, ctx, config)
-    } catch {
-      return fallback(ctx)
-    }
+    const mapped = errors.toResult(error, ctx, config)
     return isPromise(mapped)
-      ? mapped.then(
-          (result) => respondToFailure(result, ctx),
-          () => fallback(ctx),
-        )
+      ? mapped.then((result) => respondToFailure(result, ctx))
       : respondToFailure(mapped, ctx)
   }
 

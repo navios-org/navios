@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`ResponseValidationError`**, with the `issues` of the schema.
 
+### Changed
+
+- **A result of error mapping that cannot be sent is answered with a plain 500 problem**, and reported. It went to the internal-error responder first, whose result could fail as well.
+
+### Fixed
+
+- **An error that throws when it is looked at**, such as a `Proxy` whose traps throw, is reported and answered with a 500 in every place an error is mapped, also when an error mapper fails with one, when an interceptor leaves the handler behind, and outside a route. Some of those answered without a report, or threw.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 This package is new: it is the HTTP framework that `@navios/core` was in 1.x, and the entries below are the changes from `@navios/core` 1.x. `@navios/core` itself is now the part that does not depend on HTTP, and this package re-exports it.
