@@ -572,21 +572,27 @@ export function assertSettles(raw: AnyInjectableType, restarts: number): void {
 }
 
 /**
- * Resolves to an entry that is ready. `first` is what a synchronous attempt
- * came to; `watch` is told which entry is being waited for, and `null` when
- * the wait is over.
+ * Repeats `step` until it comes to an entry that is ready, and returns what
+ * `done` makes of that entry. `first` is what a synchronous attempt came to.
+ *
+ * A `Wait` is waited for, after `onWait` had a look at it, and so is an entry
+ * that is still being created: `watch` is told which one, and `null` when the
+ * wait is over. What was built for the request and is gone before it could
+ * be handed out, as a `Wait` that asks to rebuild or a creation that did not
+ * end ready, is a restart; too many in a row fail the request.
  */
-export async function resolveAsync(
-  host: Host,
+export async function untilReady<T>(
   raw: AnyInjectableType,
-  rawArgs: unknown,
-  by: Entry | null = null,
+  step: () => Entry | Wait,
+  done: (entry: Entry) => T,
   first?: Entry | Wait,
   watch?: (waitingFor: Entry | null) => void,
-): Promise<Entry> {
-  let resolved = first ?? resolveTop(host, raw, rawArgs, by)
-  for (let restarts = 0; ; resolved = resolveTop(host, raw, rawArgs, by)) {
+  onWait?: (wait: Wait) => void,
+): Promise<T> {
+  let resolved = first ?? step()
+  for (let restarts = 0; ; resolved = step()) {
     if (resolved instanceof Wait) {
+      onWait?.(resolved)
       if (resolved.rebuild) {
         assertSettles(raw, ++restarts)
       }
@@ -594,10 +600,7 @@ export async function resolveAsync(
       continue
     }
     if (resolved.status !== EntryStatus.Creating) {
-      if (by === null) {
-        keepLoose(host, resolved)
-      }
-      return resolved
+      return done(resolved)
     }
     if (watch === undefined) {
       await resolved.promise
@@ -611,13 +614,41 @@ export async function resolveAsync(
     }
     if ((resolved.status as number) === EntryStatus.Ready) {
       assertInTime(resolved)
-      if (by === null) {
-        keepLoose(host, resolved)
-      }
-      return resolved
+      return done(resolved)
     }
     assertSettles(raw, ++restarts)
   }
+}
+
+/**
+ * Resolves to an entry that is ready. `first` is what a synchronous attempt
+ * came to; `watch` is told which entry is being waited for, and `null` when
+ * the wait is over.
+ */
+export function resolveAsync(
+  host: Host,
+  raw: AnyInjectableType,
+  rawArgs: unknown,
+  by: Entry | null = null,
+  first?: Entry | Wait,
+  watch?: (waitingFor: Entry | null) => void,
+): Promise<Entry> {
+  return untilReady(
+    raw,
+    () => resolveTop(host, raw, rawArgs, by),
+    by === null ? (entry) => keptLoose(host, entry) : sameEntry,
+    first,
+    watch,
+  )
+}
+
+function keptLoose(host: Host, entry: Entry): Entry {
+  keepLoose(host, entry)
+  return entry
+}
+
+function sameEntry(entry: Entry): Entry {
+  return entry
 }
 
 /**

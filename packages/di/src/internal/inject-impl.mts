@@ -20,13 +20,12 @@ import { current, runHook } from './frame.mjs'
 import { addWaitEdge, linkTo } from './links.mjs'
 import { finalRecord, hasProvider, normalize, normArgs, normToken } from './normalize.mjs'
 import {
-  assertInTime,
-  assertSettles,
   DependencyNotReady,
   keepLoose,
   resolve,
   resolveAsync,
   resolveTop,
+  untilReady,
   Wait,
 } from './resolution.mjs'
 import { noop } from './thenable.mjs'
@@ -302,49 +301,51 @@ export function createFactoryContext(entry: Entry): FactoryContext {
   }
 }
 
-async function contextInject(owner: Entry, raw: AnyInjectableType, rawArgs: unknown): Promise<any> {
+// `ctx.inject()`: resolves for `owner`, which may still be in the making,
+// ready, or on its way out.
+function contextInject(owner: Entry, raw: AnyInjectableType, rawArgs: unknown): Promise<any> {
   const { host } = owner
-  for (let restarts = 0; ; assertSettles(raw, ++restarts)) {
-    const building = owner.status === EntryStatus.Creating
-    const by = building ? owner : null
-    const resolved = isLeaving(owner)
-      ? runHook(owner, () => resolveTop(host, raw, rawArgs, by))
-      : resolveTop(host, raw, rawArgs, by)
-    if (resolved instanceof Wait) {
-      if (resolved.leaving !== null && isLeaving(owner)) {
+  let waitingOn: Entry | null = null
+  return untilReady(
+    raw,
+    () => {
+      const by = owner.status === EntryStatus.Creating ? owner : null
+      return isLeaving(owner)
+        ? runHook(owner, () => resolveTop(host, raw, rawArgs, by))
+        : resolveTop(host, raw, rawArgs, by)
+    },
+    (resolved) => {
+      if (resolved.store !== null) {
+        linkTo(resolved, owner)
+      } else if (owner.status === EntryStatus.Creating) {
+        ;(owner.transients ??= []).push(resolved)
+      } else if (owner.status === EntryStatus.Failed) {
+        discard(resolved)
+      } else {
+        // Once the owner is built, `inject` may be called any number of times,
+        // so the owner does not keep what it hands out. A scope does, as for a
+        // `get`.
+        keepLoose(host, resolved)
+      }
+      return resolved.instance
+    },
+    undefined,
+    (entry) => {
+      if (entry !== null) {
+        addWaitEdge(owner, entry)
+        waitingOn = entry
+      } else if (waitingOn !== null) {
+        owner.waitingFor?.delete(waitingOn)
+        waitingOn = null
+      }
+    },
+    (wait) => {
+      if (wait.leaving !== null && isLeaving(owner)) {
         throw misuse(
-          `${resolved.leaving.token} is being destroyed, and ${owner.token} cannot wait for that ` +
+          `${wait.leaving.token} is being destroyed, and ${owner.token} cannot wait for that ` +
             `while it is being destroyed itself`,
         )
       }
-      await resolved.promise
-      continue
-    }
-    const inTime = resolved.status !== EntryStatus.Creating
-    if (!inTime) {
-      addWaitEdge(owner, resolved)
-      try {
-        await resolved.promise
-      } finally {
-        owner.waitingFor?.delete(resolved)
-      }
-      if ((resolved.status as number) !== EntryStatus.Ready) {
-        continue
-      }
-      assertInTime(resolved)
-    }
-    if (resolved.store !== null) {
-      linkTo(resolved, owner)
-    } else if (owner.status === EntryStatus.Creating) {
-      ;(owner.transients ??= []).push(resolved)
-    } else if (owner.status === EntryStatus.Failed) {
-      discard(resolved)
-    } else {
-      // Once the owner is built, `inject` may be called any number of times,
-      // so the owner does not keep what it hands out. A scope does, as for a
-      // `get`.
-      keepLoose(host, resolved)
-    }
-    return resolved.instance
-  }
+    },
+  )
 }

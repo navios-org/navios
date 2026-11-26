@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `InjectableOptions` and `FactoryOptions` are other names of `RegisterInjectableOptions` and `RegisterFactoryOptions`.
 - `ready()` of a container and of a scope also waits for the cleanup that nobody awaits, as `dispose()` does: destroy listeners of a build that failed, and the destruction of transients nobody received. A destroy hook that never settles keeps `ready()` from resolving.
+- `ctx.inject()` gives up on a request under the same rule as `get()`: when what was built for it is gone before it could be handed out, more than 32 times in a row. Waiting for an instance that is being destroyed, or for the args of a factory token, no longer counts towards that.
 - `ContainerDisposed` names `ScopedContainer` only when the scope itself is disposed, wherever it is thrown. A request in a scope that fails because the root container was disposed says `Container has been disposed`.
 
 ### Fixed
