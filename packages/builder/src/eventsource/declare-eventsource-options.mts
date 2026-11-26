@@ -1,27 +1,19 @@
-import type { InferSchemaInput, Schema } from '../shared/schema.mjs'
-import type { HasProperty, OptionalIfEmpty, SafeGet, Simplify } from '../shared/type-helpers.mjs'
-import type { UrlHasParams, UrlParams } from '../shared/url-params.mjs'
+import type { ConnectArgs } from '../shared/connect-args.mjs'
+import type { Schema } from '../shared/schema.mjs'
+import type { Simplify } from '../shared/type-helpers.mjs'
 
 import type { EventSourceError } from './eventsource-error.mjs'
 
 /**
  * Options for declareEventSource.
- *
- * @template Url - URL template string (e.g., '/events/$roomId')
- * @template QuerySchema - Optional schema for query parameters
- * @template UrlParamsSchema - Optional schema for URL parameter validation
  */
-export interface DeclareEventSourceOptions<
-  Url extends string = string,
-  QuerySchema extends Schema | undefined = Schema | undefined,
-  UrlParamsSchema extends Schema | undefined = Schema | undefined,
-> {
+export interface DeclareEventSourceOptions {
   /**
    * EventSource URL (can include $param placeholders).
    *
    * @example '/events/$roomId'
    */
-  url: Url
+  url: string
 
   /**
    * Optional schema (any Standard Schema) for query parameters. Its output
@@ -31,13 +23,13 @@ export interface DeclareEventSourceOptions<
    * The connection is opened synchronously, so the schema must validate
    * synchronously.
    */
-  querySchema?: QuerySchema
+  querySchema?: Schema
 
   /**
    * Optional schema (any Standard Schema) for URL parameter validation.
    * Must validate synchronously, like `querySchema`.
    */
-  urlParamsSchema?: UrlParamsSchema
+  urlParamsSchema?: Schema
 
   /**
    * Whether to include credentials (cookies) in the request.
@@ -93,17 +85,10 @@ export interface CreateEventSourceHandlerConfig {
 }
 
 /**
- * Infers the connection parameters from EventSource options.
+ * The parameters a connection is opened with: `urlParams` when the URL has
+ * parameters, `params` when there is a `querySchema`, typed as for an HTTP
+ * endpoint.
  */
 export type InferEventSourceConnectParams<Options extends DeclareEventSourceOptions> = Simplify<
-  // URL Parameters
-  (UrlHasParams<Options['url']> extends true
-    ? HasProperty<Options, 'urlParamsSchema'> extends true
-      ? { urlParams: InferSchemaInput<SafeGet<Options, 'urlParamsSchema'>> }
-      : { urlParams: UrlParams<Options['url']> }
-    : {}) &
-    // Query Parameters
-    (HasProperty<Options, 'querySchema'> extends true
-      ? OptionalIfEmpty<'params', InferSchemaInput<SafeGet<Options, 'querySchema'>>>
-      : {})
+  ConnectArgs<Options>
 >

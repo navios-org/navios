@@ -16,6 +16,10 @@
 
 - **`AbstractRequestConfig` matches axios**: `responseType` is `'json' | 'text' | 'blob' | 'stream'`, the values the builder sets, and `signal` is `AbortSignal` (a `null` call signal is left out). An axios instance is now a `Client` without `as unknown as Client`. A client that typed its config parameter with `'arrayBuffer'` / `'formData'` or a `null` signal still fits.
 
+### Removed
+
+- **Breaking: the type parameters of `DeclareWebSocketOptions`, `DeclareEventSourceOptions`, `SendOptions`, `SubscribeOptions` and `EventOptions`.** The declare and define functions infer their options as they did; write the type without arguments. `InferWebSocketConnectParams` and `InferEventSourceConnectParams` are the `urlParams` and `params` of `ClientRequestArgs`, so a connection and an HTTP endpoint with the same URL and schemas take the same parameters.
+
 ### Fixed
 
 - **`eventSourceBuilder` stops listening to an event whose last handler unsubscribed.** The listener stayed on the client, and `provideClient` attached one to the next client too, for every event that ever had a handler.

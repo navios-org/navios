@@ -26,20 +26,14 @@ export interface EventSourceBuilderConfig {
 
 /**
  * Options for defineEvent.
- *
- * @template EventName - Literal string type for the event name
- * @template PayloadSchema - Schema for incoming payload validation
  */
-export interface EventOptions<
-  EventName extends string = string,
-  PayloadSchema extends Schema | undefined = Schema | undefined,
-> {
+export interface EventOptions {
   /**
    * Event name to subscribe to.
    *
    * @example 'message', 'user.joined', 'notification'
    */
-  eventName: EventName
+  eventName: string
 
   /**
    * Optional schema (any Standard Schema) for validating incoming payloads.
@@ -51,5 +45,5 @@ export interface EventOptions<
    * and are skipped. A schema that validates asynchronously is awaited
    * before the handler runs.
    */
-  payloadSchema?: PayloadSchema
+  payloadSchema?: Schema
 }

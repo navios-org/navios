@@ -153,22 +153,14 @@ export interface SocketBuilderConfig {
 
 /**
  * Options for defineSend.
- *
- * @template Topic - Literal string type for the topic
- * @template PayloadSchema - Schema for outgoing payload validation
- * @template AckSchema - Optional schema for the acknowledgement response
  */
-export interface SendOptions<
-  Topic extends string = string,
-  PayloadSchema extends Schema | undefined = Schema | undefined,
-  AckSchema extends Schema | undefined = Schema | undefined,
-> {
+export interface SendOptions {
   /**
    * Topic/event name for this message type.
    *
    * @example 'chat.message', 'room.create', 'user.typing'
    */
-  topic: Topic
+  topic: string
 
   /**
    * Optional schema (any Standard Schema) for validating the outgoing payload.
@@ -183,7 +175,7 @@ export interface SendOptions<
    * is synchronous, so an asynchronous schema is rejected with a
    * `SocketError`.
    */
-  payloadSchema?: PayloadSchema
+  payloadSchema?: Schema
 
   /**
    * Optional schema (any Standard Schema) for the acknowledgement response.
@@ -192,7 +184,7 @@ export interface SendOptions<
    * with the validated acknowledgement response. Asynchronous schemas are
    * supported.
    */
-  ackSchema?: AckSchema
+  ackSchema?: Schema
 
   /**
    * Optional timeout override for this specific send operation.
@@ -204,20 +196,14 @@ export interface SendOptions<
 
 /**
  * Options for defineSubscribe.
- *
- * @template Topic - Literal string type for the topic
- * @template PayloadSchema - Schema for incoming payload validation
  */
-export interface SubscribeOptions<
-  Topic extends string = string,
-  PayloadSchema extends Schema | undefined = Schema | undefined,
-> {
+export interface SubscribeOptions {
   /**
    * Topic/event name to subscribe to.
    *
    * @example 'chat.message', 'room.update', 'user.joined'
    */
-  topic: Topic
+  topic: string
 
   /**
    * Optional schema (any Standard Schema) for validating incoming payloads.
@@ -227,5 +213,5 @@ export interface SubscribeOptions<
    * and are skipped. A schema that validates asynchronously is awaited
    * before the handler runs.
    */
-  payloadSchema?: PayloadSchema
+  payloadSchema?: Schema
 }
