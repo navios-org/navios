@@ -148,14 +148,13 @@ of 22 kB. No budget was changed.
   each), openapi and schedule (2 each).
   Each entry now imports leaf files.
 - **Wrappers:** otel's `TraceContextService` and `SpanFactoryService`;
-  builder's `getHeader` and `withClient`; react-query's `EndpointArgs`,
+  react-query's `EndpointArgs`,
   `EndpointData` and `EndpointFailure` (aliases of builder types); di's
   `injectors.mts`, the fake context of the legacy decorators, and
   `ProviderRecord.token`.
 - **Unused API:** di's lifecycle records in `/testing` (they observed
-  nothing); core's `ConfigServiceInterface`, `isLogLevel`, and twelve types
-  that `/transport` exported a second time; server's default responder
-  classes, `InMemoryAdapter`, `HttpGuard`/`HttpInterceptor`, and the adapter
+  nothing); core's `isLogLevel` and twelve types
+  that `/transport` exported a second time; server's `InMemoryAdapter`, `HttpGuard`/`HttpInterceptor`, and the adapter
   contract's `container`, `globalPrefix` and `name`; adapter-xml's
   `AsyncComponent` and internal node markers; microservice's twelve message
   attributes, which did nothing; queues' four abstract schemas; otel's
@@ -233,6 +232,28 @@ Each one has a regression test that failed before the fix.
   imported it in 12 files since before this cleanup, was switched the same
   way: it imports the container through `@navios/core` and no longer peers on
   di.
+- **Six removals of public API were restored in review.** They were removed
+  as pass-through or unused inside the repository, but an application has a
+  use for each:
+  - builder's `getHeader(meta, name)`. It is the null-safe reader that
+    `getCookie`, `getRetryAfterMs` and `getFilename` sit next to, and without
+    it the docs had to show `res.response?.headers.get(name) ?? null` in the
+    middle of the helpers.
+  - builder's `api.withClient(client)`. `builder({ ...config, client })` needs
+    the config, which code that is handed a builder does not have.
+  - builder's types `EndpointOptions` and `InferErrorSchemaOutput`. No
+    signature of the package uses them, but they are for signatures of the
+    application, and the 1.x migration page points to `EndpointOptions`.
+  - core's `ConfigServiceInterface`. `ConfigService` has a private field, so
+    a fake or another implementation cannot be typed as the class.
+  - server's default responder classes. A responder that replaces a token
+    cannot inject the default it replaces, so extending the class is the only
+    way to keep the default response and change part of it.
+
+  The size and test tables above were measured before this; builder has 3
+  tests more, and the published sizes of builder and server are a few hundred
+  bytes larger. `check:size` passes: core 93.6 of 95 kB, server 134.6 of
+  138 kB.
 - **Bun's `upgraded.has(request)` check was restored.** It was dropped as
   redundant with `takenOver`. However, a handler that upgrades and then throws
   never sets `takenOver`, and without the check its error response would go
@@ -331,7 +352,7 @@ Tests by package:
 | e2e examples | 52 + 52 + 55 + 55 | the same |
 
 otel lost 34 tests together with the code they covered and gained 5. Builder
-lost 3 with `withClient` and `getHeader` and gained 4 for the bugs above.
+gained 4 for the bugs above.
 
 Benchmarks:
 
