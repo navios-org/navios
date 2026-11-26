@@ -23,17 +23,21 @@ Creates a builder. See [Quick start](/docs/builder/quick-start).
 | `BuilderConfig` field | Type                             | Description                                                                                         |
 | --------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `client`              | `Client`                         | HTTP client used by every endpoint of this builder. Optional; can be supplied later or per call     |
+| `errorSchema`         | `ErrorSchemaRecord`              | Error schemas every endpoint shares, merged under each endpoint's `errorSchema`; the endpoint's entry wins for a status both declare. See [Shared across a backend](/docs/builder/essentials/errors#shared-across-a-backend) |
 | `send`                | `'input' \| 'output'`            | What is sent once the arguments are valid: the arguments themselves (default), or what the schemas produced. See [What is sent](/docs/builder/essentials/inputs#what-is-sent) |
 | `onError`             | `(error: EndpointError, context: EndpointErrorContext) => void` | Called once per failed call with the error the caller receives, and `{ request }`: the request config that was sent (bound URL, query, body, headers), or `null` when the call failed before one was built. Exceptions inside it are caught and logged |
 
 ## BuilderInstance
 
+`BuilderInstance<Errors>` carries the type of `builder({ errorSchema })`, `{}` without one.
+
 | Member            | Signature                                                    | Description                                                                                   |
 | ----------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `declareEndpoint` | `(options) => EndpointHandler<Options>`                      | Declares an endpoint. Options are listed [below](#endpoint-options)                           |
+| `declareEndpoint` | `(options) => EndpointHandler<WithBuilderErrors<Options, Errors>>` | Declares an endpoint. Options are listed [below](#endpoint-options). With shared error schemas, its `config.errorSchema` is the merged record |
+| `errorSchema`     | `Errors`                                                     | The builder's shared error schemas; `{}` when there are none                                  |
 | `provideClient`   | `(client: Client) => void`                                   | Sets or replaces the client for every endpoint of this builder                                |
 | `getClient`       | `() => Client`                                               | Returns the current client; throws `NaviosError` when none was provided                       |
-| `withClient`      | `(client: Client) => BuilderInstance`                        | Returns a new builder with the same config and another client. Existing endpoints are unaffected |
+| `withClient`      | `(client: Client) => BuilderInstance<Errors>`                | Returns a new builder with the same config and another client. Existing endpoints are unaffected |
 
 See [HTTP client](/docs/builder/essentials/http-client).
 
@@ -244,6 +248,8 @@ Applied to an options type (`typeof getUser.config`):
 | `InferEndpointSafeResult<Options>` | What `safe()` resolves to                                            |
 | `InferSuccessOutput<R>`            | Union of what each status of a `responses` record resolves to        |
 | `InferSuccessInput<R>`             | The same with schema input types, used when `validateResponse` is `false` |
+| `WithBuilderErrors<Options, Errors>` | `Options` with its `errorSchema` merged over a builder's shared `Errors`; `Options` itself when there are none |
+| `MergeErrorSchemas<Shared, Own>`   | The merged record: `Own`'s entries, and `Shared`'s for the other statuses |
 
 URL template types:
 

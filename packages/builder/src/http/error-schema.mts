@@ -29,3 +29,12 @@ export type ErrorSchemaRecord = Record<number, Schema>
 export type InferErrorSchemaOutput<T extends ErrorSchemaRecord> = {
   [K in keyof T]: T[K] extends Schema ? InferSchemaOutput<T[K]> : never
 }[keyof T]
+
+/**
+ * The error schemas of an endpoint declared on a builder that has shared ones
+ * (`builder({ errorSchema })`): the builder's entries, with the endpoint's own
+ * entry winning for a status both declare.
+ */
+export type MergeErrorSchemas<Shared extends ErrorSchemaRecord, Own> = Own extends ErrorSchemaRecord
+  ? { [K in keyof Shared | keyof Own]: K extends keyof Own ? Own[K] : Shared[K & keyof Shared] }
+  : Shared

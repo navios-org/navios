@@ -57,9 +57,18 @@ export function makeInfiniteQuery<
     WithResponse
   >,
 ): InfiniteQueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>> {
-  const { getNextPageParam, getPreviousPageParam, initialPageParam, ...keyOptions } = settings
-  const { withResponse } = keyOptions
-  const keys = createKeyBuilder(endpoint.config, keyOptions, true)
+  const {
+    getNextPageParam,
+    getPreviousPageParam,
+    initialPageParam,
+    keyPrefix,
+    keySuffix,
+    withResponse,
+    ...declared
+  } = settings
+  // The declaration's TanStack options, under whatever a call site passes
+  const defaults = declared as LooseOptions
+  const keys = createKeyBuilder(endpoint.config, { keyPrefix, keySuffix, withResponse }, true)
   const call = createCaller(endpoint as never, withResponse)
 
   const firstPageParam = (args: LooseArgs) => {
@@ -75,6 +84,7 @@ export function makeInfiniteQuery<
 
   const build = (args?: LooseArgs, overrides?: LooseOptions) =>
     infiniteQueryOptions({
+      ...defaults,
       queryKey: keys.key(args),
       queryFn: ({ signal, pageParam, client }) =>
         call(
@@ -97,6 +107,7 @@ export function makeInfiniteQuery<
     useInfiniteQuery(
       (args === skipToken
         ? {
+            ...defaults,
             ...overrides,
             ...pagination(undefined),
             queryKey: keys.skipped(),

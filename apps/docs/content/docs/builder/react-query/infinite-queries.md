@@ -32,6 +32,8 @@ export const postsQuery = client.infiniteQuery({
 
 With an existing endpoint, the pagination settings are the second argument: `client.infiniteQuery(listPosts, { getNextPageParam })`.
 
+The same object takes `useInfiniteQuery` options for every use of the query, such as `staleTime` or `maxPages`, as [queries do](/docs/builder/react-query/queries#options-for-every-use).
+
 ## Use it
 
 ```tsx

@@ -21,7 +21,11 @@ export type {
   EndpointResponseKind,
   SuccessSchemaRecord,
 } from './http/endpoint-options.mjs'
-export type { ErrorSchemaRecord, InferErrorSchemaOutput } from './http/error-schema.mjs'
+export type {
+  ErrorSchemaRecord,
+  InferErrorSchemaOutput,
+  MergeErrorSchemas,
+} from './http/error-schema.mjs'
 export type {
   EndpointCallArgs,
   EndpointCallOptions,
@@ -37,6 +41,7 @@ export type {
   InferSuccessOutput,
   NoUnknownOptions,
   RequireResponseSchema,
+  WithBuilderErrors,
 } from './http/endpoint-handler.mjs'
 
 // Request

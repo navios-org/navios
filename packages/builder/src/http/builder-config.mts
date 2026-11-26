@@ -1,5 +1,6 @@
 import type { AbstractRequestConfig, Client } from './client.mjs'
 import type { EndpointError } from './endpoint-error.mjs'
+import type { ErrorSchemaRecord } from './error-schema.mjs'
 
 /**
  * The second argument of the builder's `onError` hook.
@@ -16,12 +17,37 @@ export interface EndpointErrorContext {
   request: AbstractRequestConfig | null
 }
 
-export interface BuilderConfig {
+export interface BuilderConfig<Errors extends ErrorSchemaRecord = {}> {
   /**
    * HTTP client used by every endpoint declared on this builder. Can also be
    * supplied later with `provideClient`, or per call with `{ client }`.
    */
   client?: Client
+
+  /**
+   * Error schemas every endpoint of this builder shares, by status: the error
+   * bodies a backend sends from anywhere, such as 401, 403 or 500.
+   *
+   * Each endpoint gets them merged under its own `errorSchema`, where the
+   * endpoint's entry wins for a status both declare. A response with one of
+   * these statuses is then a typed `http` error on every endpoint instead of
+   * `http-unknown`, and `endpoint.config.errorSchema` holds the merged record.
+   *
+   * @example
+   * ```ts
+   * const apiError = z.object({ error: z.object({ message: z.string(), type: z.string() }) })
+   *
+   * const API = builder({ errorSchema: { 401: apiError, 403: apiError, 500: apiError } })
+   *
+   * const getUser = API.declareEndpoint({
+   *   method: 'GET',
+   *   url: '/users/$userId',
+   *   responseSchema: userSchema,
+   *   errorSchema: { 404: z.object({ message: z.string() }) }, // adds to the shared ones
+   * })
+   * ```
+   */
+  errorSchema?: Errors
 
   /**
    * What is sent once `urlParamsSchema`, `querySchema` and `requestSchema`
@@ -65,5 +91,5 @@ export interface BuilderConfig {
 
 export interface BuilderContext {
   getClient: () => Client
-  config: BuilderConfig
+  config: BuilderConfig<ErrorSchemaRecord>
 }

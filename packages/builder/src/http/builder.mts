@@ -6,6 +6,7 @@ import type { BuilderConfig } from './builder-config.mjs'
 import type { BuilderInstance } from './builder-instance.mjs'
 import type { Client } from './client.mjs'
 import type { BaseEndpointOptions } from './endpoint-options.mjs'
+import type { ErrorSchemaRecord } from './error-schema.mjs'
 
 /**
  * Creates a new API builder instance.
@@ -22,6 +23,8 @@ import type { BaseEndpointOptions } from './endpoint-options.mjs'
  *   or the output of the request schemas (`'output'`) is sent
  * @param config.onError - Telemetry hook, called once per failed call with the
  *   `EndpointError` the caller receives
+ * @param config.errorSchema - Error schemas every endpoint shares, merged
+ *   under each endpoint's own `errorSchema`
  *
  * @example
  * ```ts
@@ -35,7 +38,14 @@ import type { BaseEndpointOptions } from './endpoint-options.mjs'
  * })
  * ```
  */
-export function builder(config: BuilderConfig = {}): BuilderInstance {
+export function builder<Errors extends ErrorSchemaRecord = {}>(
+  config?: BuilderConfig<Errors>,
+): BuilderInstance<Errors>
+// Last, so that `ReturnType<typeof builder>` is the plain `BuilderInstance`
+export function builder(config?: BuilderConfig): BuilderInstance
+export function builder(
+  config: BuilderConfig<ErrorSchemaRecord> = {},
+): BuilderInstance<ErrorSchemaRecord> {
   let client: Client | null = config.client ?? null
 
   function getClient() {
@@ -50,13 +60,22 @@ export function builder(config: BuilderConfig = {}): BuilderInstance {
   }
 
   const context = { getClient, config }
+  const shared = config.errorSchema
+
+  /** The declaration an endpoint gets: its own, with the shared error schemas under its own. */
+  function withSharedErrors(options: BaseEndpointOptions): BaseEndpointOptions {
+    if (!shared) return options
+    return { ...options, errorSchema: { ...shared, ...options.errorSchema } }
+  }
 
   // The implementation is loosely typed; inference happens at the call site
   // through the `BuilderInstance` interface.
   return {
-    declareEndpoint: (options: BaseEndpointOptions) => createHandler(options, context),
+    errorSchema: shared ?? {},
+    declareEndpoint: (options: BaseEndpointOptions) =>
+      createHandler(withSharedErrors(options), context),
     provideClient,
     getClient,
     withClient: (newClient: Client) => builder({ ...config, client: newClient }),
-  } as BuilderInstance
+  } as unknown as BuilderInstance<ErrorSchemaRecord>
 }
