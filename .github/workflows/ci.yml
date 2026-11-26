@@ -60,3 +60,6 @@ jobs:
 
       - name: Check published types
         run: yarn check:dts
+
+      - name: Check that every export target is published
+        run: yarn check:pack
