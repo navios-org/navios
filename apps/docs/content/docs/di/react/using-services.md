@@ -27,7 +27,7 @@ function UserCard({ userId }: { userId: string }) {
 }
 ```
 
-`data` is the instance once it is ready and `undefined` before that. Narrow on `data` or `isSuccess`, not on `isLoading` alone: on the very first render of an instance that does not exist yet, nothing has started and every flag is `false`. `isLoading` turns `true` right after that render.
+`data` is the instance once it is ready and `undefined` before that. `isLoading` is `true` from the first render until the resolution succeeds or fails. Narrow on `data` or `isSuccess` rather than on `isLoading`, so that TypeScript knows `data` is set.
 
 When the container already holds the instance, the first render returns it with `isSuccess: true` and the component never shows a loading state.
 

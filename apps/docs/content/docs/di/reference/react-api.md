@@ -69,14 +69,14 @@ interface UseServiceResult<T> {
 }
 ```
 
-| Field       | Description                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| `data`      | The instance, once resolved                                                                      |
-| `error`     | What `container.get()` rejected with, normally a `DIError`                                       |
-| `isLoading` | A resolution is in progress. `false` on the first render, before it starts                       |
-| `isSuccess` | `data` is set. `true` on the first render when the container already holds the instance          |
-| `isError`   | `error` is set                                                                                   |
-| `refetch`   | Calls `container.get()` again. Returns the existing instance when there is one                   |
+| Field       | Description                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| `data`      | The instance, once resolved                                                                             |
+| `error`     | What `container.get()` rejected with, normally a `DIError`                                              |
+| `isLoading` | A resolution is in progress. `true` on the first render unless the container already holds the instance |
+| `isSuccess` | `data` is set. `true` on the first render when the container already holds the instance                 |
+| `isError`   | `error` is set                                                                                          |
+| `refetch`   | Calls `container.get()` again. Returns the existing instance when there is one                          |
 
 `args` is compared by its JSON form; a new object with the same content does not restart the resolution. See [Using services in components](/docs/di/react/using-services#useservice).
 

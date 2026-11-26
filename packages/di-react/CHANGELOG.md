@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Changed
+
+- **Breaking:** `useService` and `useOptionalService` report `isLoading: true` on the first render when the container does not hold the instance yet. That render used to have every flag `false`.
+- **Breaking:** `useService` reports an error the container raises while reading the token on the first render (an alias cycle, args that contain themselves, a value that is not a token) in `error`. It used to throw during render.
+- **`refetch()` of `useOptionalService`** works like the one of `useService`: it re-renders through `isLoading` and returns `undefined` instead of a promise.
+
+### Fixed
+
+- **Stale instance in `useOptionalService` after an args change**: a resolution for the previous args that finished after the one for the current args replaced its instance.
+- **`useOptionalService` after `refetch()`**: an instance it resolved after a failure or `isNotFound` was not subscribed to, so invalidating it did not resolve again.
+
 ### Removed
 
 - **Breaking:** the types `UnionToArray` and `Join`. No hook used them, and `UnionToArray` evaluated to `never` for every input.
