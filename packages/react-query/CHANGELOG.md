@@ -19,6 +19,7 @@
 
 - **Breaking: the types `EndpointArgs`, `EndpointData` and `EndpointFailure`** — use `ClientRequestArgs`, `InferEndpointReturn` and `InferEndpointError` from `@navios/builder`, which they were aliases of.
 - **Breaking: the type `ArgsWith<Options, Rest>`** — use `ArgsOf<ClientRequestArgs<Options>, Rest>`.
+- **The optional `zod` peer dependency** — the package never imports `zod`; endpoints take any Standard Schema library, as in `@navios/builder`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 
