@@ -13,9 +13,7 @@ export interface ProblemDetails {
   [key: string]: unknown
 }
 
-export const PROBLEM_HEADERS: Readonly<Record<string, string>> = Object.freeze({
-  'content-type': 'application/problem+json',
-})
+const PROBLEM_CONTENT_TYPE = 'application/problem+json'
 
 export function problem(
   status: number,
@@ -44,7 +42,7 @@ export function problem(
   }
   return {
     status,
-    headers: { 'content-type': PROBLEM_HEADERS['content-type'] },
+    headers: { 'content-type': PROBLEM_CONTENT_TYPE },
     body,
     kind: 'json',
   }
