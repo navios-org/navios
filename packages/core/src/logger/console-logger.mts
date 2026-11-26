@@ -1,7 +1,7 @@
 // Ported from NestJS (https://github.com/nestjs/nest, MIT licence). Big thanks
 // to the NestJS team for their work.
-import type { InspectOptions } from 'util'
-import { inspect } from 'util'
+import type { InspectOptions } from 'node:util'
+import { inspect } from 'node:util'
 
 import { registerInjectable } from '@navios/di'
 

@@ -41,6 +41,16 @@
         "default": "./lib/adapter/index.cjs"
       }
     },
+    "./web": {
+      "import": {
+        "types": "./lib/web/index.d.mts",
+        "default": "./lib/web/index.mjs"
+      },
+      "require": {
+        "types": "./lib/web/index.d.cts",
+        "default": "./lib/web/index.cjs"
+      }
+    },
     "./testing": {
       "import": {
         "types": "./lib/testing/index.d.mts",

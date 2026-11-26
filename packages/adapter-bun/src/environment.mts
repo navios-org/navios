@@ -1,9 +1,11 @@
 import type { AdapterDefinition, HttpAdapterEnvironment } from '@navios/server/adapter'
+import type { CorsOptions } from '@navios/server/web'
 import type { Serve, Server } from 'bun'
 
 import { BunAdapter } from './bun-adapter.mjs'
 
-import type { BunCorsOptions } from './cors.mjs'
+/** CORS options of the Bun adapter. */
+export type BunCorsOptions = CorsOptions
 
 /** The Bun server. The parameter is the type of `ws.data` of its WebSockets. */
 export type BunServer<WebSocketData = undefined> = Server<WebSocketData>

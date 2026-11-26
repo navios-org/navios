@@ -20,10 +20,11 @@ export type OriginFunction = (
 ) => CorsOrigin | void | Promise<CorsOrigin | void>
 
 /**
- * CORS options of the Bun adapter. They have the names and the meaning of the
- * options of `@fastify/cors` that the Fastify adapter takes.
+ * CORS options of an adapter that answers with a web `Response`. They have the
+ * names and the meaning of the options of `@fastify/cors` that the Fastify
+ * adapter takes.
  */
-export interface BunCorsOptions {
+export interface CorsOptions {
   /** Allowed origin(s). @default '*' */
   origin?: CorsOrigin | OriginFunction
   credentials?: boolean
@@ -83,12 +84,13 @@ function assertCredentials(allowed: string | null, credentials: boolean | undefi
   }
 }
 
+/** CORS for requests and responses of the web platform. */
 export class Cors {
   private readonly origin: CorsOrigin | OriginFunction
   /** Whether every origin gets the same response headers. */
   private readonly isFixed: boolean
 
-  constructor(private readonly options: BunCorsOptions) {
+  constructor(private readonly options: CorsOptions) {
     // Like @fastify/cors: enabling CORS without an origin allows any origin,
     // and so does a list with `*` in it.
     const { origin = '*' } = options

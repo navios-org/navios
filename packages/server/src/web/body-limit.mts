@@ -1,7 +1,4 @@
-import { bodyTooLarge } from '@navios/server/adapter'
-
-/** The default of `Bun.serve`. */
-export const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
+import { bodyTooLarge } from '../decoding/request-errors.mjs'
 
 const READERS = ['text', 'json', 'bytes', 'arrayBuffer', 'blob', 'formData', 'clone'] as const
 
@@ -11,8 +8,9 @@ const READERS = ['text', 'json', 'bytes', 'arrayBuffer', 'blob', 'formData', 'cl
  * it fails with a 413 as soon as more than `limit` bytes have arrived, whoever
  * reads it: the pipeline, or a handler through `ctx.raw.request`.
  *
- * The request stays the one that Bun knows, with its `params` and `cookies`
- * and for `server.requestIP()`; what reads its body is replaced.
+ * The request stays the one that the runtime knows, for what it keeps by it
+ * (the `params` and `server.requestIP()` of Bun); what reads its body is
+ * replaced.
  */
 export function limitBody(request: Request, limit: number): void {
   const body = request.body!
@@ -24,6 +22,8 @@ export function limitBody(request: Request, limit: number): void {
     method: request.method,
     headers: request.headers,
     signal: request.signal,
+    // Node takes a stream with this only.
+    duplex: 'half',
     body: new ReadableStream({
       async pull(controller) {
         reader ??= body.getReader() as ReadableStreamDefaultReader<Uint8Array>
@@ -44,7 +44,7 @@ export function limitBody(request: Request, limit: number): void {
         return (reader ?? body).cancel(reason)
       },
     }),
-  })
+  } as RequestInit)
   for (const name of READERS) {
     Object.defineProperty(request, name, { value: () => limited[name](), configurable: true })
   }

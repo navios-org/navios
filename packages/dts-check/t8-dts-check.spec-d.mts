@@ -6,6 +6,7 @@ import { expectTypeOf } from 'vitest'
 import { z } from 'zod/v4'
 
 import type * as Fastify from '../adapter-fastify/lib/index.d.mts'
+import type * as Srvx from '../adapter-srvx/lib/index.d.mts'
 import type * as Builder from '../builder/lib/index.d.mts'
 import type * as Adapter from '../server/lib/adapter/index.d.mts'
 import type * as Core from '../server/lib/index.d.mts'
@@ -124,6 +125,17 @@ expectTypeOf<
 expectTypeOf<
   ReturnType<Core.NaviosApplication<Fastify.FastifyEnvironment>['getServer']>
 >().toEqualTypeOf<import('fastify').FastifyInstance>()
+
+// ------------------------------------------------------- @navios/adapter-srvx
+expectTypeOf<Srvx.SrvxEnvironment['raw']['request']>().toEqualTypeOf<
+  import('srvx').ServerRequest
+>()
+expectTypeOf<
+  ReturnType<Core.NaviosApplication<Srvx.SrvxEnvironment>['getServer']>
+>().toEqualTypeOf<import('srvx').Server>()
+expectTypeOf<
+  Parameters<Core.NaviosApplication<Srvx.SrvxEnvironment>['listen']>[0]
+>().toEqualTypeOf<Srvx.SrvxListenOptions>()
 
 // --------------------------------------------------------- @navios/react-query
 expectTypeOf<ReturnType<typeof declareClient>>().toEqualTypeOf<ReactQuery.ClientInstance>()

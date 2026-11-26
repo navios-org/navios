@@ -149,7 +149,7 @@ const base = await app.listen({ port: 0, host: '127.0.0.1' })
 const response = await fetch(`${base}/users/1`)
 ```
 
-`listen` resolves to the base URL with the port that was assigned. On Bun the options are `{ port: 0, hostname: '127.0.0.1' }`.
+`listen` resolves to the base URL with the port that was assigned. On Bun and on srvx the options are `{ port: 0, hostname: '127.0.0.1' }`.
 
 ## Replacing dependencies
 

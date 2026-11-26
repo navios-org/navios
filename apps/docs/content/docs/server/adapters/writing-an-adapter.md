@@ -8,7 +8,7 @@ An adapter binds Navios to an HTTP server. It registers routes with the server, 
 
 The contract is in `@navios/server/adapter`. Only what applications use as well, such as `HttpException` and `problem()`, comes from `@navios/server`.
 
-The shipped adapters are the working references. `@navios/adapter-fastify` and `@navios/adapter-bun` are each a handful of source files, and the in-memory adapter in `@navios/server/testing` is the smallest implementation.
+The shipped adapters are the working references. `@navios/adapter-fastify`, `@navios/adapter-bun` and `@navios/adapter-srvx` are each a handful of source files, and the in-memory adapter in `@navios/server/testing` is the smallest implementation.
 
 ## The definition
 
@@ -95,7 +95,7 @@ function toNativePath({ segments }: RoutePath): string {
 
 A router that matches `/users/` to `/users/:userId`, or `..` to a parameter, may do so. The executor answers such a request as one that matched no route.
 
-A server without a router uses `RouteTable`, as the in-memory adapter does: `add(method, path, value)`, and `match(method, path)` for the closest route and its decoded `urlParams`. A function passed to its constructor replaces `decodeURIComponent`, for a server whose router compares segments as they were sent. It serves `HEAD` with the `GET` route, which the router of an adapter has to do as well.
+A server without a router uses `RouteTable`, as the srvx and the in-memory adapter do: `add(method, path, value)`, and `match(method, path)` for the closest route and its decoded `urlParams`. A function passed to its constructor replaces `decodeURIComponent`, for a server whose router compares segments as they were sent. It serves `HEAD` with the `GET` route, which the router of an adapter has to do as well.
 
 ## `RouteInput`
 
@@ -212,6 +212,17 @@ An error of the server itself, which never reached an executor or came after it,
 `settledWithin(work, ms)` tells whether `work` settled within `ms`, for a `close()` that waits for the requests in flight.
 
 When the error came after the headers of another response were set, remove those that `describesSuccess(name, value)` names first.
+
+## Servers of the web platform
+
+A server that hands the adapter a `Request` and takes a `Response` needs the same few things as the Bun and the srvx adapter, which share them. They are in `@navios/server/web`:
+
+| Export                           | Use                                                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cors`, `CorsOptions`            | CORS with the options of the Bun adapter. `check(request)` gives the allowed origin, or a promise of it; `apply(headers, origin)` adds the headers of a response; `Cors.isPreflight(request)` and `preflight(request, origin)` answer a preflight request. |
+| `limitBody(request, limit)`      | Makes reading a body without a declared length fail with `bodyTooLarge()` once it is over `limit` bytes, whoever reads it. A declared length is compared before the executor runs.                  |
+| `toWebHeaders(response.headers)` | The headers of a `RouteResponse` as web `Headers`, a list as one line per value.                                                                                                                    |
+| `injectRequest(request, handle)` | `inject()`: makes a `Request` of a `TestRequest`, calls `handle(request, path)` and reads the `Response` into a `TestResponse`.                                                                     |
 
 ## Running the conformance suite
 

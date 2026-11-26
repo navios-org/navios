@@ -89,6 +89,7 @@ const server: Entry[] = [
   group('Adapters', [
     'server/adapters/fastify',
     'server/adapters/bun',
+    'server/adapters/srvx',
     'server/adapters/xml',
     'server/adapters/writing-an-adapter',
   ]),

@@ -107,13 +107,14 @@ Related packages: [`@navios/adapter-fastify`](https://navios.tech/docs/server/ad
 
 ## Entry points
 
-| Import                         | Contents                                                             |
-| ------------------------------ | -------------------------------------------------------------------- |
-| `@navios/server`               | The framework, plus everything from `@navios/core` and `@navios/di`. |
-| `@navios/server/adapter`       | The adapter contract, for adapter authors.                           |
-| `@navios/server/testing`       | `defineInMemoryEnvironment`, `createTestClient`.                     |
-| `@navios/server/conformance`   | `runAdapterConformance`, for adapter authors.                        |
-| `@navios/server/legacy-compat` | Decorators for `experimentalDecorators` projects.                    |
+| Import                         | Contents                                                              |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `@navios/server`               | The framework, plus everything from `@navios/core` and `@navios/di`.  |
+| `@navios/server/adapter`       | The adapter contract, for adapter authors.                            |
+| `@navios/server/web`           | CORS, body limit and `inject()` for adapters of web-standard servers. |
+| `@navios/server/testing`       | `defineInMemoryEnvironment`, `createTestClient`.                      |
+| `@navios/server/conformance`   | `runAdapterConformance`, for adapter authors.                         |
+| `@navios/server/legacy-compat` | Decorators for `experimentalDecorators` projects.                     |
 
 ## Upgrading from 1.x
 

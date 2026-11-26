@@ -1,0 +1,59 @@
+{
+  "name": "@navios/adapter-srvx",
+  "version": "2.0.0-alpha.0",
+  "license": "MIT",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/navios-org/navios.git",
+    "directory": "packages/adapter-srvx"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run && bun test e2e/bun && deno test --allow-all --sloppy-imports --no-check e2e/deno",
+    "build": "tsdown",
+    "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
+    "publish:next": "yarn npm publish --access public --tag next"
+  },
+  "devDependencies": {
+    "@navios/server": "workspace:^",
+    "@types/bun": "^1.4.5",
+    "esbuild": "^0.28.2",
+    "miniflare": "^4.20260730.0",
+    "srvx": "^1.0.8",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "@navios/server": "workspace:*",
+    "srvx": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

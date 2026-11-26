@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The definition that `defineBunEnvironment()` returns has no `name`, which `@navios/server` no longer reads.
+- CORS, the limit of a body without a declared length and `inject()` are those of `@navios/server/web`, which the srvx adapter shares. `BunCorsOptions`, `CorsOrigin` and `OriginFunction` are the types of that module under the names they had.
 
 ### Fixed
 

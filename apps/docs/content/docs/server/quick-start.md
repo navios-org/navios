@@ -173,6 +173,10 @@ const app = await NaviosFactory.create(AppModule, {
 bun main.mts
 ```
 
+### On other runtimes
+
+[`@navios/adapter-srvx`](/docs/server/adapters/srvx) runs the same code on Cloudflare Workers, AWS Lambda and Deno.
+
 ## Try it
 
 ```bash

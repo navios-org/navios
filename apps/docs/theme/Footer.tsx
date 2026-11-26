@@ -23,6 +23,7 @@ const columns = [
     links: [
       '@navios/adapter-fastify',
       '@navios/adapter-bun',
+      '@navios/adapter-srvx',
       '@navios/adapter-xml',
       '@navios/jwt',
       '@navios/schedule',

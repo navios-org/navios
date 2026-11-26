@@ -4,7 +4,7 @@ import { handler, NaviosFactory, registerController, registerModule } from '@nav
 
 import type { NaviosApplication } from '@navios/server'
 
-import { DEFAULT_BODY_LIMIT } from '../src/body-limit.mjs'
+import { DEFAULT_BODY_LIMIT } from '../src/bun-adapter.mjs'
 import { defineBunEnvironment } from '../src/index.mjs'
 
 import type { BunEnvironment } from '../src/index.mjs'
