@@ -8,6 +8,8 @@
 
 ### Added
 
+- **Client `defaults` compose with each declaration's key segments**: a query's or mutation's own `keyPrefix` / `keySuffix` are added after the client's `defaults` instead of replacing them, so `[...defaults.keyPrefix, ...keyPrefix, method, url, ...defaults.keySuffix, ...keySuffix]`.
+- **Mocking through `@navios/builder/mock`**: query, infinite query and mutation objects can be passed to `mocks.on(...)` as they are.
 - **Typed errors in the error channel**: queries and mutations call the throwing form of the endpoint, so `query.error`, `mutation.error`, `onError` and error boundaries receive the endpoint's `EndpointError`. Narrow with `error.kind` and `error.status`; `error.body` is typed from `errorSchema`.
 - **`query.use(args | skipToken, options)` / `query.useSuspense(args, options)`** accept every TanStack option except `queryKey` / `queryFn` (`enabled`, `staleTime`, `select`, ...). `skipToken` disables a query until its inputs are known.
 - **`query.key(args?)`**: no args is the prefix of every entry of the endpoint, partial args the prefix of the matching entries, full args the exact key. Keys are tagged with the data and error types.

@@ -3,9 +3,26 @@ import type { Schema } from '../shared/schema.mjs'
 import type { SocketError } from './socket-error.mjs'
 
 /**
+ * How topics travel over the client.
+ *
+ * - `'envelope'` — every message is one `message` event whose data names its
+ *   topic: `[topic, payload]`, or what `formatMessage` / `parseMessage` make of
+ *   it. Acknowledgements are matched by an `ackId` in the envelope. This is
+ *   what `declareWebSocket` speaks.
+ * - `'events'` — each topic is its own event, as Socket.IO does it:
+ *   `emit(topic, payload)` and `on(topic, listener)`. An acknowledgement is
+ *   the client's callback argument, `emit(topic, payload, (ack) => …)`.
+ */
+export type SocketTopicTransport = 'envelope' | 'events'
+
+/**
  * Message formatter function type.
  *
  * Converts topic, payload, and optional ackId into wire format.
+ *
+ * With `topics: 'events'` the result is the single argument emitted with the
+ * topic's event, and `ackId` is never passed: by default the payload is sent
+ * as it is.
  *
  * @param topic - Topic/event name
  * @param payload - Message payload
@@ -33,7 +50,14 @@ export type MessageFormatter = (topic: string, payload: unknown, ackId?: string)
  *
  * Extracts topic, payload, and optional ackId from wire format.
  *
+ * With `topics: 'events'` it receives the first argument of a topic's event
+ * and the event name, and an acknowledgement too; the topic it returns is
+ * where the message is delivered. By default that is
+ * `{ topic: event, payload: data }`.
+ *
  * @param data - Raw message data from wire
+ * @param event - The client event it arrived with: `'message'` for
+ *   `topics: 'envelope'`, the topic for `topics: 'events'`
  * @returns Parsed message components or null if invalid format
  *
  * @example
@@ -47,7 +71,10 @@ export type MessageFormatter = (topic: string, payload: unknown, ackId?: string)
  * }
  * ```
  */
-export type MessageParser = (data: unknown) => {
+export type MessageParser = (
+  data: unknown,
+  event: string,
+) => {
   topic: string
   payload: unknown
   ackId?: string
@@ -58,16 +85,34 @@ export type MessageParser = (data: unknown) => {
  */
 export interface SocketBuilderConfig {
   /**
+   * How topics travel over the client: in one `message` envelope
+   * (`declareWebSocket`, the default) or as one event per topic (Socket.IO).
+   *
+   * @default 'envelope'
+   *
+   * @example
+   * ```ts
+   * import { io } from 'socket.io-client'
+   *
+   * const socket = socketBuilder({ topics: 'events' })
+   * socket.provideClient(io('https://chat.example.com'))
+   * ```
+   */
+  topics?: SocketTopicTransport
+
+  /**
    * Custom message formatter for outgoing messages.
    *
-   * Default: array format `[topic, payload]` or `[topic, payload, ackId]`
+   * Default: array format `[topic, payload]` or `[topic, payload, ackId]`;
+   * with `topics: 'events'`, the payload as it is.
    */
   formatMessage?: MessageFormatter
 
   /**
    * Custom message parser for incoming messages.
    *
-   * Default: Expects the array format `[topic, payload, ackId?]`
+   * Default: Expects the array format `[topic, payload, ackId?]`; with
+   * `topics: 'events'`, `{ topic: event, payload: data }`.
    *
    * When the returned `ackId` belongs to a send that is waiting for its
    * acknowledgement, `payload` is that acknowledgement: it settles the send

@@ -15,7 +15,7 @@ function declareClient(options: ClientOptions): ClientInstance
 | `ClientOptions` field | Type              | Description                                                        |
 | --------------------- | ----------------- | ------------------------------------------------------------------ |
 | `api`                 | `BuilderInstance` | The builder that inline declarations are declared on               |
-| `defaults`            | `KeyOptions`      | `keyPrefix` / `keySuffix` applied to every key made by this client |
+| `defaults`            | `KeyOptions`      | `keyPrefix` / `keySuffix` applied to every key made by this client, before the segments of each query or mutation |
 
 ## Client methods
 
@@ -38,7 +38,7 @@ client.mutation({ ...endpointOptions, ...settings })
 | `infiniteQuery` | [`InfiniteQuerySettings`](#infinite-query-settings) | [`InfiniteQueryObject`](#infinite-query-object) | The endpoint must have a `querySchema` |
 | `mutation`      | [`MutationSettings`](#mutation-settings) | [`MutationObject`](#mutation-object) | Any endpoint, including multipart and blob |
 
-Unknown keys in an inline declaration are compile errors. Options given to a method override the client's `defaults`.
+Unknown keys in an inline declaration are compile errors. A method's `keyPrefix` and `keySuffix` are added after the client's `defaults`, never in place of them.
 
 ## Shared options
 

@@ -130,6 +130,21 @@ export const API = builder({
 
 It cannot change the outcome of a call. An exception thrown inside it is caught and logged.
 
+Its second argument holds the request that was sent, for logs that need the bound URL or the query rather than the URL template in `error.endpoint`. It is `null` when the call failed before a request was built: invalid input, no client, a URL parameter that cannot be bound.
+
+```ts
+export const API = builder({
+  client,
+  onError: (error, { request }) => {
+    if (error.kind === 'response-validation') {
+      console.error(`Unexpected response from ${request?.method} ${request?.url}`, error.issues)
+    }
+  },
+})
+```
+
+The request is not part of the error, because its headers may carry credentials. Log only the fields you need from it.
+
 `error.toJSON()` returns a plain object without `cause`, with headers flattened to a record and `set-cookie` left out. Its `issues` never contain the validated values. It is safe to pass to `JSON.stringify`, a logger, or across a server boundary.
 
 ## Reacting to specific failures

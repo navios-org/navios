@@ -1,11 +1,16 @@
 /**
- * The connection `socketBuilder` works with: a `declareWebSocket` handle, or
- * anything else that follows this interface.
+ * The connection `socketBuilder` works with: a `declareWebSocket` handle, a
+ * Socket.IO client, or anything else that follows this interface.
  *
- * The builder listens to `message`, which must carry every incoming message as
- * `parseMessage` expects it, to `disconnect`, after which it gives up waiting
- * for acknowledgements, and to `__navios_ack:<ackId>`, which may carry an
- * acknowledgement.
+ * The builder always listens to `disconnect`, after which it gives up waiting
+ * for acknowledgements. What else it listens to depends on its `topics`:
+ *
+ * - `'envelope'` (default): `message`, which must carry every incoming message
+ *   as `parseMessage` expects it, and `__navios_ack:<ackId>`, which may carry
+ *   an acknowledgement.
+ * - `'events'`: the event of each topic that has subscribers. It sends with
+ *   `emit(topic, payload)`, and `emit(topic, payload, callback)` when it waits
+ *   for an acknowledgement, as Socket.IO clients expect.
  */
 export interface SocketClient {
   /**

@@ -227,7 +227,7 @@ Send functions throw and reject with a `SocketError` instead of a `ZodError` or 
 
 What else changed:
 
-- **Socket.IO is not supported.** A stock Socket.IO client never understood the frames of `socketBuilder`. Use `declareWebSocket`, or a client of your own with [the same methods](/docs/builder/realtime/websocket#another-transport).
+- **Socket.IO needs `topics: 'events'`.** By default `socketBuilder` sends every message as a `[topic, payload]` envelope on one event, which a stock Socket.IO server never understood. `socketBuilder({ topics: 'events' })` emits each topic as its own event and takes acknowledgements as callbacks. See [Socket.IO](/docs/builder/realtime/websocket#socketio).
 - **A frame that cannot be sent is an error.** `emit`, `sendRaw` and send functions fail with kind `transport` when the socket is not open, where 1.x reported the failure to `onError` at most. Pending acknowledgements are rejected when the connection closes. `emit` takes no callback; use `ackSchema`.
 - **A send with an `ackSchema` always rejects**, also for an invalid payload. It never throws.
 - **`eventSourceBuilder.provideClient` no longer closes the previous connection.** Pass `{ closePrevious: true }`. Both builders ignore the client they already have, and both accept subscriptions before there is one.

@@ -10,6 +10,7 @@ import type {
   AbstractResponse,
   BaseEndpointOptions,
   Client,
+  EndpointErrorContext,
 } from '../index.mjs'
 
 type Reply = Partial<AbstractResponse<unknown>> | (() => never)
@@ -589,6 +590,43 @@ describe('endpoint handler', () => {
       expect(onError.mock.calls[0]?.[0]).toBe(thrown)
     })
 
+    it('receives the request that was sent, with the bound URL and the query', async () => {
+      const hook = vi.fn<(error: EndpointError, context: EndpointErrorContext) => void>()
+      const withHook = builder({ client, onError: hook })
+      client.reply({ data: { id: 1 } })
+      const ep = withHook.declareEndpoint({
+        method: 'GET',
+        url: '/users/$userId',
+        querySchema: z.object({ tab: z.string() }),
+        responseSchema: userSchema,
+      })
+
+      await ep.safe({ urlParams: { userId: '42' }, params: { tab: 'posts' } })
+
+      expect(hook).toHaveBeenCalledTimes(1)
+      const [error, context] = hook.mock.calls[0]!
+      expect(error.kind).toBe('response-validation')
+      expect(context.request).toBe(client.calls[0])
+      expect(context.request).toMatchObject({ url: '/users/42', params: { tab: 'posts' } })
+    })
+
+    it('receives a null request when the call failed before one was built', async () => {
+      const hook = vi.fn<(error: EndpointError, context: EndpointErrorContext) => void>()
+      const withHook = builder({ client, onError: hook })
+      const ep = withHook.declareEndpoint({
+        method: 'POST',
+        url: '/users',
+        requestSchema: z.object({ name: z.string() }),
+        responseSchema: userSchema,
+      })
+
+      await ep.safe({ data: { name: 1 as never } })
+
+      expect(hook.mock.calls[0]![0].kind).toBe('request-validation')
+      expect(hook.mock.calls[0]![1]).toEqual({ request: null })
+      expect(client.calls).toHaveLength(0)
+    })
+
     it('cannot change the outcome by throwing', async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
       const noisy = builder({
@@ -609,6 +647,34 @@ describe('endpoint handler', () => {
   })
 
   describe('request config', () => {
+    it('hands the client the endpoint declaration and the call arguments', async () => {
+      const seen: unknown[] = []
+      const contextClient: Client = {
+        request: async (config, context) => {
+          seen.push(context)
+          return {
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            data: { id: '1', name: 'Ada' } as never,
+          }
+        },
+      }
+      const options = {
+        method: 'GET',
+        url: '/users/$userId',
+        responseSchema: userSchema,
+      } as const
+      const ep = builder({ client: contextClient }).declareEndpoint(options)
+      const args = { urlParams: { userId: 7 } }
+
+      await ep(args)
+
+      expect(seen).toHaveLength(1)
+      expect(seen[0]).toEqual({ endpoint: options, args })
+      expect((seen[0] as { endpoint: unknown }).endpoint).toBe(ep.config)
+    })
+
     it('forwards only builder-owned keys plus clientOptions', async () => {
       const ep = api.declareEndpoint({
         method: 'GET',

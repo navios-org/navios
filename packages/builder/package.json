@@ -42,6 +42,16 @@
         "default": "./lib/socket.cjs"
       }
     },
+    "./mock": {
+      "import": {
+        "types": "./lib/mock.d.mts",
+        "default": "./lib/mock.mjs"
+      },
+      "require": {
+        "types": "./lib/mock.d.cts",
+        "default": "./lib/mock.cjs"
+      }
+    },
     "./eventsource": {
       "import": {
         "types": "./lib/eventsource.d.mts",

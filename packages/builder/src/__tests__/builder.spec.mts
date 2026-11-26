@@ -121,6 +121,7 @@ describe('builder', () => {
           method: 'GET',
           url: '/users',
         }),
+        expect.anything(),
       )
     })
 
@@ -161,6 +162,7 @@ describe('builder', () => {
         expect.objectContaining({
           params: { page: 1, limit: 10 },
         }),
+        expect.anything(),
       )
     })
 
@@ -181,6 +183,7 @@ describe('builder', () => {
         expect.objectContaining({
           url: '/users/123',
         }),
+        expect.anything(),
       )
     })
 
@@ -229,6 +232,7 @@ describe('builder', () => {
           url: '/users/123/avatar',
           data: expect.any(FormData),
         }),
+        expect.anything(),
       )
     })
 
@@ -301,6 +305,7 @@ describe('builder', () => {
           params: { page: 1, limit: 100 },
           responseType: 'blob',
         }),
+        expect.anything(),
       )
     })
 
@@ -325,6 +330,7 @@ describe('builder', () => {
           data: { name: 'Report', email: 'test@example.com' },
           responseType: 'blob',
         }),
+        expect.anything(),
       )
     })
 
@@ -441,7 +447,10 @@ describe('builder', () => {
 
         await endpoint({})
 
-        expect(client.request).toHaveBeenCalledWith(expect.objectContaining({ method }))
+        expect(client.request).toHaveBeenCalledWith(
+          expect.objectContaining({ method }),
+          expect.anything(),
+        )
       },
     )
 
@@ -461,7 +470,10 @@ describe('builder', () => {
 
         await endpoint({ data: { name: 'Test', email: 'test@example.com' } })
 
-        expect(client.request).toHaveBeenCalledWith(expect.objectContaining({ method }))
+        expect(client.request).toHaveBeenCalledWith(
+          expect.objectContaining({ method }),
+          expect.anything(),
+        )
       },
     )
   })

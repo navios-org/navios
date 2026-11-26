@@ -100,7 +100,16 @@ userQuery.key({ urlParams: { userId: '42' } })
 // ['tenant-1', 'GET', '/users/$userId', 'v2', { urlParams: { userId: '42' } }]
 ```
 
-A value set on a declaration replaces the client default for that field; the two are not concatenated.
+A declaration's own segments are added to the client's, never replace them: the client prefix comes first and the client suffix right after the URL.
+
+```ts
+const scoped = client.query(getUser, { keyPrefix: ['admin'], keySuffix: ['v2'] })
+scoped.key()
+// with defaults { keyPrefix: ['tenant-1'], keySuffix: ['beta'] }:
+// ['tenant-1', 'admin', 'GET', '/users/$userId', 'beta', 'v2']
+```
+
+So `['tenant-1']` stays a handle for every entry of the client, whatever its queries add.
 
 Reach for a prefix when two clients would otherwise share entries: two builders that expose the same paths on different backends, or one `QueryClient` holding data for several tenants or accounts. A prefix also gives you one handle for all of it:
 

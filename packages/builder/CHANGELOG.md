@@ -6,6 +6,12 @@
 
 ### Added
 
+- **`@navios/builder/mock`**: `createMockClient({ fallback?, delay? })`, a `Client` that answers per endpoint. `mocks.on(endpoint, handler)` and `mocks.once(...)` register typed handlers that receive the call's arguments and return the body (the schema's input) or `respond(status, body?, { headers? })`; what they return is validated like a real response. Targets are endpoint handlers or anything with an `endpoint` (react-query objects). `wrap(client)` puts the mocks in front of a real client, `calls(endpoint?)` lists what they answered, `off`, `has` and `reset` manage them. For tests, and for building a UI before its backend exists.
+- **Socket.IO in `socketBuilder`**: `socketBuilder({ topics: 'events' })` emits each topic as its own event (`emit(topic, payload)`), listens per topic while it has subscribers, and waits for acknowledgements as the callback argument of `emit`. `formatMessage` and `parseMessage` run around the payload; `parseMessage` also decodes acknowledgements. A Socket.IO client is passed to `provideClient` as it is. New type: `SocketTopicTransport`.
+- **`parseMessage(data, event)`**: the parser also receives the event the data arrived with: `'message'` by default, the topic with `topics: 'events'`.
+- **Request context in `onError`**: `onError(error, { request })` receives the request config that was sent (bound URL, query, body, headers), or `null` when the call failed before one was built. It is not on the `EndpointError`, so `toJSON()` stays free of credentials. New type: `EndpointErrorContext`.
+- **Call context for clients**: `client.request(config, { endpoint, args })` receives the calling endpoint's declaration and the call's arguments as a second argument, which clients that only send requests ignore. New type: `ClientRequestContext`.
+- **`getFilename(response)`**: the file name of `Content-Disposition`, with `filename*` (RFC 6266 / 8187, any charset) preferred over `filename`, unquoted and without directory parts. Accepts a `ResponseMeta`, a `{ headers }` record such as react-query's `withResponse` response, or the raw value. New type: `HeaderSource`.
 - **`endpoint.safe(args)`**: the non-throwing twin of every endpoint. Resolves to a `SafeResult` — `{ ok: true, data, error: null, response }` or `{ ok: false, data: null, error, response }` — and never rejects, including for invalid input and a missing client.
 - **`EndpointError`**: the single error type for a failed call (`extends NaviosError`). Thrown by `endpoint(args)`, returned by `endpoint.safe(args)` and passed to `onError`. Fields: `kind`, `endpoint`, `status`, `body`, `response`, `issues`, `cause`, plus `toJSON()`.
 - **Error kinds**: `http`, `http-unknown`, `request-validation`, `response-validation`, `network`, `timeout`, `aborted`, `config`.
@@ -33,6 +39,7 @@
 
 ### Changed
 
+- **`AbstractRequestConfig` matches axios**: `responseType` is `'json' | 'text' | 'blob' | 'stream'`, the values the builder sets, and `signal` is `AbortSignal` (a `null` call signal is left out). An axios instance is now a `Client` without `as unknown as Client`. A client that typed its config parameter with `'arrayBuffer'` / `'formData'` or a `null` signal still fits.
 - **The arguments of a call are sent as they were passed.** 1.x sent the output of `urlParamsSchema`, `querySchema` and `requestSchema`; a server that parses the request with the same schemas then applied every transform twice. Arguments are still validated, but defaults, transforms and the removal of unknown keys no longer run before sending. `builder({ send: 'output' })` restores that for APIs that do not share the schemas. A URL parameter that is left out is still sent as the default of `urlParamsSchema`. Responses are not affected.
 - **`data` and `params` are optional whenever their schema accepts an empty object or `undefined`**, in the types and at runtime.
 - **`validateResponse: false` types the result as the schema's input**, because transforms and defaults are not applied.

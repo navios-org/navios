@@ -107,7 +107,7 @@ export function makeConfig(
     params: request.params ?? {},
     data,
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
-    ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(request.signal ? { signal: request.signal } : {}),
     ...(timeout !== undefined ? { timeout } : {}),
     ...(responseType !== undefined ? { responseType } : {}),
   }

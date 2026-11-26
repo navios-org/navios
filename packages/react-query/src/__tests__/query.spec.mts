@@ -3,6 +3,7 @@ import { hashKey, QueryClient, skipToken } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
+import { declareClient } from '../client/declare-client.mjs'
 import { getHttpClient, setHttpClient } from '../endpoint/http-client.mjs'
 
 import { makeHttp, setup } from './helpers.mjs'
@@ -177,6 +178,31 @@ describe('client.query', () => {
         'v2',
         { urlParams: { id: '1' } },
       ])
+    })
+
+    it('puts the client defaults around the query own segments instead of replacing them', () => {
+      const client = declareClient({
+        api: ctx.api,
+        defaults: { keyPrefix: ['core'], keySuffix: ['v1'] },
+      })
+      const endpoint = ctx.api.declareEndpoint({
+        method: 'GET',
+        url: '/users/$id',
+        responseSchema: z.any(),
+      })
+
+      const scoped = client.query(endpoint, { keyPrefix: ['tenant-1'], keySuffix: ['beta'] })
+      const inline = client.query({
+        method: 'GET',
+        url: '/users',
+        responseSchema: z.any(),
+        keyPrefix: ['admin'],
+      })
+      const plain = client.query(endpoint)
+
+      expect(scoped.key()).toEqual(['core', 'tenant-1', 'GET', '/users/$id', 'v1', 'beta'])
+      expect(inline.key()).toEqual(['core', 'admin', 'GET', '/users', 'v1'])
+      expect(plain.key()).toEqual(['core', 'GET', '/users/$id', 'v1'])
     })
   })
 

@@ -1,5 +1,20 @@
-import type { Client } from './client.mjs'
+import type { AbstractRequestConfig, Client } from './client.mjs'
 import type { EndpointError } from './endpoint-error.mjs'
+
+/**
+ * The second argument of the builder's `onError` hook.
+ */
+export interface EndpointErrorContext {
+  /**
+   * The request config handed to the client: the bound URL, the query, the
+   * body and the headers. `null` when the call failed before a request was
+   * built (invalid input, no client, a URL parameter that cannot be bound).
+   *
+   * It is not part of the `EndpointError` on purpose: the headers may carry
+   * credentials, and the error is meant to be safe to log with `toJSON()`.
+   */
+  request: AbstractRequestConfig | null
+}
 
 export interface BuilderConfig {
   /**
@@ -28,10 +43,24 @@ export interface BuilderConfig {
    * the caller receives — whether it is thrown by `endpoint(args)` or
    * returned by `endpoint.safe(args)`.
    *
+   * The second argument has the request that was sent, when there was one,
+   * for logs that need the bound URL or the query.
+   *
    * The hook is for telemetry. An exception thrown inside it is caught and
    * logged; it never changes the outcome of the call.
+   *
+   * @example
+   * ```ts
+   * builder({
+   *   onError: (error, { request }) => {
+   *     if (error.kind === 'response-validation') {
+   *       console.error(`Invalid response from ${request?.url}`, error.issues)
+   *     }
+   *   },
+   * })
+   * ```
    */
-  onError?: (error: EndpointError) => void
+  onError?: (error: EndpointError, context: EndpointErrorContext) => void
 }
 
 export interface BuilderContext {

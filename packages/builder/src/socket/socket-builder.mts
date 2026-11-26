@@ -4,6 +4,7 @@ import { createSendHandler, type CreateSendContext, type PendingAck } from './cr
 import {
   createGlobalMessageHandler,
   createSubscribeHandler,
+  createTopicEventListener,
   type CreateSubscribeContext,
 } from './create-subscribe.mjs'
 import { reportSocketError } from './report-socket-error.mjs'
@@ -71,6 +72,10 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
   // What the builder listens to on the current client, once it does
   let listeners: [event: string, listener: (...args: unknown[]) => void][] | null = null
 
+  // With `topics: 'events'`: the listener of each subscribed topic on the current client
+  const perTopicEvents = config.topics === 'events'
+  const topicListeners = new Map<string, (...args: unknown[]) => void>()
+
   /**
    * Gets the current socket client instance.
    *
@@ -94,13 +99,46 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     if (listeners || !client) {
       return
     }
-    listeners = [
-      ['message', createGlobalMessageHandler(config, topicHandlers, ackHandlers, connectionUrl)],
+    const active: [event: string, listener: (...args: unknown[]) => void][] = [
       ['disconnect', () => abandonAcks('The connection was closed')],
     ]
-    for (const [event, listener] of listeners) {
+    if (!perTopicEvents) {
+      // Every message arrives as one `message` event; parseMessage finds its topic
+      const onMessage = createGlobalMessageHandler(
+        config,
+        topicHandlers,
+        ackHandlers,
+        connectionUrl,
+      )
+      active.unshift(['message', onMessage as (...args: unknown[]) => void])
+    }
+    listeners = active
+    for (const [event, listener] of active) {
       client.on(event, listener)
     }
+    for (const topic of topicHandlers.keys()) {
+      listenTopic(topic)
+    }
+  }
+
+  /** With `topics: 'events'`, listens to the event of a topic that has subscribers. */
+  function listenTopic(topic: string): void {
+    if (!perTopicEvents || !client || !listeners || topicListeners.has(topic)) {
+      return
+    }
+    const listener = createTopicEventListener(config, topic, topicHandlers, connectionUrl)
+    topicListeners.set(topic, listener)
+    client.on(topic, listener)
+  }
+
+  /** Stops listening to the event of a topic that has no subscribers left. */
+  function unlistenTopic(topic: string): void {
+    const listener = topicListeners.get(topic)
+    if (!listener) {
+      return
+    }
+    topicListeners.delete(topic)
+    client?.off(topic, listener)
   }
 
   /**
@@ -136,6 +174,10 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
       for (const [event, listener] of listeners ?? []) {
         previous.off(event, listener)
       }
+      for (const [topic, listener] of topicListeners) {
+        previous.off(topic, listener)
+      }
+      topicListeners.clear()
       listeners = null
       abandonAcks('Client was replaced')
       if (closePrevious) {
@@ -165,6 +207,8 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     config,
     topicHandlers,
     setupGlobalListener,
+    listenTopic,
+    unlistenTopic,
   }
 
   return {

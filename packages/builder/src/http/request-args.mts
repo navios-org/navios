@@ -7,7 +7,9 @@ import type { AbstractRequestConfig } from './client.mjs'
 /**
  * Per-call request options available on every endpoint call.
  */
-export interface RequestBase extends Pick<AbstractRequestConfig, 'signal' | 'headers'> {
+export interface RequestBase extends Pick<AbstractRequestConfig, 'headers'> {
+  /** AbortSignal for this call. `null` is the same as leaving it out. */
+  signal?: AbortSignal | null
   /** Timeout in milliseconds for this call. Wins over the endpoint's `timeout`. */
   timeout?: number
 }

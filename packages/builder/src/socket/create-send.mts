@@ -19,6 +19,9 @@ export const defaultFormatMessage: MessageFormatter = (topic, payload, ackId) =>
 }
 
 /** What a timer can wait for. It fires at once for anything longer. */
+/** The formatter of `topics: 'events'`: the payload is the event's argument. */
+const passPayload: MessageFormatter = (_topic, payload) => payload
+
 const MAX_TIMEOUT = 2 ** 31 - 1
 
 /**
@@ -78,7 +81,9 @@ export function createSendHandler<Options extends SendOptions>(
 ): SendHandler<Options> {
   const { topic, payloadSchema, ackSchema, ackTimeout: optionAckTimeout } = options
   const { getClient, config, ackHandlers, setupGlobalListener } = context
-  const formatMessage = config.formatMessage ?? defaultFormatMessage
+  const perTopicEvents = config.topics === 'events'
+  const formatMessage =
+    config.formatMessage ?? (perTopicEvents ? passPayload : defaultFormatMessage)
   const defaultTimeout = config.ackTimeout ?? 30000
   const timeout = optionAckTimeout ?? defaultTimeout
 
@@ -108,9 +113,20 @@ export function createSendHandler<Options extends SendOptions>(
    * Anything thrown by `formatMessage` or the client is reported and returned
    * as a `SocketError` of kind `transport`.
    */
-  function transmit(client: SocketClient, payload: unknown, ackId?: string): SocketError | null {
+  function transmit(
+    client: SocketClient,
+    payload: unknown,
+    ack?: { id: string; callback: (data: unknown) => void },
+  ): SocketError | null {
     try {
-      const message = ackId ? formatMessage(topic, payload, ackId) : formatMessage(topic, payload)
+      if (perTopicEvents) {
+        // One event per topic; an acknowledgement is the client's callback.
+        const message = formatMessage(topic, payload)
+        if (ack) client.emit(topic, message, ack.callback)
+        else client.emit(topic, message)
+        return null
+      }
+      const message = ack ? formatMessage(topic, payload, ack.id) : formatMessage(topic, payload)
       if (typeof client.sendRaw === 'function') {
         client.sendRaw(topic, message)
       } else {
@@ -126,6 +142,15 @@ export function createSendHandler<Options extends SendOptions>(
     }
   }
 
+  /**
+   * With `topics: 'events'` an acknowledgement arrives as the callback's
+   * argument, encoded like any incoming message: `parseMessage` decodes it.
+   */
+  function decodeAck(ackData: unknown): unknown {
+    if (!config.parseMessage) return ackData
+    return config.parseMessage(ackData, topic)?.payload ?? ackData
+  }
+
   function sendWithAck(client: SocketClient, validatedPayload: unknown): Promise<unknown> {
     const schema = ackSchema!
     return new Promise<unknown>((resolve, reject) => {
@@ -137,7 +162,7 @@ export function createSendHandler<Options extends SendOptions>(
       const release = () => {
         clearTimeout(timeoutId)
         ackHandlers.delete(ackId)
-        client.off(ackTopic, ackHandler)
+        if (!perTopicEvents) client.off(ackTopic, ackHandler)
       }
 
       // Runs for an acknowledgement that arrives as a `__navios_ack:<id>` event
@@ -191,7 +216,7 @@ export function createSendHandler<Options extends SendOptions>(
       // never left: stop waiting now instead of reporting an ack-timeout later.
       let error: SocketError | null
       try {
-        client.on(ackTopic, ackHandler)
+        if (!perTopicEvents) client.on(ackTopic, ackHandler)
         setupGlobalListener?.()
         error = null
       } catch (cause) {
@@ -201,7 +226,10 @@ export function createSendHandler<Options extends SendOptions>(
           cause,
         })
       }
-      error ??= transmit(client, validatedPayload, ackId)
+      error ??= transmit(client, validatedPayload, {
+        id: ackId,
+        callback: (ackData) => ackHandler(decodeAck(ackData)),
+      })
       if (error) {
         release()
         reject(error)

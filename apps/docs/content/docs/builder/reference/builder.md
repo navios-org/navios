@@ -24,7 +24,7 @@ Creates a builder. See [Quick start](/docs/builder/quick-start).
 | --------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `client`              | `Client`                         | HTTP client used by every endpoint of this builder. Optional; can be supplied later or per call     |
 | `send`                | `'input' \| 'output'`            | What is sent once the arguments are valid: the arguments themselves (default), or what the schemas produced. See [What is sent](/docs/builder/essentials/inputs#what-is-sent) |
-| `onError`             | `(error: EndpointError) => void` | Called once per failed call with the error the caller receives. Exceptions inside it are caught and logged |
+| `onError`             | `(error: EndpointError, context: EndpointErrorContext) => void` | Called once per failed call with the error the caller receives, and `{ request }`: the request config that was sent (bound URL, query, body, headers), or `null` when the call failed before one was built. Exceptions inside it are caught and logged |
 
 ## BuilderInstance
 
@@ -204,13 +204,14 @@ if (isHttpError<typeof getUser.config.errorSchema, 404>(error, 404)) {
 
 ## Response helpers
 
-All three accept `null`, so they can be called on `result.response` or `error.response` without a check.
+All of them accept `null`, so they can be called on `result.response` or `error.response` without a check.
 
 | Function          | Signature                                                    | Description                                                                 |
 | ----------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | `getHeader`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One header value                                                          |
 | `getCookie`       | `(meta: ResponseMeta \| null, name: string) => string \| null` | One cookie value from the `Set-Cookie` headers. Always `null` in a browser, where they cannot be read |
 | `getRetryAfterMs` | `(meta: ResponseMeta \| null) => number \| null`             | `Retry-After` in milliseconds, from either its seconds or its date form     |
+| `getFilename`     | `(source: HeaderSource \| string \| null) => string \| null` | The file name of `Content-Disposition`: `filename*` (RFC 6266, any charset) over `filename`, unquoted, without directory parts. Takes a `ResponseMeta`, the `response` of react-query's `withResponse`, or the header value |
 
 ## Schema types
 
@@ -256,7 +257,10 @@ URL template types:
 
 ```ts
 interface Client {
-  request: <T = unknown>(config: AbstractRequestConfig) => Promise<AbstractResponse<T>>
+  request: <T = unknown>(
+    config: AbstractRequestConfig,
+    context?: ClientRequestContext,
+  ) => Promise<AbstractResponse<T>>
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS'
@@ -269,9 +273,9 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTION
 | `params`                      | `Record<string, unknown> \| URLSearchParams`                          | Query parameters                                     |
 | `data`                        | `unknown`                                                             | Request body. A string is already encoded, `FormData` is sent as it is, and anything else is JSON |
 | `headers`                     | `Record<string, string>`                                              | Request headers                                      |
-| `signal`                      | `AbortSignal \| null`                                                 | Cancellation signal                                  |
+| `signal`                      | `AbortSignal`                                                         | Cancellation signal; absent when the call has none   |
 | `timeout`                     | `number`                                                              | Milliseconds                                         |
-| `responseType`                | `'json' \| 'text' \| 'blob' \| 'arrayBuffer' \| 'formData' \| 'stream'` | Set for `response: 'blob' \| 'text' \| 'stream'`; `'text'` for `response: 'void'`; absent for JSON |
+| `responseType`                | `'json' \| 'text' \| 'blob' \| 'stream'`                              | Set for `response: 'blob' \| 'text' \| 'stream'`; `'text'` for `response: 'void'`; absent for JSON. Spelled as axios, `@navios/http` and `fetch` wrappers all spell them, so an axios instance is a `Client` without a cast |
 | `[key: string]`               | `unknown`                                                             | Keys from the endpoint's `clientOptions`             |
 
 | `AbstractResponse<T>` field | Type                                  |
@@ -280,6 +284,13 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTION
 | `status`                    | `number`                              |
 | `statusText`                | `string`                              |
 | `headers`                   | `Record<string, string> \| Headers`   |
+
+| `ClientRequestContext` field | Type                  | Description                                                                 |
+| ---------------------------- | --------------------- | --------------------------------------------------------------------------- |
+| `endpoint`                   | `BaseEndpointOptions` | The declaration of the calling endpoint, the same object as `handler.config` |
+| `args`                       | object                | The call's arguments as the caller passed them: `urlParams`, `params`, `data`, `headers`, `signal`, `timeout` |
+
+Most clients ignore the second argument; axios and `@navios/http` do. It is for clients that answer per endpoint, such as [the mock client](#mock-entry-point).
 
 [HTTP client](/docs/builder/essentials/http-client) describes the contract a client must follow.
 
@@ -293,6 +304,32 @@ For tooling on top of declarations, such as a code generator or a cache key.
 | `bindUrlParams`    | `(url, params: { urlParams? }, urlParamsSchema?: Schema) => url`   | Replaces `$name` placeholders with URL-encoded values, and a `Date` with its ISO string. Throws when one is missing, empty, `.` or `..`, or has no form in a URL (an object, an array, `NaN`) |
 
 With a `urlParamsSchema`, `bindUrlParams` validates first and binds the schema's output. A failure is not an `EndpointError`: a Zod schema throws its `ZodError`, any other schema's issues are thrown as a `NaviosError`.
+
+## Mock entry point
+
+Exports of `@navios/builder/mock`. Guide: [Developing against mocks](/docs/builder/guides/mocking).
+
+```ts
+function createMockClient(options?: MockClientOptions): MockClient
+```
+
+| `MockClientOptions` field | Type                         | Description                                                                 |
+| ------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
+| `fallback`                | `Client`                     | Answers every request no mock answers. Without one such a request fails as `network` |
+| `delay`                   | `number \| [min, max]`       | Latency of every mocked response in milliseconds. Default `0`               |
+
+| `MockClient` member              | Description                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `request(config, context)`       | The `Client` method: answers from a mock, else from `fallback`              |
+| `on(target, handler, options?)`  | Answers every call of `target`; replaces its previous `on` mock. Returns a function that removes it |
+| `once(target, handler, options?)`| Answers the next call only; queued before the `on` mock                     |
+| `off(target)`                    | Removes every mock of `target`                                              |
+| `has(target)`                    | Whether `target` has a mock                                                 |
+| `calls(target?)`                 | The calls mocks answered: `{ endpoint, args, request }`, oldest first       |
+| `reset()`                        | Removes every mock and forgets every call                                   |
+| `wrap(client)`                   | A client with the same mocks and `client` as its fallback                   |
+
+A `target` is an endpoint handler, or an object with an `endpoint`, such as a react-query query or mutation. A `handler(args, { respond, request, signal })` returns the body (the schema's input) or `respond(status, body?, { headers?, statusText? })`, and may be async. Throwing fails the call as kind `network`. `options.delay` wins over the client's.
 
 ## Socket entry point
 
