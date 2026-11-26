@@ -16,6 +16,16 @@ export interface RequestBase extends Pick<AbstractRequestConfig, 'headers'> {
 }
 
 /**
+ * The arguments of a call as the runtime sees them: {@link ClientRequestArgs}
+ * of any endpoint.
+ */
+export interface CallArgs extends RequestBase {
+  urlParams?: Record<string, unknown>
+  params?: Record<string, unknown>
+  data?: unknown
+}
+
+/**
  * Minimal shape consumed by {@link ClientRequestArgs} / {@link ServerRequestArgs}.
  */
 export interface RequestArgsOptions {

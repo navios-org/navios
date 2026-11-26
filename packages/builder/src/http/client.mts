@@ -1,4 +1,5 @@
 import type { BaseEndpointOptions } from './endpoint-options.mjs'
+import type { CallArgs } from './request-args.mjs'
 
 /**
  * Supported HTTP methods for API requests.
@@ -82,14 +83,7 @@ export interface ClientRequestContext {
    */
   readonly endpoint: BaseEndpointOptions
   /** The call's arguments, as the caller passed them. */
-  readonly args: {
-    readonly urlParams?: Record<string, unknown>
-    readonly params?: Record<string, unknown>
-    readonly data?: unknown
-    readonly headers?: Record<string, string>
-    readonly signal?: AbortSignal | null
-    readonly timeout?: number
-  }
+  readonly args: Readonly<CallArgs>
 }
 
 /**

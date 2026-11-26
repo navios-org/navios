@@ -2,15 +2,7 @@ import { toQueryText } from '../shared/query-text.mjs'
 
 import type { AbstractRequestConfig } from './client.mjs'
 import type { BaseEndpointOptions, EndpointResponseKind } from './endpoint-options.mjs'
-
-/** The validated arguments of one call. */
-export interface ConfigRequest {
-  params?: Record<string, unknown>
-  data?: unknown
-  signal?: AbortSignal | null
-  headers?: Record<string, string>
-  timeout?: number
-}
+import type { CallArgs } from './request-args.mjs'
 
 const RESPONSE_TYPES = {
   blob: 'blob',
@@ -71,7 +63,7 @@ function encodePrimitive(data: unknown, headers: Record<string, string>): unknow
  * @param finalUrlPart - The URL with parameters bound
  */
 export function makeConfig(
-  request: ConfigRequest,
+  request: CallArgs,
   options: BaseEndpointOptions,
   finalUrlPart: string,
 ): AbstractRequestConfig {
