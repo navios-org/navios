@@ -11,26 +11,22 @@ import { moduleProviders } from './module-providers.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/**
- * Who provides a token in an application, first to last: the caller, with
- * the application's container (a provider, or an instance put there) and
- * then its options; plugins; modules; the default of the token.
- */
+// Who provides a token in an application, first to last: the caller, with
+// the application's container (a provider, or an instance put there) and
+// then its options; plugins; modules; the default of the token.
 export class ProviderPrecedence {
-  /** What modules and plugins provide. Everything else is the caller's. */
+  // What modules and plugins provide. Everything else is the caller's.
   private readonly supplied = new Map<InjectionToken<any, any>, Provider | 'plugin'>()
 
   constructor(
     private readonly container: Container,
-    /** Receives what is worth a line in the debug log. */
+    // Receives what is worth a line in the debug log.
     private readonly note: (message: string) => void,
   ) {}
 
-  /**
-   * Supplies what the options of the application provide, unless its
-   * container does. The last one of several for one token counts, and the
-   * `logger` option comes after `providers`.
-   */
+  // Supplies what the options of the application provide, unless its
+  // container does. The last one of several for one token counts, and the
+  // `logger` option comes after `providers`.
   provideOptions(providers: readonly Provider[], logger: Provider | undefined): void {
     const given = new Map<InjectionToken<any, any>, [option: string, Provider]>()
     assertProviders('The application', providers)
@@ -45,7 +41,7 @@ export class ProviderPrecedence {
     }
   }
 
-  /** Supplies what a plugin provides with `api.provide()`, unless the caller provides it. */
+  // Supplies what a plugin provides with `api.provide()`, unless the caller provides it.
   providePlugin(plugin: string, target: any, impl: any): void {
     const { token } = provide(target, impl)
     if (this.isProvidedByCaller(token)) {
@@ -56,11 +52,9 @@ export class ProviderPrecedence {
     this.supplied.set(token, 'plugin')
   }
 
-  /**
-   * Supplies what the modules provide, unless the application or a plugin
-   * provides it. Modules that disagree about a token are an error where one of
-   * them would have to be used, which is settled after the plugins.
-   */
+  // Supplies what the modules provide, unless the application or a plugin
+  // provides it. Modules that disagree about a token are an error where one of
+  // them would have to be used, which is settled after the plugins.
   provideModules(
     graph: readonly ModuleNode[],
     own: ReadonlySet<ClassType>,
@@ -99,7 +93,7 @@ export class ProviderPrecedence {
     }
   }
 
-  /** Supplies what an option provides, unless the given container does. */
+  // Supplies what an option provides, unless the given container does.
   private provideOption(option: string, provider: Provider): void {
     const { token } = provider
     if (this.isProvidedByCaller(token)) {
@@ -113,10 +107,8 @@ export class ProviderPrecedence {
     }
   }
 
-  /**
-   * Whether the caller provides a token: with the options of the application
-   * or in its container, where an instance may also have been put.
-   */
+  // Whether the caller provides a token: with the options of the application
+  // or in its container, where an instance may also have been put.
   private isProvidedByCaller(token: InjectionToken<any, any>): boolean {
     if (this.supplied.has(token)) {
       return false

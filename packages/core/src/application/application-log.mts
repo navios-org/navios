@@ -21,22 +21,20 @@ const noopLogger: LoggerService = {
   fatal() {},
 }
 
-/**
- * Where the log of an application goes. Loggers that are built while it
- * initialises write to a stand-in, which holds what they log until everything
- * that may provide the output, plugins included, has had its turn.
- */
+// Where the log of an application goes. Loggers that are built while it
+// initialises write to a stand-in, which holds what they log until everything
+// that may provide the output, plugins included, has had its turn.
 export class ApplicationLog {
-  /** The provider of the output that the `logger` option gives, if any. */
+  // The provider of the output that the `logger` option gives, if any.
   readonly provider: Provider | undefined
-  /** Whether the `logger` option turns logging off. */
+  // Whether the `logger` option turns logging off.
   readonly isOff: boolean
-  /** For the debug log, once there is one. */
+  // For the debug log, once there is one.
   readonly notes: string[] = []
-  /** The levels the `logger` option selects. */
+  // The levels the `logger` option selects.
   private readonly levels: LogLevel[] | undefined
   private readonly showsRequestIds: boolean
-  /** What loggers write to until it is settled where the log goes. */
+  // What loggers write to until it is settled where the log goes.
   private pending: PendingOutput | null = null
 
   constructor(
@@ -50,23 +48,23 @@ export class ApplicationLog {
     this.showsRequestIds = asyncContext ?? false
   }
 
-  /** Makes the loggers that are built from now on wait for the output. */
+  // Makes the loggers that are built from now on wait for the output.
   defer(): void {
     this.pending = deferOutput(this.container, () => this.settleNow())
   }
 
-  /** Ends what `defer()` did, for the loggers that are built from now on. */
+  // Ends what `defer()` did, for the loggers that are built from now on.
   endDeferral(): void {
     endDeferral(this.container)
   }
 
-  /** Settles the output, once everything that may provide it has had its turn. */
+  // Settles the output, once everything that may provide it has had its turn.
   async settle(): Promise<void> {
     this.pending!.settle(this.configured(await this.container.get(LoggerOutput)))
     this.endDeferral()
   }
 
-  /** What was logged so far is not lost, whatever becomes of the start-up. */
+  // What was logged so far is not lost, whatever becomes of the start-up.
   settleNow(): void {
     if (this.pending === null || this.pending.isSettled) {
       return
