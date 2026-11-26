@@ -1,10 +1,11 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { discard } from '../internal/destruction.mjs'
+import { isSelfEntry } from '../internal/entry.mjs'
 import { dependentsOf } from '../internal/links.mjs'
 import { aliasTarget, baseToken, isResolved } from '../internal/lookup.mjs'
 import { provide } from '../provider/provide.mjs'
-import { findInjectableToken, getInjectableToken } from '../token/injectable-token.mjs'
+import { getInjectableToken } from '../token/injectable-token.mjs'
 import { BoundInjectionToken } from '../token/injection-token.mjs'
 
 import type { Entry } from '../internal/entry.mjs'
@@ -492,7 +493,6 @@ export class TestContainer extends Container {
 
   /** Every entry of this container except the container itself. */
   private graphEntries(): Entry[] {
-    const self = findInjectableToken(Container)
-    return this.store.entries().filter((entry) => entry.token !== self)
+    return this.store.entries().filter((entry) => !isSelfEntry(entry))
   }
 }

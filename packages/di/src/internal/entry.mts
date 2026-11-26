@@ -118,3 +118,13 @@ export function markReady(entry: Entry, value: unknown): void {
 export function isLeaving(entry: Entry): boolean {
   return entry.status === EntryStatus.Leaving || entry.status === EntryStatus.Destroying
 }
+
+/**
+ * Whether `entry` holds the container it belongs to: the entry a container
+ * keeps of itself for `inject(Container)`, or another way to the same object.
+ * It is neither listed among the instances of the container nor destroyed
+ * with them.
+ */
+export function isSelfEntry(entry: Entry): boolean {
+  return entry.instance === entry.host
+}

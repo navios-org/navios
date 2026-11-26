@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- `get()` and `getSync()` of `Container` and `ScopedContainer` are methods on the prototype, like `peek()`, instead of functions bound to each instance. Call them on the container; `const { get } = container` loses the container. A scope allocates two closures fewer.
 - `registerProvider()` takes no third argument. Give a class or a factory its scope in the provider: `registerProvider(TOKEN, { class: Impl, scope })`. `RegisterProviderOptions` is deprecated and will be removed.
 
 ### Changed

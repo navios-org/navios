@@ -165,11 +165,11 @@ export class UnitTestContainer<
     return super.invalidate(this.tracked.get(service as object) ?? service)
   }
 
-  // `get` and `getSync` are instance properties of a container, so they are
-  // wrapped here instead of being overridden as methods.
+  // Scopes are created by `Container`, so `get` and `getSync` are wrapped on
+  // each container instead of being overridden as methods.
   private trackResolutions(container: Container | ScopedContainer): void {
-    const baseGet = container.get as (token: any, args?: unknown) => Promise<any>
-    const baseGetSync = container.getSync as (token: any, args?: unknown) => any
+    const baseGet = container.get as (this: unknown, token: any, args?: unknown) => Promise<any>
+    const baseGetSync = container.getSync as (this: unknown, token: any, args?: unknown) => any
 
     container.get = ((token: any, args?: unknown) => {
       let realToken: Token
@@ -183,7 +183,9 @@ export class UnitTestContainer<
       if (mock !== undefined) {
         return Promise.resolve(mock)
       }
-      return baseGet(token, args).then((instance) => this.track(realToken, instance))
+      return baseGet
+        .call(container, token, args)
+        .then((instance) => this.track(realToken, instance))
     }) as AsyncResolve
 
     container.getSync = ((token: any, args?: unknown) => {
@@ -192,7 +194,7 @@ export class UnitTestContainer<
       if (mock !== undefined) {
         return mock
       }
-      return this.track(realToken, baseGetSync(token, args))
+      return this.track(realToken, baseGetSync.call(container, token, args))
     }) as SyncResolve
 
     if (container !== this) {

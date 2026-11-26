@@ -3,7 +3,7 @@ import type { Provider } from '../provider/provide.mjs'
 import type { ClassType } from '../token/class-type.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
-import { EntryStatus } from './entry.mjs'
+import { EntryStatus, isSelfEntry } from './entry.mjs'
 import { baseToken, isResolved } from './lookup.mjs'
 
 import type { Entry } from './entry.mjs'
@@ -17,7 +17,7 @@ function isShared(instance: unknown): boolean {
 export function readyEntries(container: Container): Entry[] {
   return container.store
     .entries()
-    .filter((entry) => entry.status === EntryStatus.Ready && entry.instance !== container)
+    .filter((entry) => entry.status === EntryStatus.Ready && !isSelfEntry(entry))
     .sort((left, right) => left.readySeq - right.readySeq)
 }
 
