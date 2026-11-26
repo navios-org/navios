@@ -159,7 +159,7 @@ export const myTransport = defineTransport({
 })
 ```
 
-`setup` receives the module graph: every module in dependency order with its providers, the guards, interceptors and attributes it inherits, and `entries`, the `@Module` options the module system itself does not use. The same entry point exports what the rest needs, and the types of the contract:
+`setup` receives the module graph: every module in dependency order with its providers, the guards, interceptors and attributes it inherits, and `entries`, the `@Module` options the module system itself does not use. The same entry point exports what the rest needs, and the types only a transport uses, such as `TransportHost`; those it shares with application code, such as `Transport`, `HandlerInfo` and `Guard`, come from `@navios/core`:
 
 - `moduleClasses(node, entry)` for the classes a module lists under your option, once each.
 - `describeHandlerClass` for the decorator of your handler classes, and `memberMetadata` for decorators of their methods.

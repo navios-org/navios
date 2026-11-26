@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-export type LifecyclePhase = 'init' | 'start' | 'shutdown'
+type LifecyclePhase = 'init' | 'start' | 'shutdown'
 
 /**
  * One piece of code that an application calls and waits for: a hook, the

@@ -15,8 +15,6 @@ export interface BasicExecutionContextInit {
   id: string
   handler: HandlerInfo
   host: ContextHost
-  /** Defaults to a signal of the context's own that never aborts. */
-  signal?: AbortSignal
 }
 
 /**
@@ -29,7 +27,6 @@ export class BasicExecutionContext implements ExecutionContext {
   readonly id: string
   readonly handler: HandlerInfo
   private readonly host: ContextHost
-  private readonly givenSignal: AbortSignal | undefined
   private ownSignal: AbortSignal | null = null
   private slots: Map<ContextKey, unknown> | null = null
   private scope: ScopedContainer | null = null
@@ -42,12 +39,14 @@ export class BasicExecutionContext implements ExecutionContext {
     this.id = init.id
     this.handler = init.handler
     this.host = init.host
-    this.givenSignal = init.signal
   }
 
-  /** Not shared between contexts: listeners would outlive their execution. */
+  /**
+   * A signal that never aborts. Not shared between contexts: listeners would
+   * outlive their execution.
+   */
   get signal(): AbortSignal {
-    return this.givenSignal ?? (this.ownSignal ??= new AbortController().signal)
+    return (this.ownSignal ??= new AbortController().signal)
   }
 
   get<K extends ContextKey>(key: K): ContextValue<K> {

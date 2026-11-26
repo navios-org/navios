@@ -21,8 +21,8 @@ import type {
   LoggerService,
   PluginApi,
   PluginInstance,
+  TransportInstance,
 } from '../index.mjs'
-import type { TransportInstance } from '../transport.mjs'
 
 class Neither {}
 class AnyGuard implements Guard {

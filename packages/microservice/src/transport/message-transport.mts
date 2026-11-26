@@ -7,14 +7,8 @@ import {
 } from '@navios/core/transport'
 import { QueueClientToken } from '@navios/queues'
 
-import type { ClassType, StandardSchemaV1 } from '@navios/core'
-import type {
-  HandlerInfo,
-  ModuleNode,
-  ResolvedChain,
-  Transport,
-  TransportHost,
-} from '@navios/core/transport'
+import type { ClassType, HandlerInfo, StandardSchemaV1, Transport } from '@navios/core'
+import type { ModuleNode, ResolvedChain, TransportHost } from '@navios/core/transport'
 import type { BaseMessageConfig, QueueClient } from '@navios/queues'
 
 import { MessageContext } from '../context/message-context.mjs'

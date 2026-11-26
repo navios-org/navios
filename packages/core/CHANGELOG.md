@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **`@navios/core/transport` exports less.** `constructedInstances` is part of `@navios/di/internal`, which follows no semver; a transport that needs it imports it from there and lists `@navios/di` as a peer dependency. `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
+- **`@navios/core/transport` exports less.** A transport that imports these from it, `@navios/commander` included, changes the import:
+  - `constructedInstances` is part of `@navios/di/internal`, which follows no semver. Import it from there and list `@navios/di` as a peer dependency.
+  - `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
+  - The types that `@navios/core` exports are no longer exported a second time: `Transport`, `TransportFactory`, `TransportInstance`, `Guard`, `GuardClass`, `Interceptor`, `InterceptorClass`, `ExecutionContext`, `HandlerInfo`, `AttributeMap`, `ClassType` and `LoggerService`. Import them from `@navios/core`. `TransportDefinition` and `TransportHost` stay.
+- **`ConfigServiceInterface` and `isLogLevel` are removed** from `@navios/core`. `ConfigService` is the configuration service, and `filterLogLevels` reads levels from a setting.
+- **`BasicExecutionContextInit` has no `signal`**, which no transport passed: the signal of a `BasicExecutionContext` is its own and never aborts.
 - **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
 - **`ConsoleLogger`'s protected `printMessages()` takes no `requestId`**, which nothing passed: the id is that of `currentContext()` when the `requestId` option is on. `getRequestId()` and `printAsJson()`, protected as well, print the id they are given without checking the option again.
 - **`handlerChain` builds the `HandlerInfo`.** It takes the `controller` and the `handlerName` of the handler besides `node`, `owner` and `member`, and returns `{ info, outer, inner }`: `info` is what the handler's contexts carry as `ctx.handler`, its guards in `info.guards`. `HandlerChain.guards` and `HandlerChain.interceptors` are removed. `resolveChain` takes what `handlerChain` returns, the guards in `info.guards`.

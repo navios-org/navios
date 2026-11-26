@@ -53,7 +53,6 @@ describe('the exports of', () => {
         // logging
         'ConsoleLogger',
         'filterLogLevels',
-        'isLogLevel',
         'LOG_LEVELS',
         'Logger',
         'LoggerInstance',
