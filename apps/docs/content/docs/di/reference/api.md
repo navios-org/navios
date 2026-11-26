@@ -34,7 +34,7 @@ new Container(options?: ContainerOptions)
 | `createScope(metadata?)`               | `ScopedContainer`             | Creates a [scope](/docs/di/essentials/scopes#creating-a-scope)                                      |
 | `invalidate(instance)`                 | `Promise<void>`               | [Destroys](/docs/di/guides/invalidation) an instance and its dependents                             |
 | `onInvalidate(token, args, listener)`  | `() => void`                  | Listens for the destruction of an instance. Returns an unsubscribe function                         |
-| `ready()`                              | `Promise<void>`               | Resolves when nothing is still being created                                                        |
+| `ready()`                              | `Promise<void>`               | Resolves when nothing is still being created or cleaned up                                          |
 | `dispose()`                            | `Promise<void>`               | [Destroys](/docs/di/essentials/lifecycle#dispose) everything the container holds and closes it      |
 | `[Symbol.asyncDispose]()`              | `Promise<void>`               | Calls `dispose()`                                                                                   |
 

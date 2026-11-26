@@ -140,7 +140,7 @@ Both implement `Symbol.asyncDispose`, so `await using container = new Container(
 
 ## ready
 
-`ready()` resolves when no instance of the container is still being created. It does not start anything; it waits for what other code started.
+`ready()` resolves when no instance of the container is still being created, and the cleanup nobody awaits is over: the destroy listeners of a build that failed, and the destruction of transients that nobody received. It does not start anything; it waits for what other code started.
 
 ```ts
 void container.get(ConnectionPool) // starts an async init, nobody awaits it

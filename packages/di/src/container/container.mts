@@ -1,7 +1,7 @@
 import { misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { instancesOf, readyEntries } from '../internal/access.mjs'
-import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
+import { abandonBuilds, settleHost } from '../internal/background.mjs'
 import { destroyAll } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
@@ -253,8 +253,8 @@ export class Container implements IContainer {
     return addInvalidateListener(this, () => this.store, token, args, listener)
   }
 
-  async ready(): Promise<void> {
-    await settleStore(this.store)
+  ready(): Promise<void> {
+    return settleHost(this)
   }
 
   /**

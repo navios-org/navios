@@ -69,19 +69,8 @@ function creatingIn(store: Store): Promise<unknown>[] {
   return promises
 }
 
-/** Waits until no entry of the store is still being created. */
-export async function settleStore(store: Store): Promise<void> {
-  for (;;) {
-    const creating = creatingIn(store)
-    if (creating.length === 0) {
-      return
-    }
-    await Promise.all(creating)
-  }
-}
-
 /** Whether something of `host` is still being created or cleaned up. */
-export function isBusy(host: Host): boolean {
+function isBusy(host: Host): boolean {
   return (
     (host.background !== null && host.background.size > 0) ||
     host.store.entries().some((entry) => entry.status === EntryStatus.Creating)

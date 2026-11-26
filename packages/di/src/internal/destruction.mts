@@ -27,7 +27,7 @@ interface Cascade {
  * A dependent that is still being created is not waited for, since it may be
  * waiting for this very destruction. It is destroyed once it is ready.
  */
-export function destroyEntry(entry: Entry): void | Promise<void> {
+function destroyEntry(entry: Entry): void | Promise<void> {
   const cascade: Cascade = { gone: null }
   const result = destroy(entry, cascade)
   if (result !== undefined) {

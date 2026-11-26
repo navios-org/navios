@@ -1,6 +1,6 @@
 import { misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
+import { abandonBuilds, settleHost } from '../internal/background.mjs'
 import { destroyAll, destroyLoose, rejectWith } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
@@ -132,8 +132,8 @@ export class ScopedContainer implements IContainer {
     )
   }
 
-  async ready(): Promise<void> {
-    await settleStore(this.store)
+  ready(): Promise<void> {
+    return settleHost(this)
   }
 
   /**
