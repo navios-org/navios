@@ -204,7 +204,7 @@ export class Container implements IContainer {
   /**
    * The provider that would be used for `token` in this container.
    */
-  getProvider(token: ClassType | InjectionToken<any, any>): ProviderInfo | undefined {
+  getProvider(token: AnyInjectableType): ProviderInfo | undefined {
     const base = baseToken(token)
     const record = base === undefined ? undefined : lookupRecord(this, base)
     if (record === undefined) {

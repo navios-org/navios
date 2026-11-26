@@ -75,6 +75,23 @@ export function setProvider(container: Container, provider: Provider): boolean {
   return true
 }
 
+/**
+ * Whether two providers come to the same: the same kind, scope, class,
+ * factory function and value, each compared with `Object.is`. Meant for two
+ * providers of one token; the tokens are not compared.
+ */
+export function isSameProvider(a: Provider, b: Provider): boolean {
+  const left = a.record
+  const right = b.record
+  return (
+    Object.is(left.kind, right.kind) &&
+    Object.is(left.scope, right.scope) &&
+    Object.is(left.target, right.target) &&
+    Object.is(left.fn, right.fn) &&
+    Object.is(left.value, right.value)
+  )
+}
+
 /** Whether the container was given a provider of its own for `token`. */
 export function hasOwnProvider(
   container: Container,

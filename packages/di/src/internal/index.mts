@@ -4,5 +4,11 @@
  */
 import '../symbol-metadata.mjs'
 
-export { constructedInstances, hasOwnProvider, setErrorReporter, setProvider } from './access.mjs'
+export {
+  constructedInstances,
+  hasOwnProvider,
+  isSameProvider,
+  setErrorReporter,
+  setProvider,
+} from './access.mjs'
 export { disposeScope } from '../container/scoped-container.mjs'

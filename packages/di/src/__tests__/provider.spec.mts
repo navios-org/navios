@@ -14,6 +14,7 @@ import {
   registerInjectable,
 } from '../index.mjs'
 import { argsKey } from '../internal/args-key.mjs'
+import { isSameProvider } from '../internal/index.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
 
 import type { StandardSchemaV1 } from '../index.mjs'
@@ -214,6 +215,70 @@ describe('tokens and providers', () => {
     )
     container.addInstance(InjectionToken.bound(Token, { n: 1 }), { n: 1 })
     expect(container.peek(Token, { n: 1 })).toEqual({ n: 1 })
+  })
+
+  it('tells the provider of a bound or a factory token', async () => {
+    const Token = InjectionToken.create<{ n: number }, StandardSchemaV1<{ n: number }>>(
+      'Configured',
+      schemaOf((value): value is { n: number } => typeof value === 'object' && value !== null),
+    )
+    @Injectable({ token: Token, scope: InjectableScope.Transient })
+    class Impl {
+      n: number
+      constructor(args: { n: number }) {
+        this.n = args.n
+      }
+    }
+
+    const container = new Container()
+    const expected = { kind: 'class', scope: InjectableScope.Transient, target: Impl }
+    expect(container.getProvider(InjectionToken.bound(Token, { n: 1 }))).toEqual(expected)
+    expect(container.getProvider(InjectionToken.factory(Token, () => ({ n: 2 })))).toEqual(expected)
+    await container.dispose()
+  })
+})
+
+describe('isSameProvider', () => {
+  @Injectable()
+  class Service {}
+  class Other {}
+  const TOKEN = InjectionToken.create<unknown>('same')
+  const factory = () => ({})
+  const value = {}
+
+  it('compares kind, scope, class, factory and value', () => {
+    expect(isSameProvider(provide(Service, Service), provide(Service, Service))).toBe(true)
+    expect(isSameProvider(provide(TOKEN, { factory }), provide(TOKEN, { factory }))).toBe(true)
+    expect(isSameProvider(provide(TOKEN, { value }), provide(TOKEN, { value }))).toBe(true)
+    expect(isSameProvider(provide(TOKEN, { value: NaN }), provide(TOKEN, { value: NaN }))).toBe(
+      true,
+    )
+
+    expect(isSameProvider(provide(Service, Service), provide(Service, Other))).toBe(false)
+    expect(
+      isSameProvider(
+        provide(Service, Service),
+        provide(Service, { class: Service, scope: InjectableScope.Transient }),
+      ),
+    ).toBe(false)
+    expect(
+      isSameProvider(provide(TOKEN, { factory }), provide(TOKEN, { factory: () => ({}) })),
+    ).toBe(false)
+    expect(isSameProvider(provide(TOKEN, { value }), provide(TOKEN, { value: {} }))).toBe(false)
+    expect(isSameProvider(provide(TOKEN, { value: 0 }), provide(TOKEN, { value: -0 }))).toBe(false)
+    expect(isSameProvider(provide(TOKEN, { value }), provide(TOKEN, { existing: Service }))).toBe(
+      false,
+    )
+  })
+
+  it('ignores what a build learned, such as the plan', async () => {
+    const left = provide(Service, Service)
+    const right = provide(Service, Service)
+    const container = new Container({ providers: [left] })
+    await container.get(Service)
+    expect(left.record.plan).not.toBeNull()
+    expect(isSameProvider(left, right)).toBe(true)
+    await container.dispose()
   })
 })
 

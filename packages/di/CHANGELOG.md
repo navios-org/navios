@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `container.getProvider()` accepts bound and factory tokens, as `isRegistered()` does, and tells the provider of their token.
 - `TestContainer` has `expectNotCalled()`, as `UnitTestContainer` does. A failed `expectCalledWith()` lists the recorded calls in both containers.
 
 ### Changed
