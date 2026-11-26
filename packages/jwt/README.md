@@ -12,7 +12,7 @@ npm install @navios/jwt@next
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-`@navios/core` is a peer dependency. No schema library is required.
+`@navios/di` is a peer dependency, so the service works in an application of `@navios/di` alone as well as in one of `@navios/core` (which depends on it). No schema library is required.
 
 ## Example
 

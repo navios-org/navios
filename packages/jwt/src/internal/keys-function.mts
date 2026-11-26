@@ -13,7 +13,6 @@ import {
   parseSecret,
   UnsupportedKeyError,
 } from './key.mjs'
-import { isPromiseLike } from './promise-like.mjs'
 
 import type { Key } from './key.mjs'
 
@@ -39,9 +38,10 @@ export function askKeys(
   pinned: readonly Algorithm[] | undefined,
 ): SelectedKey | Promise<SelectedKey> {
   const material = keys(request)
-  return isPromiseLike(material)
-    ? Promise.resolve(material).then((resolved) => readMaterial(resolved, request.use, pinned))
-    : readMaterial(material, request.use, pinned)
+  if (typeof (material as Partial<PromiseLike<unknown>> | undefined)?.then === 'function') {
+    return Promise.resolve(material).then((resolved) => readMaterial(resolved, request.use, pinned))
+  }
+  return readMaterial(material as JwtKeyMaterial | undefined, request.use, pinned)
 }
 
 export function intersect(

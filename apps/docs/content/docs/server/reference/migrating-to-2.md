@@ -4,7 +4,7 @@ title: Migrating to 2.0
 
 # Migrating to 2.0
 
-This page lists what changed between `@navios/core` 1.x and `@navios/server` 2.0, the Fastify and Bun adapters, `@navios/jwt`, `@navios/schedule`, `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`. Upgrade them together. The packages that take part in HTTP require `@navios/server` 2.0; `@navios/jwt`, `@navios/schedule` and the main entry of `@navios/otel` require only `@navios/core` 2.0.
+This page lists what changed between `@navios/core` 1.x and `@navios/server` 2.0, the Fastify and Bun adapters, `@navios/jwt`, `@navios/schedule`, `@navios/openapi`, `@navios/otel` and `@navios/adapter-xml`. Upgrade them together. The packages that take part in HTTP require `@navios/server` 2.0; `@navios/schedule` and the main entry of `@navios/otel` require only `@navios/core` 2.0, and `@navios/jwt` only `@navios/di` 2.0.
 
 2.0 rewrites the request pipeline. Endpoint declarations made with `@navios/builder` stay as they are apart from the changes in [Builder's migration page](/docs/builder/reference/migrating-to-2). Controllers, guards, bootstrap code and tests change. The main ideas:
 
@@ -37,7 +37,7 @@ For an HTTP application the change is the package name:
 
 The same goes for the entry points `@navios/core/testing` and `@navios/core/legacy-compat`, and for the `Register` declaration, which is now written `declare module '@navios/server'`.
 
-Packages that do not need HTTP depend on `@navios/core` alone: `@navios/jwt`, `@navios/schedule` and the main entry of `@navios/otel`. An application can also run without HTTP, or with HTTP and something else side by side; see [Other transports](/docs/server/guides/other-transports).
+Packages that do not need HTTP depend on `@navios/core` alone: `@navios/schedule` and the main entry of `@navios/otel`. `@navios/jwt` depends on `@navios/di` alone. An application can also run without HTTP, or with HTTP and something else side by side; see [Other transports](/docs/server/guides/other-transports).
 
 ## What changed
 
@@ -165,6 +165,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | an option that is `undefined` switched off the configured one | it is not given. An empty `audience` or `issuer` is an error |
 | `secretOrKeyProvider` won over a key passed to the call, and the `secret` of the service over a passed key pair | a key passed to the call always wins; one that is `undefined` or empty is an error |
 | `Secret`, `SignOptions`, `VerifyOptions`, `RequestType`, `GetSecretKeyResult`, `allowInvalidAsymmetricKeyTypes` | removed. `JwtPrivateKey` and `JwtKey` are the key types |
+| `@navios/core` as a peer dependency | `@navios/di`. A project that lists `@navios/core` but not `@navios/di` adds it, with the same version |
 | `zod` as a peer dependency                                                                                     | not required                                                                                                                             |
 
 ### @navios/schedule

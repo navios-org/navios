@@ -1,8 +1,7 @@
-import { InjectionToken, registerFactory } from '@navios/core'
+import { InjectionToken, registerFactory } from '@navios/di'
 
-import type { FactoryContext } from '@navios/core'
+import type { FactoryContext } from '@navios/di'
 
-import { isPromiseLike } from './internal/promise-like.mjs'
 import { JwtService } from './jwt-service.mjs'
 
 import type { JwtServiceOptions } from './jwt-service-options.mjs'
@@ -64,9 +63,9 @@ export function provideJwtService(
   class JwtServiceFactory {
     create(ctx: FactoryContext): JwtService | Promise<JwtService> {
       const options = typeof config === 'function' ? config(ctx) : config
-      return isPromiseLike(options)
-        ? options.then((resolved) => new JwtService(resolved))
-        : new JwtService(options)
+      return typeof (options as Partial<PromiseLike<unknown>> | null)?.then === 'function'
+        ? Promise.resolve(options).then((resolved) => new JwtService(resolved))
+        : new JwtService(options as JwtServiceOptions)
     }
   }
   registerFactory(JwtServiceFactory, { token })

@@ -1121,7 +1121,7 @@ __metadata:
     "@types/jsonwebtoken": "npm:^9.0.10"
     jsonwebtoken: "npm:^9.0.3"
   peerDependencies:
-    "@navios/core": "workspace:*"
+    "@navios/di": "workspace:*"
   languageName: unknown
   linkType: soft
 

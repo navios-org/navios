@@ -50,7 +50,7 @@
     "@types/jsonwebtoken": "^9.0.10"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:*"
+    "@navios/di": "workspace:*"
   },
   "engines": {
     "node": ">=24"
