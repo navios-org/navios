@@ -2,16 +2,15 @@ import { createClassContext } from '@navios/di/legacy-compat'
 
 import type { ClassType } from '@navios/di'
 
-import { runInContext } from '../execution/async-context.mjs'
 import { BasicExecutionContext } from '../execution/basic-execution-context.mjs'
 import { handlerChain } from '../metadata/handler-chain.mjs'
 import { describeHandlerClass } from '../metadata/handler-class.mjs'
-import { resolveChain, runChain } from '../metadata/run-chain.mjs'
+import { executeChain, resolveChain } from '../metadata/run-chain.mjs'
+import { moduleClasses } from '../modules/module-graph.mjs'
 import { defineTransport } from '../transports/transport.mjs'
 
 import type { HandlerChain } from '../metadata/handler-chain.mjs'
 import type { HandlerExtras } from '../metadata/member-metadata.mjs'
-import type { ModuleNode } from '../modules/module-graph.mjs'
 import type { Transport, TransportHost } from '../transports/transport.mjs'
 
 export interface FakeTransportOptions {
@@ -36,12 +35,6 @@ export interface FakeTransport extends Transport {
    * allowed it.
    */
   run(handler: ClassType): Promise<boolean>
-}
-
-interface FoundHandler {
-  node: ModuleNode
-  owner: HandlerExtras
-  chain: HandlerChain
 }
 
 let runs = 0
@@ -73,7 +66,7 @@ export const fakeTransport = defineTransport<FakeTransportOptions, FakeTransport
   name: 'fake',
   create(host: TransportHost, options) {
     const { kind, entry, log } = options
-    const found = new Map<ClassType, FoundHandler>()
+    const found = new Map<ClassType, HandlerChain>()
     log.push(`${kind}:create`)
     return {
       get handlers() {
@@ -85,15 +78,16 @@ export const fakeTransport = defineTransport<FakeTransportOptions, FakeTransport
           throw new Error(`${kind} setup failed`)
         }
         for (const node of graph) {
-          for (const handler of (node.entries.get(entry) as ClassType[] | undefined) ?? []) {
-            const owner = attachedTo(handler)
+          for (const handler of moduleClasses(node, entry)) {
             const chain = handlerChain({
               application: host.interceptors,
               node,
-              owner,
+              controller: handler,
+              owner: attachedTo(handler),
+              handlerName: 'run',
               member: { guards: [], interceptors: [], attributes: new Map() },
             })
-            found.set(handler, { node, owner, chain })
+            found.set(handler, chain)
           }
         }
       },
@@ -110,42 +104,24 @@ export const fakeTransport = defineTransport<FakeTransportOptions, FakeTransport
         }
       },
       async run(handler) {
-        const known = found.get(handler)
-        if (!known) {
+        const chain = found.get(handler)
+        if (!chain) {
           throw new Error(`${handler.name} is not a handler of the ${kind} transport`)
         }
-        const { node, owner, chain } = known
         const resolved = await resolveChain<BasicExecutionContext, boolean>(host.container, chain)
         const ctx = new BasicExecutionContext({
           kind,
           id: `${kind}-${++runs}`,
           host: host.contextHost,
-          handler: {
-            module: node.module,
-            controller: handler,
-            handlerName: 'run',
-            guards: chain.guards,
-            interceptors: chain.interceptors,
-            attributes: {
-              handler: new Map(),
-              controller: owner.attributes,
-              module: node.attributes,
-            },
-          },
+          handler: chain.info,
         })
-        const execute = async () => {
-          try {
-            return await runChain(
-              ctx,
-              resolved,
-              () => true,
-              () => false,
-            )
-          } finally {
-            await ctx.finish()
-          }
-        }
-        return host.asyncContext ? runInContext(ctx, execute) : execute()
+        return executeChain(
+          host,
+          ctx,
+          resolved,
+          () => true,
+          () => false,
+        )
       },
     }
   },

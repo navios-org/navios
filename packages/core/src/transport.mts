@@ -23,7 +23,7 @@ export type { LoggerService } from './logger/logger-output.mjs'
 export { MAX_DELAY_MS, settledWithin } from './transports/settled-within.mjs'
 
 // Modules.
-export { buildModuleGraph } from './modules/module-graph.mjs'
+export { buildModuleGraph, moduleClasses } from './modules/module-graph.mjs'
 export type { ModuleNode } from './modules/module-graph.mjs'
 export { getModuleMetadata, hasModuleMetadata } from './modules/module-metadata.mjs'
 export type { ModuleMetadata } from './modules/module-metadata.mjs'
@@ -36,7 +36,7 @@ export type { HandlerExtras, MethodHandlerMetadata } from './metadata/member-met
 export type { DecoratorMetadata } from './metadata/decorator-metadata.mjs'
 export { handlerChain } from './metadata/handler-chain.mjs'
 export type { HandlerChain, HandlerChainInput } from './metadata/handler-chain.mjs'
-export { resolveChain, runChain } from './metadata/run-chain.mjs'
+export { executeChain, resolveChain, runChain } from './metadata/run-chain.mjs'
 export type { ResolvedChain } from './metadata/run-chain.mjs'
 export type { Guard, GuardClass } from './guards/guard.mjs'
 export type { Interceptor, InterceptorClass } from './interceptors/interceptor.mjs'

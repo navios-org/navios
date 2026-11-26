@@ -1,9 +1,8 @@
 import {
   defineTransport,
+  executeChain,
   handlerChain,
   resolveChain,
-  runChain,
-  runInContext,
   settledWithin,
 } from '@navios/core/transport'
 import { QueueClientToken } from '@navios/queues'
@@ -121,16 +120,7 @@ function createMessageTransport(
     const deny = (guard: ClassType): never => {
       throw new MessageDeniedError(guard.name)
     }
-    // Finishing happens inside the context too, so that `currentContext()`
-    // still answers in `onFinish` callbacks.
-    const handle = async () => {
-      try {
-        return await runChain(ctx, handler.chain, invoke, deny)
-      } finally {
-        await ctx.finish()
-      }
-    }
-    return host.asyncContext ? runInContext(ctx, handle) : handle()
+    return executeChain(host, ctx, handler.chain, invoke, deny)
   }
 
   /** Handles one delivery and keeps it in sight until it is done. */
@@ -189,7 +179,9 @@ function createMessageTransport(
             const chain = handlerChain({
               application: host.interceptors,
               node,
+              controller: controllerClass,
               owner: metadata,
+              handlerName: memberName,
               member,
             })
             compiled.set(key(message), {
@@ -198,18 +190,7 @@ function createMessageTransport(
                 destination: messageDestination(message),
                 name,
                 message,
-                handler: {
-                  module: node.module,
-                  controller: controllerClass,
-                  handlerName: memberName,
-                  guards: chain.guards,
-                  interceptors: chain.interceptors,
-                  attributes: {
-                    handler: member.attributes,
-                    controller: metadata.attributes,
-                    module: node.attributes,
-                  },
-                },
+                handler: chain.info,
               },
               chain: await resolveChain<MessageContext>(host.container, chain),
               invoke: method.bind(controller) as CompiledHandler['invoke'],

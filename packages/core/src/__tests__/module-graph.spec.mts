@@ -5,7 +5,7 @@ import type { StandardSchemaV1 } from '@navios/di'
 import { AttributeFactory } from '../attributes/attribute-factory.mjs'
 import { applyAttributes } from '../attributes/attribute-value.mjs'
 import { UseGuards } from '../guards/use-guards.mjs'
-import { buildModuleGraph } from '../modules/module-graph.mjs'
+import { buildModuleGraph, moduleClasses } from '../modules/module-graph.mjs'
 import { getModuleMetadata } from '../modules/module-metadata.mjs'
 import { Module, registerModule } from '../modules/module.mjs'
 
@@ -342,3 +342,23 @@ describe('module metadata', () => {
 function byName(left: { name: string }, right: { name: string }): number {
   return left.name.localeCompare(right.name)
 }
+
+describe('moduleClasses', () => {
+  it('lists the classes of an entry once each, and none for an entry the module lacks', () => {
+    class Handler {}
+    class Other {}
+    const node = buildModuleGraph([module('Lists', { handlers: [Handler, Other, Handler] })])[0]
+
+    expect(moduleClasses(node, 'handlers')).toEqual([Handler, Other])
+    expect(moduleClasses(node, 'missing')).toEqual([])
+  })
+
+  it('names the module and the entry of something that is not a class', () => {
+    const node = buildModuleGraph([module('Broken', { handlers: [undefined] })])[0]
+
+    expect(() => moduleClasses(node, 'handlers')).toThrow(
+      '[Navios] Module Broken lists undefined in handlers. When it should be a class, the files ' +
+        'of the two usually import each other.',
+    )
+  })
+})

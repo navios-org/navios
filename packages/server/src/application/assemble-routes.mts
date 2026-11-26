@@ -1,4 +1,4 @@
-import { handlerChain } from '@navios/core/transport'
+import { handlerChain, resolveChain } from '@navios/core/transport'
 
 import type { ModuleNode } from '@navios/core/transport'
 import type { ClassType, Container } from '@navios/di'
@@ -9,18 +9,16 @@ import { isFieldHandler } from '../handlers/handler.mjs'
 import { compileRoute } from '../pipeline/compile-route.mjs'
 import { compileRoutePath, isUnmatchable } from '../routing/route-path.mjs'
 
+import type { RequestContext } from '../context/request-context.mjs'
 import type { ControllerMetadata } from '../controllers/controller-metadata.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
 import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
 import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
-import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
-import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 import type { RoutePath } from '../routing/route-path.mjs'
+import type { RouteResult } from '../routing/route-result.mjs'
 
 import { moduleControllers } from './http-module-options.mjs'
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * What route assembly needs of the application.
@@ -61,10 +59,12 @@ export async function assembleRoutes(
       const controller = (await container.get(controllerClass)) as Record<string, unknown>
 
       for (const draft of collectHandlers(controllerClass, metadata, controller)) {
-        const { guards, interceptors, outer, inner } = handlerChain({
+        const chain = handlerChain({
           application: globalInterceptors,
           node: { ...node, guards: [...globalGuards, ...node.guards] },
+          controller: controllerClass,
           owner: metadata,
+          handlerName: draft.name,
           member: draft,
         })
         const where = `${controllerClass.name}.${draft.name}`
@@ -79,28 +79,15 @@ export async function assembleRoutes(
         }
         taken.set(key, where)
 
-        const info: RouteInfo = {
-          method,
-          path,
-          endpoint: draft.config,
-          module: node.module,
-          controller: controllerClass,
-          handlerName: draft.name,
-          guards,
-          interceptors,
-          attributes: {
-            handler: draft.attributes,
-            controller: metadata.attributes,
-            module: node.attributes,
-          },
-        }
+        const info: RouteInfo = { method, path, endpoint: draft.config, ...chain.info }
+        const resolved = await resolveChain<RequestContext, RouteResult>(container, chain)
         const definition: RouteDefinition = {
           info,
           path: compiledPath,
           invoke: draft.invoke,
-          guards: await instances<Guard>(container, guards, 'Guard', 'canActivate'),
-          outer: await instances<Interceptor>(container, outer, 'Interceptor', 'intercept'),
-          inner: await instances<Interceptor>(container, inner, 'Interceptor', 'intercept'),
+          guards: resolved.guards.map(({ guard }) => guard),
+          outer: [...resolved.outer],
+          inner: [...resolved.inner],
         }
         const execute = matching(
           compiledPath,
@@ -155,23 +142,6 @@ function matching(
     }
     return execute(input)
   }
-}
-
-async function instances<T>(
-  container: Container,
-  classes: ClassType[],
-  kind: string,
-  method: string,
-): Promise<T[]> {
-  const result: T[] = []
-  for (const cls of classes) {
-    const instance = (await container.get(cls)) as any
-    if (typeof instance?.[method] !== 'function') {
-      throw new Error(`[Navios] ${kind} ${cls.name} does not implement ${method}()`)
-    }
-    result.push(instance)
-  }
-  return result
 }
 
 interface HandlerDraft {

@@ -30,6 +30,30 @@ export interface ModuleNode {
   isRoot: boolean
 }
 
+/**
+ * The classes a module lists under one of the options of a transport, once
+ * each. Throws for an entry that is not a class: what an import cycle between
+ * the files of two classes leaves behind.
+ */
+export function moduleClasses(
+  node: Pick<ModuleNode, 'module' | 'entries'>,
+  entry: string,
+): ClassType[] {
+  const listed = node.entries.get(entry) as Iterable<unknown> | null | undefined
+  if (!listed) {
+    return []
+  }
+  const classes = Array.from(new Set(listed))
+  const index = classes.findIndex((listedClass) => typeof listedClass !== 'function')
+  if (index !== -1) {
+    throw new Error(
+      `[Navios] Module ${node.module.name} lists ${String(classes[index])} in ${entry}. When it ` +
+        `should be a class, the files of the two usually import each other.`,
+    )
+  }
+  return classes as ClassType[]
+}
+
 /** Two import paths that give a module different values of one attribute. */
 interface Disagreement {
   one: ClassType[]

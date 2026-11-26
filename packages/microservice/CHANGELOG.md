@@ -26,6 +26,7 @@ Rewritten as a transport of a `@navios/core` 2.0 application. Earlier versions d
 - `transport.handlers()` lists the handlers.
 - `MessageInterceptor`, `isMessageContext`.
 - `app.close()` waits for the messages in flight.
+- A module that lists something other than a class in `messageControllers`, as an import cycle between files leaves `undefined` behind, fails at `init()` with the name of the module.
 
 ### Not yet
 
