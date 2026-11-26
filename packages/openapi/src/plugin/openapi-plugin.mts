@@ -11,9 +11,11 @@ import { stringify as yamlStringify } from 'yaml'
 import type { FieldHandler, RouteInfo } from '@navios/server'
 
 import { ApiExclude } from '../annotations/index.mjs'
-import { generateOpenApiDocument, toOpenApiPath } from '../document/index.mjs'
+import { generateOpenApiDocument } from '../document/generate-document.mjs'
+import { toOpenApiPath } from '../document/openapi-path.mjs'
 
-import type { OpenApiDocument, OpenApiGenerationOptions } from '../document/index.mjs'
+import type { OpenApiGenerationOptions } from '../document/generate-document.mjs'
+import type { OpenApiDocument } from '../document/openapi-document.mjs'
 
 import { renderScalar } from './scalar-page.mjs'
 

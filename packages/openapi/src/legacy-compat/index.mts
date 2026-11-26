@@ -15,6 +15,26 @@
  * }
  * ```
  */
+import { AttributeFactory } from '@navios/server/legacy-compat'
+
+import {
+  ApiDeprecatedSchema,
+  ApiDeprecatedToken,
+  apiDeprecatedValue,
+  ApiExcludeToken,
+  ApiOperationSchema,
+  ApiOperationToken,
+  ApiSecuritySchema,
+  ApiSecurityToken,
+  ApiStreamSchema,
+  ApiStreamToken,
+  ApiSummarySchema,
+  ApiSummaryToken,
+  ApiTagSchema,
+  ApiTagToken,
+  apiTagValue,
+} from '../annotations/index.mjs'
+
 export {
   ApiDeprecatedToken,
   ApiExcludeToken,
@@ -32,12 +52,36 @@ export type {
   ApiStreamOptions,
   ApiTagOptions,
 } from '../annotations/index.mjs'
-export { generateOpenApiDocument } from '../document/index.mjs'
-export { openApiPlugin } from '../plugin/index.mjs'
-export { ApiDeprecated } from './api-deprecated.mjs'
-export { ApiExclude } from './api-exclude.mjs'
-export { ApiOperation } from './api-operation.mjs'
-export { ApiSecurity } from './api-security.mjs'
-export { ApiStream } from './api-stream.mjs'
-export { ApiSummary } from './api-summary.mjs'
-export { ApiTag } from './api-tag.mjs'
+export { generateOpenApiDocument } from '../document/generate-document.mjs'
+export { openApiPlugin } from '../plugin/openapi-plugin.mjs'
+
+const ApiDeprecatedAttribute = AttributeFactory.createAttribute(
+  ApiDeprecatedToken,
+  ApiDeprecatedSchema,
+)
+const ApiTagAttribute = AttributeFactory.createAttribute(ApiTagToken, ApiTagSchema)
+
+/** `ApiDeprecated` of `@navios/openapi` as a legacy decorator. */
+export function ApiDeprecated(message?: string) {
+  return ApiDeprecatedAttribute(apiDeprecatedValue(message))
+}
+
+/** `ApiExclude` of `@navios/openapi` as a legacy decorator. */
+export const ApiExclude = AttributeFactory.createAttribute(ApiExcludeToken)
+
+/** `ApiOperation` of `@navios/openapi` as a legacy decorator. */
+export const ApiOperation = AttributeFactory.createAttribute(ApiOperationToken, ApiOperationSchema)
+
+/** `ApiSecurity` of `@navios/openapi` as a legacy decorator. */
+export const ApiSecurity = AttributeFactory.createAttribute(ApiSecurityToken, ApiSecuritySchema)
+
+/** `ApiStream` of `@navios/openapi` as a legacy decorator. */
+export const ApiStream = AttributeFactory.createAttribute(ApiStreamToken, ApiStreamSchema)
+
+/** `ApiSummary` of `@navios/openapi` as a legacy decorator. */
+export const ApiSummary = AttributeFactory.createAttribute(ApiSummaryToken, ApiSummarySchema)
+
+/** `ApiTag` of `@navios/openapi` as a legacy decorator. */
+export function ApiTag(name: string, description?: string) {
+  return ApiTagAttribute(apiTagValue(name, description))
+}

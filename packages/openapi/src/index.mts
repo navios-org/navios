@@ -1,17 +1,16 @@
-export { openApiPlugin } from './plugin/index.mjs'
-export type {
-  OpenApiPluginOptions,
-  ScalarMetaData,
-  ScalarOptions,
-  ScalarTheme,
-} from './plugin/index.mjs'
+export { openApiPlugin } from './plugin/openapi-plugin.mjs'
+export type { OpenApiPluginOptions } from './plugin/openapi-plugin.mjs'
+export type { ScalarMetaData, ScalarOptions, ScalarTheme } from './plugin/scalar-page.mjs'
 
-export { extractUrlParamNames, generateOpenApiDocument, toOpenApiPath } from './document/index.mjs'
+export { generateOpenApiDocument } from './document/generate-document.mjs'
+export type {
+  OpenApiDocumentOptions,
+  OpenApiGenerationOptions,
+} from './document/generate-document.mjs'
+export { extractUrlParamNames, toOpenApiPath } from './document/openapi-path.mjs'
 export type {
   OpenApiDocument,
-  OpenApiDocumentOptions,
   OpenApiExternalDocs,
-  OpenApiGenerationOptions,
   OpenApiInfo,
   OpenApiMediaType,
   OpenApiOperation,
@@ -23,7 +22,7 @@ export type {
   OpenApiSecurityScheme,
   OpenApiServer,
   OpenApiTag,
-} from './document/index.mjs'
+} from './document/openapi-document.mjs'
 
 export { describeMultipartFields, isBinarySchema, SchemaConverter } from './json-schema/index.mjs'
 export type {

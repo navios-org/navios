@@ -1,6 +1,6 @@
 import { getHtmlDocument } from '@scalar/core/libs/html-rendering'
 
-import type { OpenApiDocument } from '../document/index.mjs'
+import type { OpenApiDocument } from '../document/openapi-document.mjs'
 
 export type ScalarTheme =
   | 'default'
