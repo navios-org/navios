@@ -86,7 +86,7 @@ interface UseServiceResult<T> {
 function useSuspenseService(token, args?): T
 ```
 
-Returns the instance. Throws a promise while it is being resolved and the error when resolution fails, so it needs a `Suspense` boundary and an error boundary above it. Results are cached per container, token and `JSON.stringify(args)`; a failure stays cached. See [Suspense](/docs/di/react/using-services#suspense).
+Returns the instance. Throws a promise while it is being resolved and the error when resolution fails, so it needs a `Suspense` boundary and an error boundary above it. Results are cached per container, token and the JSON form of `args`. A failure is not kept: once it has reached the error boundary, the next render, such as the one after a reset of the boundary, resolves again. See [Suspense](/docs/di/react/using-services#suspense).
 
 ### useOptionalService
 

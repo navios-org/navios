@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 import type {
   BoundInjectionToken,
@@ -17,6 +17,8 @@ import { useContainer } from '../container/use-container.mjs'
 
 import { getArgsKey } from './args-key.mjs'
 
+import type { AnyServiceToken } from './types.mjs'
+
 // Cache entry for suspense
 interface CacheEntry<T> {
   promise: Promise<T> | null
@@ -26,21 +28,19 @@ interface CacheEntry<T> {
   version: number // Increment on each fetch to track changes
   subscribers: Set<() => void>
   unsubscribe: (() => void) | undefined
+  // A rejected entry that is about to leave the cache
+  evicting: boolean
 }
 
 type AnyContainer = Container | ScopedContainer
-type AnyToken =
-  | ClassType
-  | InjectionToken<any, any>
-  | BoundInjectionToken<any, any>
-  | FactoryInjectionToken<any, any>
+type Cache = Map<string, CacheEntry<any>>
 
 // Global cache for service instances: container -> token object -> args key.
 // Tokens have no ids, so the token object itself (class, token, or the
 // Bound/Factory wrapper) is the identity.
-const cacheMap = new WeakMap<object, WeakMap<object, Map<string, CacheEntry<any>>>>()
+const cacheMap = new WeakMap<object, WeakMap<object, Cache>>()
 
-function getCache(container: object, token: object): Map<string, CacheEntry<any>> {
+function getCache(container: object, token: object): Cache {
   let byToken = cacheMap.get(container)
   if (!byToken) {
     byToken = new WeakMap()
@@ -55,13 +55,42 @@ function getCache(container: object, token: object): Map<string, CacheEntry<any>
 }
 
 /**
+ * The cache entry for `key`, created on first use. An instance the container
+ * already holds makes it resolved, so the first render does not suspend.
+ */
+function getEntry(
+  cache: Cache,
+  key: string,
+  container: AnyContainer,
+  token: AnyServiceToken,
+  args: unknown,
+): CacheEntry<any> {
+  let entry = cache.get(key)
+  if (!entry) {
+    const syncInstance = container.peek(token as InjectionToken<any, any>, args)
+    entry = {
+      promise: null,
+      result: syncInstance !== null ? syncInstance : undefined,
+      error: undefined,
+      status: syncInstance !== null ? 'resolved' : 'pending',
+      version: 0,
+      subscribers: new Set(),
+      unsubscribe: undefined,
+      evicting: false,
+    }
+    cache.set(key, entry)
+  }
+  return entry
+}
+
+/**
  * Sets up invalidation subscription for a cache entry if not already subscribed.
  * When the service is destroyed, clears the cache and notifies subscribers.
  */
 function setupInvalidationSubscription(
   entry: CacheEntry<any>,
   container: AnyContainer,
-  token: AnyToken,
+  token: AnyServiceToken,
   args: unknown,
 ): void {
   if (entry.unsubscribe) return
@@ -75,6 +104,50 @@ function setupInvalidationSubscription(
     // Notify all subscribers
     entry.subscribers.forEach((callback) => callback())
   })
+}
+
+function fetchService(
+  entry: CacheEntry<any>,
+  container: AnyContainer,
+  token: AnyServiceToken,
+  args: unknown,
+): void {
+  entry.status = 'pending'
+  entry.version++ // Increment version to signal change to useSyncExternalStore
+  entry.promise = (container.get as any)(token, args)
+    .then((instance: unknown) => {
+      entry.result = instance
+      entry.status = 'resolved'
+
+      // Subscribe to invalidation events if not already subscribed
+      setupInvalidationSubscription(entry, container, token, args)
+
+      // Notify subscribers
+      entry.subscribers.forEach((callback) => callback())
+      return instance
+    })
+    .catch((error: Error) => {
+      entry.error = error
+      entry.status = 'rejected'
+      throw error
+    })
+}
+
+/**
+ * Drops a rejected entry once the current task is over. Every render until
+ * then throws the error: React renders a failed component again before it
+ * shows the error boundary. The next render after that, such as the one of an
+ * error boundary reset, resolves the service again.
+ */
+function evictAfterRender(cache: Cache, key: string, entry: CacheEntry<any>): void {
+  if (entry.evicting) return
+  entry.evicting = true
+  setTimeout(() => {
+    if (cache.get(key) === entry && entry.status === 'rejected') {
+      cache.delete(key)
+      entry.unsubscribe?.()
+    }
+  }, 0)
 }
 
 // #1 Simple class
@@ -98,68 +171,12 @@ export function useSuspenseService<T>(token: BoundInjectionToken<T, any>): T
 
 export function useSuspenseService<T>(token: FactoryInjectionToken<T, any>): T
 
-export function useSuspenseService(
-  token:
-    | ClassType
-    | InjectionToken<any, any>
-    | BoundInjectionToken<any, any>
-    | FactoryInjectionToken<any, any>,
-  args?: unknown,
-): any {
+export function useSuspenseService(token: AnyServiceToken, args?: unknown): any {
   // useContainer returns ScopedContainer if inside ScopeProvider, otherwise Container
   const container = useContainer()
   const cache = getCache(container, token)
   const cacheKey = getArgsKey(args)
-  const entryRef = useRef<CacheEntry<any> | null>(null)
-
-  // Initialize or get cache entry
-  if (!cache.has(cacheKey)) {
-    // Try to get the instance synchronously first for better performance
-    // This avoids suspense when the instance is already cached
-    const syncInstance = container.peek(token as InjectionToken<any, any>, args)
-
-    const entry: CacheEntry<any> = {
-      promise: null,
-      result: syncInstance !== null ? syncInstance : undefined,
-      error: undefined,
-      status: syncInstance !== null ? 'resolved' : 'pending',
-      version: 0,
-      subscribers: new Set(),
-      unsubscribe: undefined,
-    }
-    cache.set(cacheKey, entry)
-  }
-
-  const entry = cache.get(cacheKey)!
-  entryRef.current = entry
-
-  // Function to fetch the service
-  const fetchService = useCallback(() => {
-    const currentEntry = entryRef.current
-    if (!currentEntry) return
-
-    currentEntry.status = 'pending'
-    currentEntry.version++ // Increment version to signal change to useSyncExternalStore
-    currentEntry.promise = (container.get as any)(token, args)
-      .then((instance: any) => {
-        currentEntry.result = instance
-        currentEntry.status = 'resolved'
-
-        // Subscribe to invalidation events if not already subscribed
-        setupInvalidationSubscription(currentEntry, container, token, args)
-
-        // Notify subscribers
-        currentEntry.subscribers.forEach((callback) => callback())
-        return instance
-      })
-      .catch((error: Error) => {
-        currentEntry.error = error
-        currentEntry.status = 'rejected'
-        throw error
-      })
-
-    return currentEntry.promise
-  }, [container, token, args])
+  const entry = getEntry(cache, cacheKey, container, token, args)
 
   // Subscribe to cache changes
   const subscribe = useCallback(
@@ -182,15 +199,14 @@ export function useSuspenseService(
 
   // Set up subscription for sync instances that don't have one yet
   useEffect(() => {
-    const currentEntry = entryRef.current
-    if (currentEntry && currentEntry.status === 'resolved' && !currentEntry.unsubscribe) {
-      setupInvalidationSubscription(currentEntry, container, token, args)
+    if (entry.status === 'resolved' && !entry.unsubscribe) {
+      setupInvalidationSubscription(entry, container, token, args)
     }
   }, [container, token, args, entry])
 
   // Start fetching if not already
   if (entry.status === 'pending' && !entry.promise) {
-    fetchService()
+    fetchService(entry, container, token, args)
   }
 
   // Suspense behavior
@@ -199,6 +215,8 @@ export function useSuspenseService(
   }
 
   if (entry.status === 'rejected') {
+    // A later render tries again
+    evictAfterRender(cache, cacheKey, entry)
     throw entry.error
   }
 

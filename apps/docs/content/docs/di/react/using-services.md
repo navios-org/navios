@@ -61,9 +61,7 @@ function UserPanel() {
 
 When the instance is invalidated the component suspends again, so the fallback is shown until the new instance is ready.
 
-:::warning
-A failed resolution is remembered for that container, token and arguments. Resetting the error boundary or mounting the component again throws the same error without another attempt. Use `useService` and `refetch()` where a retry is needed.
-:::
+A failed resolution is not remembered. Resetting the error boundary, or mounting the component again, resolves the service again, and the component suspends until that attempt settles.
 
 ## Services that take arguments
 
