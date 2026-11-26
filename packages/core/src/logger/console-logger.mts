@@ -212,7 +212,7 @@ export class ConsoleLogger implements LoggerService {
       ...optionalParams,
     ])
 
-    this.printMessages(messages, context, 'error', undefined, 'stderr', stack)
+    this.printMessages(messages, context, 'error', 'stderr', stack)
     this.printStackTrace(stack as string)
   }
 
@@ -319,11 +319,10 @@ export class ConsoleLogger implements LoggerService {
     messages: unknown[],
     context = '',
     logLevel: LogLevel = 'log',
-    requestId?: string,
     writeStreamType?: 'stdout' | 'stderr',
     errorStack?: unknown,
   ) {
-    const resolvedRequestId = requestId ?? this.getCurrentRequestId()
+    const requestId = this.getCurrentRequestId()
     if (this.options.json) {
       for (const line of this.toJsonLines(messages)) {
         this.guarded(() =>
@@ -332,7 +331,7 @@ export class ConsoleLogger implements LoggerService {
             logLevel,
             writeStreamType,
             errorStack,
-            requestId: resolvedRequestId,
+            requestId,
             error: line.error,
           }),
         )
@@ -352,7 +351,7 @@ export class ConsoleLogger implements LoggerService {
           formattedLogLevel,
           contextMessage,
           timestampDiff,
-          resolvedRequestId,
+          requestId,
         )
 
         process[writeStreamType ?? 'stdout'].write(formattedMessage)
@@ -426,7 +425,7 @@ export class ConsoleLogger implements LoggerService {
     if (options.errorStack) {
       logObject.stack = options.errorStack
     }
-    if (this.options.requestId && options.requestId) {
+    if (options.requestId) {
       logObject.requestId = options.requestId
     }
     if (options.error) {
@@ -528,7 +527,7 @@ export class ConsoleLogger implements LoggerService {
   }
 
   protected getRequestId(requestId?: string) {
-    if (this.options.requestId && requestId) {
+    if (requestId) {
       return `(${this.colorize(requestId, 'log')}) `
     }
     return ''
