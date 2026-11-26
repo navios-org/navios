@@ -102,6 +102,7 @@ describe('provideJwtService', () => {
 
   it('should wait for a configuration that is a thenable', async () => {
     const thenable = {
+      // oxlint-disable-next-line unicorn/no-thenable -- the case under test
       then(resolve: (options: { secret: string }) => void) {
         resolve({ secret: ACCESS })
       },
