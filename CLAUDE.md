@@ -20,6 +20,13 @@
 - Follow Oxlint config
 - Run `yarn turbo run lint --filter=<package>` after making changes
 
+## Changelogs
+
+- Each package keeps a `CHANGELOG.md` in the Keep a Changelog format, with headings `## [<version>] - <YYYY-MM-DD>`.
+- Add an entry only under a heading that ends in `- Unreleased`. A dated heading is a published version and is never edited. If the top heading is dated, or names a version already on npm, add `## [<next version>] - Unreleased` above it (after `2.0.0-alpha.0`, that is `2.0.0-alpha.1`).
+- Write an entry against the last published version, not against 1.x. A change to something added in the unreleased section edits that entry instead of adding one.
+- On release, replace `Unreleased` with the publish date in local time, only in the packages that were published. `@navios/cli`, `@navios/queues` and `@navios/microservice` are left out of `publish:next`.
+
 ## DI System Testing Rules
 
 ### Test File Structure

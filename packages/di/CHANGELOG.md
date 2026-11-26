@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A bundle made with rolldown, or a tool built on it such as tsdown, keeps the `Symbol.metadata` polyfill. rolldown left out an entry point that only re-exports, because `sideEffects` did not list it, and with it the import of the polyfill. Decorated classes then had no metadata, and `@navios/core` threw `Decorator metadata is not available` at start. The entry points are now listed.
 
-## [2.0.0-alpha.0] - Unreleased
+## [2.0.0-alpha.0] - 2026-11-26
 
 The resolution engine was rewritten. See the [migration guide](https://navios.tech/docs/di/reference/migrating-to-2) for old and new API side by side.
 
@@ -157,7 +157,7 @@ Measured on Node 24 in production mode on the same machine, 1.0.0 → 2.0.0:
 - **Value Binding Implementation**: Changed from static instance to factory pattern for better consistency
 - **Token Resolution**: Enhanced token resolution in testing containers to properly handle `BoundInjectionToken` instances
 
-## [0.9.0] - 2025-12-21
+## [0.9.0] - 2025-12-23
 
 ### Added
 
@@ -353,7 +353,7 @@ Measured on Node 24 in production mode on the same machine, 1.0.0 → 2.0.0:
 - Request-scoped services properly invalidate dependent singletons
 - Browser compatibility issues resolved
 
-## [0.4.0] - 2025
+## [0.4.0] - 2025-09-19
 
 ### Added
 
@@ -389,7 +389,7 @@ Measured on Node 24 in production mode on the same machine, 1.0.0 → 2.0.0:
 - Old request context API is no longer available
 - Update middleware code to use `ScopedContainer` pattern
 
-## [0.3.0] - 2024-XX-XX
+## [0.3.0] - 2025-09-18
 
 ### Added
 
@@ -407,7 +407,7 @@ Measured on Node 24 in production mode on the same machine, 1.0.0 → 2.0.0:
 - Enhanced container API with request context methods
 - Better error messages throughout the library
 
-## [0.2.0] - 2024-XX-XX
+## [0.2.0] - 2025-08-28
 
 ### Added
 
@@ -435,7 +435,7 @@ Measured on Node 24 in production mode on the same machine, 1.0.0 → 2.0.0:
   - `Registry` class for managing service registrations
   - `globalRegistry` for default registrations
 
-## [0.1.0] - 2024-XX-XX
+## [0.1.0] - 2025-05-13
 
 ### Added
 

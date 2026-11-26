@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-alpha.0] - Unreleased
+## [2.0.0-alpha.0] - 2026-11-26
 
 The adapter is rewritten on the adapter contract of `@navios/server` 2.0, the package that now holds the HTTP layer of Navios. It no longer contains guard, validation or error-handling logic; those run in the request pipeline of `@navios/server` and are the same on every adapter.
 
@@ -168,7 +168,7 @@ Measured with `yarn bench --check`: Node 24.22, production mode, `fastify.inject
 - Updated to support `@navios/core` ^1.0.0-alpha.2
 - Updated to support `@navios/builder` ^1.0.0-alpha.2
 
-## [1.0.0-alpha.1] - 2026-01-22
+## [1.0.0-alpha.1] - 2026-01-07
 
 ### Changed
 
@@ -220,7 +220,7 @@ Measured with `yarn bench --check`: Node 24.22, production mode, `fastify.inject
 
 - Requires `@navios/core` ^0.8.0
 
-## [0.7.1] - 2025-12-18
+## [0.7.1] - 2025-12-20
 
 ### Added
 

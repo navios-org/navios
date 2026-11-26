@@ -1,8 +1,6 @@
 # Changelog
 
-## [2.0.0-alpha.0] - Unreleased
-
-2.0 reworks how endpoints are declared, called and how they fail. There is one way to declare an endpoint, two ways to call it, and one error type.
+## [2.0.0-alpha.1] - Unreleased
 
 ### Added
 
@@ -13,6 +11,17 @@
 - **Request context in `onError`**: `onError(error, { request })` receives the request config that was sent (bound URL, query, body, headers), or `null` when the call failed before one was built. It is not on the `EndpointError`, so `toJSON()` stays free of credentials. New type: `EndpointErrorContext`.
 - **Call context for clients**: `client.request(config, { endpoint, args })` receives the calling endpoint's declaration and the call's arguments as a second argument, which clients that only send requests ignore. New type: `ClientRequestContext`.
 - **`getFilename(response)`**: the file name of `Content-Disposition`, with `filename*` (RFC 6266 / 8187, any charset) preferred over `filename`, unquoted and without directory parts. Accepts a `ResponseMeta`, a `{ headers }` record such as react-query's `withResponse` response, or the raw value. New type: `HeaderSource`.
+
+### Changed
+
+- **`AbstractRequestConfig` matches axios**: `responseType` is `'json' | 'text' | 'blob' | 'stream'`, the values the builder sets, and `signal` is `AbortSignal` (a `null` call signal is left out). An axios instance is now a `Client` without `as unknown as Client`. A client that typed its config parameter with `'arrayBuffer'` / `'formData'` or a `null` signal still fits.
+
+## [2.0.0-alpha.0] - 2026-11-26
+
+2.0 reworks how endpoints are declared, called and how they fail. There is one way to declare an endpoint, two ways to call it, and one error type.
+
+### Added
+
 - **`endpoint.safe(args)`**: the non-throwing twin of every endpoint. Resolves to a `SafeResult` — `{ ok: true, data, error: null, response }` or `{ ok: false, data: null, error, response }` — and never rejects, including for invalid input and a missing client.
 - **`EndpointError`**: the single error type for a failed call (`extends NaviosError`). Thrown by `endpoint(args)`, returned by `endpoint.safe(args)` and passed to `onError`. Fields: `kind`, `endpoint`, `status`, `body`, `response`, `issues`, `cause`, plus `toJSON()`.
 - **Error kinds**: `http`, `http-unknown`, `request-validation`, `response-validation`, `network`, `timeout`, `aborted`, `config`.
@@ -40,7 +49,6 @@
 
 ### Changed
 
-- **`AbstractRequestConfig` matches axios**: `responseType` is `'json' | 'text' | 'blob' | 'stream'`, the values the builder sets, and `signal` is `AbortSignal` (a `null` call signal is left out). An axios instance is now a `Client` without `as unknown as Client`. A client that typed its config parameter with `'arrayBuffer'` / `'formData'` or a `null` signal still fits.
 - **The arguments of a call are sent as they were passed.** 1.x sent the output of `urlParamsSchema`, `querySchema` and `requestSchema`; a server that parses the request with the same schemas then applied every transform twice. Arguments are still validated, but defaults, transforms and the removal of unknown keys no longer run before sending. `builder({ send: 'output' })` restores that for APIs that do not share the schemas. A URL parameter that is left out is still sent as the default of `urlParamsSchema`. Responses are not affected.
 - **`data` and `params` are optional whenever their schema accepts an empty object or `undefined`**, in the types and at runtime.
 - **`validateResponse: false` types the result as the schema's input**, because transforms and defaults are not applied.
@@ -268,7 +276,7 @@ Send handlers reject with a `SocketError`:
   - Affects `urlParams`, `params` (query), and `data` (body) parameters
 - **RequestBase Exclusion for Server**: Server-side handlers no longer include `RequestBase` fields (like `signal`), as these are client-only concerns
 
-## [1.0.0-alpha.1] - 2026-01-06
+## [1.0.0-alpha.1] - 2026-01-07
 
 ### Added
 
@@ -438,7 +446,7 @@ Send handlers reject with a `SocketError`:
 - Added detailed JSDoc comments for better IDE support and developer experience
 - Clarified usage examples for discriminated unions and error handling
 
-## [0.4.0] - Dec 13, 2025
+## [0.4.0] - 2025-12-13
 
 ### Breaking Changes
 

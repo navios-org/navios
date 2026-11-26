@@ -1,6 +1,20 @@
 # Changelog
 
-## [2.0.0-alpha.0] - Unreleased
+## [2.0.0-alpha.1] - Unreleased
+
+### Added
+
+- **`keyBy` on `client.query` and `makeQuery`**: choose which inputs identify a cache entry. `false` keeps one entry for the endpoint; `{ urlParams?, params?, data? }` takes `true`, `false` or a list of the fields kept for each part, with names checked against the endpoint's schemas. The inputs left out are shared by everyone using the entry: `use`, `useSuspense`, `fetch`, `prefetch` and `ensure` send them when the call has them (the entry refetches for every component), and a call without them uses the values sent last. A request overtaken by new values is made again, so the entry never shows a result for values nobody holds; a failed or cancelled one leaves the entry for the values it had. The options a call returns, `key`, `invalidate`, `getData` and `setData` take only the inputs that identify the entry. Shared entries carry a `{ keyBy }` key segment (the rule as a string, e.g. `'params:false'`), so they never mix with a declaration of the same endpoint without one or with another rule. New types: `KeyBy`, `AnyKeyBy`, `SendArgs`, `KeyedArgs`, `PartialKeyedInputs`, `ArgsOf`; `QueryObject` and `QuerySettings` take a `TKeyBy` type parameter. `react` (`^18 || ^19`) is now a declared peer dependency.
+- **TanStack options on a query declaration**: `client.query`, `client.infiniteQuery`, `makeQuery` and `makeInfiniteQuery` accept `useQuery` / `useInfiniteQuery` options (`staleTime`, `gcTime`, `refetchOnWindowFocus`, `retry`, `placeholderData`, `meta`, ...) next to the key options. Every use of the query gets them, under the options of a call site; `fetch`, `prefetch` and `ensure` use those that apply outside a component. `select`, `initialData` and `initialDataUpdatedAt` stay at the call site. New types: `QueryDefaults`, `QuerySettings`, `InfiniteQueryDefaults`.
+- **Shared error schemas of the builder**: `declareClient({ api })` takes the type of `builder({ errorSchema })`, so inline declarations have the same typed errors as endpoints declared on the builder. `ClientOptions` and `ClientInstance` take it as a type parameter, `{}` by default.
+- **Mocking through `@navios/builder/mock`**: query, infinite query and mutation objects can be passed to `mocks.on(...)` as they are.
+
+### Changed
+
+- **Client `defaults` compose with each declaration's key segments**: a query's or mutation's own `keyPrefix` / `keySuffix` are added after the client's `defaults` instead of replacing them, so `[...defaults.keyPrefix, ...keyPrefix, method, url, ...defaults.keySuffix, ...keySuffix]`.
+- **Cache key shape** is now `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]`. The `{ keyBy }` segment is there only when a declaration's `keyBy` leaves inputs out.
+
+## [2.0.0-alpha.0] - 2026-11-26
 
 ### Highlights
 
@@ -8,11 +22,6 @@
 
 ### Added
 
-- **`keyBy` on `client.query` and `makeQuery`**: choose which inputs identify a cache entry. `false` keeps one entry for the endpoint; `{ urlParams?, params?, data? }` takes `true`, `false` or a list of the fields kept for each part, with names checked against the endpoint's schemas. The inputs left out are shared by everyone using the entry: `use`, `useSuspense`, `fetch`, `prefetch` and `ensure` send them when the call has them (the entry refetches for every component), and a call without them uses the values sent last. A request overtaken by new values is made again, so the entry never shows a result for values nobody holds; a failed or cancelled one leaves the entry for the values it had. The options a call returns, `key`, `invalidate`, `getData` and `setData` take only the inputs that identify the entry. Shared entries carry a `{ keyBy }` key segment (the rule as a string, e.g. `'params:false'`), so they never mix with a declaration of the same endpoint without one or with another rule. New types: `KeyBy`, `AnyKeyBy`, `SendArgs`, `KeyedArgs`, `PartialKeyedInputs`, `ArgsOf`; `QueryObject` and `QuerySettings` take a `TKeyBy` type parameter. `react` (`^18 || ^19`) is now a declared peer dependency.
-- **TanStack options on a query declaration**: `client.query`, `client.infiniteQuery`, `makeQuery` and `makeInfiniteQuery` accept `useQuery` / `useInfiniteQuery` options (`staleTime`, `gcTime`, `refetchOnWindowFocus`, `retry`, `placeholderData`, `meta`, ...) next to the key options. Every use of the query gets them, under the options of a call site; `fetch`, `prefetch` and `ensure` use those that apply outside a component. `select`, `initialData` and `initialDataUpdatedAt` stay at the call site. New types: `QueryDefaults`, `QuerySettings`, `InfiniteQueryDefaults`.
-- **Shared error schemas of the builder**: `declareClient({ api })` takes the type of `builder({ errorSchema })`, so inline declarations have the same typed errors as endpoints declared on the builder. `ClientOptions` and `ClientInstance` take it as a type parameter, `{}` by default.
-- **Client `defaults` compose with each declaration's key segments**: a query's or mutation's own `keyPrefix` / `keySuffix` are added after the client's `defaults` instead of replacing them, so `[...defaults.keyPrefix, ...keyPrefix, method, url, ...defaults.keySuffix, ...keySuffix]`.
-- **Mocking through `@navios/builder/mock`**: query, infinite query and mutation objects can be passed to `mocks.on(...)` as they are.
 - **Typed errors in the error channel**: queries and mutations call the throwing form of the endpoint, so `query.error`, `mutation.error`, `onError` and error boundaries receive the endpoint's `EndpointError`. Narrow with `error.kind` and `error.status`; `error.body` is typed from `errorSchema`.
 - **`query.use(args | skipToken, options)` / `query.useSuspense(args, options)`** accept every TanStack option except `queryKey` / `queryFn` (`enabled`, `staleTime`, `select`, ...). `skipToken` disables a query until its inputs are known.
 - **`query.key(args?)`**: no args is the prefix of every entry of the endpoint, partial args the prefix of the matching entries, full args the exact key. Keys are tagged with the data and error types.
@@ -38,7 +47,7 @@
 - **Unknown options are compile errors** on inline `client.query`, `client.infiniteQuery` and `client.mutation` declarations, so removed options such as `unwrap` and `useKey` are reported by the compiler.
 
 - **`declareClient({ api, defaults })` returns `{ query, infiniteQuery, mutation }`.** Each method accepts an inline endpoint declaration or an existing endpoint handler (with options as the second argument).
-- **Cache key shape** is now `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]` with `inputs = { urlParams?, params?, data? }`. The method and the request body are part of the key, URL param values are stringified, empty parts are dropped, and infinite queries have their own entries. **Every key changed: persisted caches from 1.x must be discarded.**
+- **Cache key shape** is now `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]` with `inputs = { urlParams?, params?, data? }`. The method and the request body are part of the key, URL param values are stringified, empty parts are dropped, and infinite queries have their own entries. **Every key changed: persisted caches from 1.x must be discarded.**
 - **`invalidate(queryClient, args?, filters?)`** returns the promise directly and covers three scopes: whole endpoint (no args), partial args, and one entry (`{ exact: true }`).
 - **Mutation hooks take no arguments.** URL params are always passed to `mutate`.
 - **Mutation callbacks** receive the merged context as their last argument: `onMutate(variables, context)`, `onSuccess(data, variables, context)`, `onError(error, variables, context)`, `onSettled(data, error, variables, context)`; the value returned from `onMutate` is `context.onMutateResult`.
@@ -423,7 +432,7 @@ const updateUser = client.mutation({
   - Examples for `queryFromEndpoint` and `infiniteQueryFromEndpoint`
   - Query helper methods documentation
 
-## [0.6.0] - Dec 13, 2025
+## [0.6.0] - 2025-12-13
 
 ### Breaking Changes
 
@@ -500,13 +509,13 @@ const updateUser = client.mutation({
 
 - **`processResponse` is now optional** - For both regular mutations and stream mutations, `processResponse` defaults to an identity function when not provided. This is particularly useful for stream mutations where you often just want the raw `Blob`.
 
-## [0.5.1] - Dec 13, 2025
+## [0.5.1] - 2025-12-13
 
 ### Fixed
 
 - **Fixed type errors** - Fixed type errors with mutations.
 
-## [0.5.0] - Dec 13, 2025
+## [0.5.0] - 2025-12-13
 
 ### Breaking Changes
 
