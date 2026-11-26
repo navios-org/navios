@@ -1,7 +1,6 @@
 import {
   asyncInitRequired,
   circularDependency,
-  containerDisposed,
   initializationError,
   misuse,
   notYetDestroyed,
@@ -26,6 +25,7 @@ import { createEntry, EntryStatus, isLeaving, markReady } from './entry.mjs'
 import { current, enter, framePath, hookOwner, onStack, outside, runHook } from './frame.mjs'
 import { createFactoryContext } from './inject-impl.mjs'
 import { isDestroying, leavingIn } from './leaving.mjs'
+import { assertLive, disposedError, isDisposed } from './liveness.mjs'
 import { addWaitEdge, unlink } from './links.mjs'
 import {
   baseToken,
@@ -74,18 +74,6 @@ export class DependencyNotReady extends Error {
   }
 }
 
-/** Throws when nothing may be built in `host` any more. */
-export function assertLive(host: Host): void {
-  if (host.disposed || host.root.disposed) {
-    throw containerDisposed(host.disposed && host.isScope ? 'ScopedContainer' : 'Container')
-  }
-}
-
-/** Whether the container that holds `entry` is being, or has been, disposed. */
-function isHostDisposed(entry: Entry): boolean {
-  return entry.host.disposed || entry.host.root.disposed
-}
-
 // What the resolution that is in progress outside any construction was started
 // for: an entry that used `asyncInject()` or the context of a factory.
 let startedBy: Entry | null = null
@@ -131,7 +119,7 @@ function isStillUsable(entry: Entry): boolean {
   return (
     current === null &&
     startedBy?.status !== EntryStatus.Creating &&
-    (isHostDisposed(entry) ||
+    (isDisposed(entry.host) ||
       (hookOwner !== null && isLeaving(hookOwner) && hookOwner.host.root === entry.host.root))
   )
 }
@@ -174,8 +162,8 @@ export function resolve(
           if (existing.status === EntryStatus.Leaving && isStillUsable(existing)) {
             return existing
           }
-          if (isHostDisposed(existing)) {
-            throw containerDisposed(existing.host.isScope ? 'ScopedContainer' : 'Container')
+          if (isDisposed(existing.host)) {
+            throw disposedError(existing.host)
           }
           return new Wait(existing.promise ?? Promise.resolve(), existing)
         default:
@@ -569,11 +557,11 @@ export function keepLoose(host: Host, entry: Entry): void {
  * stored entry is left to the disposal.
  */
 export function assertInTime(entry: Entry): void {
-  if (isHostDisposed(entry)) {
+  if (isDisposed(entry.host)) {
     if (entry.store === null) {
       discard(entry)
     }
-    throw containerDisposed(entry.host.isScope ? 'ScopedContainer' : 'Container')
+    throw disposedError(entry.host)
   }
 }
 

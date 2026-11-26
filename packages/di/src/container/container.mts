@@ -13,7 +13,8 @@ import {
   lookupRecord,
   requireToken,
 } from '../internal/normalize.mjs'
-import { assertLive, resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
+import { assertLive } from '../internal/liveness.mjs'
+import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
 import { peek, storeValue } from '../internal/stored-values.mjs'
 import { provide } from '../provider/provide.mjs'

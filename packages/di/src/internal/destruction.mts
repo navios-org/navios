@@ -4,6 +4,7 @@ import { inBackground } from './background.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
 import { runHook } from './frame.mjs'
 import { dependentsOf, unlink } from './links.mjs'
+import { isDisposed } from './liveness.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { DestroyListener, Entry } from './entry.mjs'
@@ -189,7 +190,7 @@ function notify(cascade: Cascade): void {
   cascade.gone = null
   const failures: unknown[] = []
   for (const entry of gone) {
-    const disposing = entry.host.disposed || entry.host.root.disposed
+    const disposing = isDisposed(entry.host)
     // A listener that resolves again is refused when a disposal is the reason
     // why it is called. That is not an error of the listener.
     const isRefusal = (error: unknown) =>

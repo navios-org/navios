@@ -1,9 +1,10 @@
-import { containerDisposed, misuse } from '../errors/create.mjs'
+import { misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
 import { destroyAll, destroyLoose, rejectWith } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
+import { disposedError } from '../internal/liveness.mjs'
 import { hasProvider, lookupRecord } from '../internal/normalize.mjs'
 import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
@@ -70,21 +71,19 @@ export class ScopedContainer implements IContainer {
     ;(this.metadata ??= {})[key] = value
   }
 
-  private assertUsable(): void {
-    if (this.disposed) {
-      throw containerDisposed('ScopedContainer')
-    }
-  }
-
+  // A scope refuses to resolve as soon as its own disposal starts, also for
+  // what it holds: unlike the root container, even to a destroy hook.
   get: AsyncResolve = ((token: AnyInjectableType, args?: unknown) => {
     if (this.disposed) {
-      return rejectWith(containerDisposed('ScopedContainer'))
+      return rejectWith(disposedError(this))
     }
     return resolveInstance(this, token, args)
   }) as AsyncResolve
 
   getSync: SyncResolve = ((token: AnyInjectableType, args?: unknown) => {
-    this.assertUsable()
+    if (this.disposed) {
+      throw disposedError(this)
+    }
     return resolveSyncOrThrow(this, token, args).instance
   }) as SyncResolve
 

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `InjectableOptions` and `FactoryOptions` are other names of `RegisterInjectableOptions` and `RegisterFactoryOptions`.
+- `ContainerDisposed` names `ScopedContainer` only when the scope itself is disposed, wherever it is thrown. A request in a scope that fails because the root container was disposed says `Container has been disposed`.
 
 ### Fixed
 
