@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Added
+
+- **`settledWithin(work, ms)` and `MAX_DELAY_MS`** in `@navios/core/transport`: whether a promise settles within `ms`, for a transport's `stop(timeoutMs)`. A longer time than a timer takes is cut to `MAX_DELAY_MS`.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 `@navios/core` is now the part of Navios that does not depend on HTTP. The HTTP framework it was in 1.x is `@navios/server`, which is built on this package and re-exports it. The changes to the HTTP framework itself are listed in the changelog of `@navios/server`.

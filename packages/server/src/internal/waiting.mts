@@ -1,20 +1,5 @@
 import { ignore } from './promises.mjs'
 
-/**
- * Waits for a promise that does not reject, but for at most `ms`.
- * @internal
- */
-export async function settledWithin(pending: Promise<unknown>, ms: number): Promise<void> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  await Promise.race([
-    pending,
-    new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, ms)
-    }),
-  ])
-  clearTimeout(timer)
-}
-
 /** For how many turns of the microtask queue a promise counts as settled already. */
 const READY_TURNS = 6
 

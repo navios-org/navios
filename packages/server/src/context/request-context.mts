@@ -1,5 +1,5 @@
 import { ExecutionContextToken, PlainContextKey } from '@navios/core'
-import { needsScope, runInContext } from '@navios/core/transport'
+import { needsScope, runInContext, settledWithin } from '@navios/core/transport'
 import { DIError, DIErrorCode } from '@navios/di'
 import { disposeScope } from '@navios/di/internal'
 
@@ -9,7 +9,6 @@ import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
 import { cookieKey, serializeCookie } from '../adapter/serialize-cookie.mjs'
 import { readParts } from '../decoding/read-parts.mjs'
 import { adopt, ignore, isPromise } from '../internal/promises.mjs'
-import { settledWithin } from '../internal/waiting.mjs'
 import { ManagedBody } from '../responses/managed-body.mjs'
 import { appendHeader, describesSuccess, setHeader } from '../responses/response-headers.mjs'
 

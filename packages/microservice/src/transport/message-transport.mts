@@ -4,6 +4,7 @@ import {
   resolveChain,
   runChain,
   runInContext,
+  settledWithin,
 } from '@navios/core/transport'
 import { QueueClientToken } from '@navios/queues'
 
@@ -256,14 +257,7 @@ function createMessageTransport(
       if (inFlight.size === 0) {
         return
       }
-      let timer: ReturnType<typeof setTimeout> | undefined
-      await Promise.race([
-        Promise.allSettled(inFlight),
-        new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, timeoutMs)
-        }),
-      ])
-      clearTimeout(timer)
+      await settledWithin(Promise.allSettled(inFlight), timeoutMs)
     },
   }
 }

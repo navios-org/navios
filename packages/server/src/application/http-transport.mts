@@ -1,4 +1,4 @@
-import { defineTransport } from '@navios/core/transport'
+import { defineTransport, settledWithin } from '@navios/core/transport'
 
 import type { Transport } from '@navios/core'
 import type { ModuleNode } from '@navios/core/transport'
@@ -14,7 +14,6 @@ import {
   NotFoundResponderToken,
   ValidationErrorResponderToken,
 } from '../errors/error-responders.mjs'
-import { settledWithin } from '../internal/waiting.mjs'
 import { encodeResult } from '../pipeline/encode-result.mjs'
 import { joinPaths } from '../routing/join-paths.mjs'
 import { RouteTable } from '../routing/route-table.mjs'

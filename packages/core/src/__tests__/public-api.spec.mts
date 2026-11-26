@@ -73,11 +73,13 @@ describe('the exports of', () => {
         'getModuleMetadata',
         'handlerChain',
         'hasModuleMetadata',
+        'MAX_DELAY_MS',
         'memberMetadata',
         'needsScope',
         'resolveChain',
         'runChain',
         'runInContext',
+        'settledWithin',
       ].sort(),
     )
   })

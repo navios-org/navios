@@ -19,6 +19,9 @@ export type {
 export type { ClassType } from '@navios/di'
 export type { LoggerService } from './logger/logger-output.mjs'
 
+// Waiting, but not for ever.
+export { MAX_DELAY_MS, settledWithin } from './transports/settled-within.mjs'
+
 // The container: every object it has built, dependencies before dependents.
 export { constructedInstances } from '@navios/di/internal'
 

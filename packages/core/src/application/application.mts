@@ -17,6 +17,7 @@ import { deferOutput, endDeferral } from '../logger/pending-output.mjs'
 import { buildModuleGraph } from '../modules/module-graph.mjs'
 import { assertProviders } from '../modules/module-metadata.mjs'
 import { orderPlugins } from '../plugins/order-plugins.mjs'
+import { MAX_DELAY_MS, settledWithin } from '../transports/settled-within.mjs'
 
 import type { InterceptorClass } from '../interceptors/interceptor.mjs'
 import type { LoggerService } from '../logger/logger-output.mjs'
@@ -34,7 +35,6 @@ import type {
 import { declaresHook } from './lifecycle-hooks.mjs'
 import { currentPhase, outsideSteps, runStep } from './lifecycle-step.mjs'
 import { moduleProviders } from './module-providers.mjs'
-import { MAX_DELAY_MS, settledWithin } from './settled-within.mjs'
 import { closeOnSignals, stopListening } from './shutdown-signals.mjs'
 
 import type { ApplicationOptions } from './application-options.mjs'

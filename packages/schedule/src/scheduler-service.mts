@@ -1,10 +1,9 @@
 import { Container, inject, InjectableScope, Logger, registerInjectable } from '@navios/core'
-import { constructedInstances } from '@navios/core/transport'
+import { constructedInstances, settledWithin } from '@navios/core/transport'
 
 import type { ClassType, OnServiceDestroy } from '@navios/core'
 
 import { currentRun } from './jobs/active-run.mjs'
-import { MAX_DELAY_MS } from './jobs/cron-timer.mjs'
 import { jobLogger } from './jobs/job-logger.mjs'
 import { SchedulerJob } from './jobs/scheduler-job.mjs'
 import { extractScheduleMetadata, hasScheduleMetadata } from './schedulable/schedule-metadata.mjs'
@@ -269,14 +268,7 @@ export class SchedulerService implements OnServiceDestroy {
     if (pending.length === 0) {
       return
     }
-    let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      Promise.allSettled(pending.map((run) => run.ended)),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, Math.min(timeoutMs, MAX_DELAY_MS))
-      }),
-    ])
-    clearTimeout(timer)
+    await settledWithin(Promise.allSettled(pending.map((run) => run.ended)), timeoutMs)
     const unfinished = pending.filter((run) => !run.hasEnded)
     if (unfinished.length > 0) {
       for (const run of unfinished) {
