@@ -1,5 +1,5 @@
 import type { AbstractRequestConfig, Client } from '../http/client.mjs'
-import type { InferSuccessInput, EndpointHandler } from '../http/endpoint-handler.mjs'
+import type { EndpointHandler, InferWireBody, NonJsonBody } from '../http/endpoint-handler.mjs'
 import type { BaseEndpointOptions, SuccessSchemaRecord } from '../http/endpoint-options.mjs'
 import type { ErrorSchemaRecord } from '../http/error-schema.mjs'
 import type { ClientRequestArgs } from '../http/request-args.mjs'
@@ -27,21 +27,11 @@ export type MockDelay = number | readonly [min: number, max: number]
  * that is the input of the endpoint's schema. It is validated like a real
  * response.
  */
-export type MockSuccessBody<Options extends BaseEndpointOptions> = Options extends {
-  response: 'blob'
-}
-  ? Blob
-  : Options extends { response: 'text' }
-    ? string
-    : Options extends { response: 'stream' }
-      ? ReadableStream<Uint8Array>
-      : Options extends { response: 'void' }
-        ? void | undefined
-        : Options['responses'] extends SuccessSchemaRecord
-          ? InferSuccessInput<Options['responses']>
-          : Options['responseSchema'] extends Schema
-            ? InferSchemaInput<Options['responseSchema']>
-            : unknown
+export type MockSuccessBody<Options extends BaseEndpointOptions> = NonJsonBody<
+  Options,
+  InferWireBody<Options>,
+  void | undefined
+>
 
 /** The body `respond(status, body)` takes for one status of an endpoint. */
 export type MockBodyFor<

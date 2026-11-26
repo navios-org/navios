@@ -20,29 +20,43 @@ import type { SafeResult } from './safe-result.mjs'
  * The value an endpoint resolves to, derived from its `response` kind and
  * `responseSchema`.
  */
-export type InferEndpointReturn<Options extends BaseEndpointOptions> = Options extends {
-  response: 'blob'
-}
+export type InferEndpointReturn<Options extends BaseEndpointOptions> = NonJsonBody<
+  Options,
+  Options extends { validateResponse: false }
+    ? // Validation is skipped, so the body arrives as the server sent it:
+      // the schemas' input shape, without their transforms or defaults.
+      InferWireBody<Options>
+    : Options['responses'] extends SuccessSchemaRecord
+      ? InferSuccessOutput<Options['responses']>
+      : Options['responseSchema'] extends Schema
+        ? InferSchemaOutput<Options['responseSchema']>
+        : unknown
+>
+
+/**
+ * The body of a non-JSON `response` kind, and `Json` for a JSON endpoint.
+ * `Void` is the body of `response: 'void'`.
+ */
+export type NonJsonBody<Options, Json, Void = undefined> = Options extends { response: 'blob' }
   ? Blob
   : Options extends { response: 'text' }
     ? string
     : Options extends { response: 'stream' }
       ? ReadableStream<Uint8Array>
       : Options extends { response: 'void' }
-        ? undefined
-        : Options extends { validateResponse: false }
-          ? // Validation is skipped, so the body arrives as the server sent it:
-            // the schemas' input shape, without their transforms or defaults.
-            Options['responses'] extends SuccessSchemaRecord
-            ? InferSuccessInput<Options['responses']>
-            : Options['responseSchema'] extends Schema
-              ? InferSchemaInput<Options['responseSchema']>
-              : unknown
-          : Options['responses'] extends SuccessSchemaRecord
-            ? InferSuccessOutput<Options['responses']>
-            : Options['responseSchema'] extends Schema
-              ? InferSchemaOutput<Options['responseSchema']>
-              : unknown
+        ? Void
+        : Json
+
+/**
+ * The JSON body of a successful response as the server sends it: the input of
+ * the endpoint's `responses` or `responseSchema`.
+ */
+export type InferWireBody<Options extends BaseEndpointOptions> =
+  Options['responses'] extends SuccessSchemaRecord
+    ? InferSuccessInput<Options['responses']>
+    : Options['responseSchema'] extends Schema
+      ? InferSchemaInput<Options['responseSchema']>
+      : unknown
 
 /**
  * Like {@link InferSuccessOutput}, with each schema's input type: what the
