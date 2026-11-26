@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-namespace */
 
 /**
- * The JSX types TypeScript reads from the `jsx-runtime` module named by
- * `jsxImportSource`. They mirror the global `JSX` namespace of the
- * `@navios/adapter-xml/jsx` types (`jsx.d.ts`), so that a project needs no
- * `types` entry for lower-case tags such as `<rss>` to type-check.
+ * The JSX types of the package, and their only definition.
+ *
+ * TypeScript reads them from the `jsx-runtime` module named by
+ * `jsxImportSource`, so a project needs no `types` entry for lower-case tags
+ * such as `<rss>` to type-check. `@navios/adapter-xml/jsx` declares the same
+ * types as the global `JSX` namespace, for setups without `jsxImportSource`.
  */
 export declare namespace JSX {
   type Element = object | string | number | null | undefined | Promise<any>

@@ -5,8 +5,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "jsxImportSource": "@navios/adapter-xml",
-    "types": ["./jsx.d.ts"]
+    "jsxImportSource": "@navios/adapter-xml"
   },
   "include": [
     "src/**/*.spec.mts",

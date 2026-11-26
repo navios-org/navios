@@ -53,11 +53,11 @@
     },
     "./jsx": {
       "import": {
-        "types": "./jsx.d.ts",
+        "types": "./lib/jsx.d.mts",
         "default": "./lib/jsx.mjs"
       },
       "require": {
-        "types": "./jsx.d.ts",
+        "types": "./lib/jsx.d.cts",
         "default": "./lib/jsx.cjs"
       }
     }
