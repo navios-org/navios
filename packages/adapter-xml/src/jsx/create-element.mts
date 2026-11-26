@@ -13,7 +13,8 @@ import type {
 type ComponentType = FunctionComponent | ComponentClass
 type ElementNode = XmlNode | ClassComponentNode | FunctionComponentNode
 
-function flattenChildren(children: any): AnyXmlNode[] {
+/** The children of an element as a flat list, without `null`, `undefined` and `false`. */
+export function flattenChildren(children: any): AnyXmlNode[] {
   if (children == null || children === false) {
     return []
   }

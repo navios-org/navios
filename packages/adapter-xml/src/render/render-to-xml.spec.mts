@@ -186,6 +186,69 @@ describe('renderToXml', () => {
     })
   })
 
+  describe('promise children', () => {
+    function later<T>(value: T): Promise<T> {
+      return new Promise((resolve) => setTimeout(() => resolve(value), 5))
+    }
+
+    it('should await a promise of text', async () => {
+      const node = createElement('item', null, later('loaded'))
+      expect(await renderToXml(node, { declaration: false })).toBe('<item>loaded</item>')
+    })
+
+    it('should await a promise of an element', async () => {
+      const node = createElement('root', null, later(createElement('late', null)))
+      expect(await renderToXml(node, { declaration: false })).toBe('<root><late/></root>')
+    })
+
+    it('should run a component a promise resolves to', async () => {
+      const Price = ({ amount }: { amount: number }) => createElement('price', null, amount)
+      const node = createElement('item', null, later(createElement(Price, { amount: 5 })))
+      expect(await renderToXml(node, { declaration: false })).toBe('<item><price>5</price></item>')
+    })
+
+    it('should keep text from a component a promise resolves to inline', async () => {
+      const Amount = () => '5'
+      const node = createElement('item', null, later(createElement(Amount, null)))
+      expect(await renderToXml(node, { declaration: false, pretty: true })).toBe('<item>5</item>\n')
+    })
+
+    it('should render a promise of an array like a fragment', async () => {
+      const items = later([createElement('item', null, 'a'), [createElement('item', null, 'b')]])
+      const node = createElement('channel', null, items)
+      expect(await renderToXml(node, { declaration: false, pretty: true })).toBe(`<channel>
+  <item>a</item>
+  <item>b</item>
+</channel>
+`)
+    })
+
+    it('should render an array returned by a component like a fragment', async () => {
+      const Items = () => [createElement('item', null, 'a'), null, createElement('item', null, 'b')]
+      const node = createElement('channel', null, createElement(Items, null))
+      expect(await renderToXml(node, { declaration: false })).toBe(
+        '<channel><item>a</item><item>b</item></channel>',
+      )
+    })
+
+    it('should await a promise passed as the root', async () => {
+      expect(await renderToXml(later(createElement('late', null)), { declaration: false })).toBe(
+        '<late/>',
+      )
+    })
+
+    it('should run a component a root promise resolves to', async () => {
+      const Late = () => createElement('late', null)
+      const root = later(createElement(Late, null))
+      expect(await renderToXml(root, { declaration: false })).toBe('<late/>')
+    })
+
+    it('should reject with the error of a rejected promise child', async () => {
+      const node = createElement('item', null, Promise.reject(new Error('load failed')))
+      await expect(renderToXml(node)).rejects.toThrow('load failed')
+    })
+  })
+
   describe('CDATA support', () => {
     it('should render CDATA sections', async () => {
       const node = createElement(

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `"types": ["@navios/adapter-xml/jsx"]` gets the same JSX types as `jsxImportSource`. In 2.0.0-alpha.0 the `./jsx` export named a `jsx.d.ts` that was not in the published package, so TypeScript fell back to another global `JSX` namespace, in which neither an element with child elements nor an async function component type-checked.
+- A promise in the tree, such as `<channel>{loadItems()}</channel>`, is awaited like the result of an async component: the components it resolves to run, and pretty printing lays out what they yield. A promise of an array threw a `TypeError`, and so did a promise passed to `renderToXml` that resolved to a component.
+- An array returned by a component or a promise is rendered like a fragment. It threw a `TypeError`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

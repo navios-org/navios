@@ -1,4 +1,10 @@
-import { AsyncComponent, ClassComponent, FunctionComponentSymbol } from '../nodes/xml-node.mjs'
+import { flattenChildren } from '../jsx/create-element.mjs'
+import {
+  AsyncComponent,
+  ClassComponent,
+  Fragment,
+  FunctionComponentSymbol,
+} from '../nodes/xml-node.mjs'
 
 import type { XmlComponent } from '../components/xml-component.mjs'
 import type {
@@ -13,8 +19,8 @@ import { MissingContainerError } from './errors.mjs'
 import type { RenderEnvironment } from './render-environment.mjs'
 
 /**
- * Runs components until a node that can be written is left: text, a number,
- * CDATA, raw XML, an element or a fragment.
+ * Runs components and awaits promises until a node that can be written is
+ * left: text, a number, CDATA, raw XML, an element or a fragment.
  */
 export async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Promise<AnyXmlNode> {
   let current = node
@@ -40,10 +46,22 @@ export async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Pro
       current = (await instance.render(env.ctx)) as AnyXmlNode
     } else if (isAsyncNode(current)) {
       current = await current.promise
+    } else if (isThenable(current)) {
+      // A promise in the tree, such as `<item>{load()}</item>`, is awaited
+      // like the result of an async component, and its value resolved again.
+      current = (await current) as AnyXmlNode
+    } else if (Array.isArray(current)) {
+      // An array from a component or a promise is a list of siblings, as it
+      // is between the tags of an element.
+      return { type: Fragment, props: {}, children: flattenChildren(current) }
     } else {
       return current
     }
   }
+}
+
+function isThenable(value: object): value is PromiseLike<unknown> {
+  return typeof (value as { then?: unknown }).then === 'function'
 }
 
 function isFunctionComponentNode(node: unknown): node is FunctionComponentNode {
