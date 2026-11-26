@@ -75,6 +75,7 @@ export type {
 export type { AttributeValue } from './attributes/attribute-value.mjs'
 export type { Path, PathValue } from './config/config-path.mjs'
 export { ConfigService } from './config/config-service.mjs'
+export type { ConfigServiceInterface } from './config/config-service.mjs'
 export { envInt, envString } from './config/env.mjs'
 export { EnvConfigProvider } from './config/env-config-provider.mjs'
 export { provideConfig } from './config/provide-config.mjs'

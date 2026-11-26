@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`@navios/core/transport` exports less.** A transport that imports these from it, `@navios/commander` included, changes the import:
   - `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
   - The types that `@navios/core` exports are no longer exported a second time: `Transport`, `TransportFactory`, `TransportInstance`, `Guard`, `GuardClass`, `Interceptor`, `InterceptorClass`, `ExecutionContext`, `HandlerInfo`, `AttributeMap`, `ClassType` and `LoggerService`. Import them from `@navios/core`. `TransportDefinition` and `TransportHost` stay.
-- **`ConfigServiceInterface` and `isLogLevel` are removed** from `@navios/core`. `ConfigService` is the configuration service, and `filterLogLevels` reads levels from a setting.
+- **`isLogLevel` is removed** from `@navios/core`. `filterLogLevels` reads levels from a setting, and throws for one that does not exist.
 - **`BasicExecutionContextInit` has no `signal`**, which no transport passed: the signal of a `BasicExecutionContext` is its own and never aborts.
 - **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
 - **`ConsoleLogger`'s protected `printMessages()` takes no `requestId`**, which nothing passed: the id is that of `currentContext()` when the `requestId` option is on. `getRequestId()` and `printAsJson()`, protected as well, print the id they are given without checking the option again.
