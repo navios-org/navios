@@ -37,7 +37,7 @@ export const kafkaConfigSchema = z.object({
   type: z.literal('kafka'),
   brokers: z.array(z.string()).min(1),
   /** Client ID for the Kafka connection */
-  clientId: z.string().optional(),
+  clientId: z.string().default('navios-queue-client'),
   /** Connection timeout in milliseconds */
   connectionTimeout: z.number().int().min(0).default(30000),
   /** Request timeout in milliseconds */
@@ -61,7 +61,8 @@ export const kafkaConfigSchema = z.object({
     .object({
       maxRetryTime: z.number().int().min(0).default(30000),
       initialRetryTime: z.number().int().min(0).default(300),
-      factor: z.number().min(1).default(0.2),
+      /** Randomisation of each delay: kafkajs waits `delay ± factor × delay` */
+      factor: z.number().min(0).max(1).default(0.2),
       multiplier: z.number().min(1).default(2),
       retries: z.number().int().min(0).default(5),
     })

@@ -155,8 +155,10 @@ describe('Files API', () => {
       expect(response.status).toBe(200)
       expect(response.headers['content-type']).toContain('text/event-stream')
 
-      // Parse SSE events
-      const events = response.text.split('\n\n').filter(Boolean)
+      // Parse SSE events. Bun opens the stream with a comment, which is none.
+      const events = response.text
+        .split('\n\n')
+        .filter((event) => event !== '' && !event.startsWith(':'))
       expect(events.length).toBeGreaterThan(0)
 
       // Each event should have data: prefix
@@ -175,7 +177,9 @@ describe('Files API', () => {
 
       expect(response.status).toBe(200)
 
-      const events = response.text.split('\n\n').filter(Boolean)
+      const events = response.text
+        .split('\n\n')
+        .filter((event) => event !== '' && !event.startsWith(':'))
       const data = JSON.parse(events[0].replace('data: ', ''))
       expect(data.topic).toBe('default')
     })

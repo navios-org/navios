@@ -1,4 +1,9 @@
-import type { BaseEndpointOptions, Client, EndpointHandler } from '@navios/builder'
+import type {
+  BaseEndpointOptions,
+  Client,
+  EndpointHandler,
+  InferEndpointReturn,
+} from '@navios/builder'
 
 /**
  * Data delivered when a query or mutation is declared with
@@ -20,6 +25,16 @@ export interface DataWithResponse<TData> {
 export type MaybeWithResponse<TData, WithResponse extends boolean> = WithResponse extends true
   ? DataWithResponse<TData>
   : TData
+
+/**
+ * The data a query, infinite query page or mutation of an endpoint delivers:
+ * what the endpoint resolves to, wrapped with its response when declared with
+ * `withResponse: true`.
+ */
+export type SurfaceData<
+  Options extends BaseEndpointOptions,
+  WithResponse extends boolean,
+> = MaybeWithResponse<InferEndpointReturn<Options>, WithResponse>
 
 type LooseCall = (args?: unknown, options?: { client: Client }) => Promise<unknown>
 

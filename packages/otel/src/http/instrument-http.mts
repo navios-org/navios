@@ -4,22 +4,14 @@ import type { PluginApi } from '@navios/core'
 
 import { OtelHttpInterceptor } from './otel-http-interceptor.mjs'
 
-/** Whether the application serves HTTP. */
-export function hasHttpTransport(api: PluginApi): boolean {
-  return api.transport(httpTransport) !== undefined
-}
-
 /**
- * Adds the HTTP request span to an application's routes. Returns `false`
- * when the application has no HTTP transport, and so no routes to trace.
- *
- * `otelPlugin` calls this by itself when `autoInstrument.http` is on.
+ * Adds the HTTP request span to the routes of an application when `enabled`,
+ * and tells whether the application serves HTTP.
  */
-export function instrumentHttp(api: PluginApi): boolean {
+export function instrumentHttp(api: PluginApi, enabled: boolean): boolean {
   const http = api.transport(httpTransport)
-  if (!http) {
-    return false
+  if (http !== undefined && enabled) {
+    http.intercept(OtelHttpInterceptor)
   }
-  http.intercept(OtelHttpInterceptor)
-  return true
+  return http !== undefined
 }

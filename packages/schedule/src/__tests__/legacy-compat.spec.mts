@@ -64,6 +64,17 @@ describe('legacy-compat decorators', () => {
     expect(await container.get(TestService)).toBeInstanceOf(TestService)
   })
 
+  it('should refuse a property, as the standard decorator does', () => {
+    class TestService {
+      job = () => {}
+    }
+    const decorator = Cron('*/1 * * * * *') as (prototype: object, key: string) => void
+
+    expect(() => decorator(TestService.prototype, 'job')).toThrow(
+      '@Cron can only be applied to methods, not field',
+    )
+  })
+
   it('should keep the metadata of different classes apart', () => {
     class First {
       async job() {}

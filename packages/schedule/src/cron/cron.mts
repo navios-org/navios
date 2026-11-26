@@ -1,6 +1,6 @@
 import type { JobRun } from '../jobs/scheduled-job.mjs'
 
-import { getCronMetadata, takeInheritedCronMetadata } from './cron-metadata.mjs'
+import { declareCronJob } from './cron-metadata.mjs'
 
 /**
  * What happens when a job is due while a run of it is still in progress in
@@ -105,16 +105,15 @@ export function Cron(cronTime: string, options?: CronOptions) {
           `A job must be a public instance method with a string name.`,
       )
     }
-    const metadata = getCronMetadata(context)
-    if (metadata.cronTime !== null && !takeInheritedCronMetadata(metadata)) {
-      throw new Error(
-        `[Navios-Schedule] Method ${metadata.classMethod} has more than one @Cron. A method can have one schedule.`,
-      )
-    }
-    metadata.cronTime = cronTime
-    metadata.disabled = options?.disabled ?? false
-    metadata.overlap = options?.overlap ?? 'skip'
-    metadata.timeZone = options?.timeZone
+    declareCronJob(context, {
+      // Not the name of the function: a decorator applied before this one may
+      // have replaced the method with a function of another name.
+      classMethod: String(context.name),
+      cronTime,
+      disabled: options?.disabled ?? false,
+      overlap: options?.overlap ?? 'skip',
+      timeZone: options?.timeZone,
+    })
     return target
   }
 }

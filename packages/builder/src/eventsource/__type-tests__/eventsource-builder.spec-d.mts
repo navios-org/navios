@@ -129,46 +129,34 @@ describe('EventHandler types', () => {
 describe('EventSource handler types', () => {
   describe('DeclareEventSourceOptions', () => {
     test('minimal options with only url', () => {
-      type Options = DeclareEventSourceOptions<'/events'>
-
-      const options: Options = {
+      expectTypeOf({
         url: '/events',
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareEventSourceOptions>()
     })
 
     test('options with querySchema', () => {
       const querySchema = zod.object({ token: zod.string() })
 
-      type Options = DeclareEventSourceOptions<'/events', typeof querySchema>
-
-      const options: Options = {
+      expectTypeOf({
         url: '/events',
         querySchema,
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareEventSourceOptions>()
     })
 
     test('options with urlParamsSchema', () => {
       const urlParamsSchema = zod.object({ roomId: zod.string().uuid() })
 
-      type Options = DeclareEventSourceOptions<'/events/$roomId', undefined, typeof urlParamsSchema>
-
-      const options: Options = {
+      expectTypeOf({
         url: '/events/$roomId',
         urlParamsSchema,
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareEventSourceOptions>()
     })
 
     test('options with withCredentials', () => {
-      type Options = DeclareEventSourceOptions<'/events'>
-
-      const options: Options = {
+      expectTypeOf({
         url: '/events',
         withCredentials: true,
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareEventSourceOptions>()
     })
   })
 

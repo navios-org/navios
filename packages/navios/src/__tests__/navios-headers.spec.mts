@@ -70,6 +70,20 @@ describe('navios::headers', () => {
     expect(calls[0]!.init.headers).toEqual({})
   })
 
+  it('should send the FormData of another implementation as it is', async () => {
+    const { navios, calls } = recordingClient({ headers: { 'Content-Type': 'application/json' } })
+    // A polyfill or undici: not an instance of the global class, but tagged as one
+    class OtherFormData {
+      readonly [Symbol.toStringTag] = 'FormData'
+    }
+    const form = new OtherFormData()
+
+    await navios.post('/', form)
+
+    expect(calls[0]!.init.body).toBe(form)
+    expect(calls[0]!.init.headers).toEqual({})
+  })
+
   it('should read changed defaults for every request', async () => {
     const { navios, calls } = recordingClient()
     navios.defaults.headers['X-A'] = '1'

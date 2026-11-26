@@ -6,19 +6,19 @@ import { disposeScope } from '@navios/di/internal'
 import type { ContextValue, ExecutionContext } from '@navios/core'
 import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
 
-import { cookieKey, serializeCookie } from '../adapter/serialize-cookie.mjs'
+import { parseCookies } from '../decoding/parse-cookies.mjs'
 import { readParts } from '../decoding/read-parts.mjs'
 import { adopt, ignore, isPromise } from '../internal/promises.mjs'
-import { settledWithin } from '../internal/waiting.mjs'
 import { ManagedBody } from '../responses/managed-body.mjs'
+import { closeBodies, RequestOwner } from '../responses/request-owner.mjs'
 import { appendHeader, describesSuccess, setHeader } from '../responses/response-headers.mjs'
+import { cookieKey, serializeCookie } from '../responses/serialize-cookie.mjs'
 
+import type { BodySource, RouteInput } from '../adapter/route-input.mjs'
 import type { BodyDecoder } from '../decoding/body-decoder.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
-import type { BodyOwner, Source } from '../responses/managed-body.mjs'
 import type { SetCookie } from '../routing/cookies.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
-import type { BodySource, RouteInput } from '../routing/route-input.mjs'
 import type { ResponseHeaders } from '../routing/route-result.mjs'
 
 import { RequestContextToken } from './request-context-token.mjs'
@@ -33,13 +33,6 @@ import type { RequestValueClass, RequestValueProvider } from './request-value.mj
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 let requestCounter = 0
-
-/**
- * How long the release of a request waits for its bodies to close. A
- * generator that waits for something that never comes cannot be closed, and
- * must not keep the rest from being released.
- */
-const CLOSE_TIMEOUT_MS = 1000
 
 const UNREAD = Symbol('unread')
 
@@ -319,36 +312,7 @@ export class RequestContext<
   }
 
   private parseCookies(): Record<string, string> {
-    if (this.cookieJar !== null) {
-      return this.cookieJar
-    }
-    // Without a prototype: cookie names come from the client, and `toString`
-    // or `constructor` must be neither found when not sent nor lost when sent.
-    const jar: Record<string, string> = Object.create(null)
-    const header = this.input.header('cookie')
-    if (header) {
-      for (const part of header.split(';')) {
-        const index = part.indexOf('=')
-        if (index < 0) {
-          continue
-        }
-        const name = part.slice(0, index).trim()
-        if (name === '' || name in jar) {
-          continue
-        }
-        let value = part.slice(index + 1).trim()
-        if (value.startsWith('"') && value.endsWith('"')) {
-          value = value.slice(1, -1)
-        }
-        try {
-          jar[name] = decodeURIComponent(value)
-        } catch {
-          jar[name] = value
-        }
-      }
-    }
-    this.cookieJar = jar
-    return jar
+    return (this.cookieJar ??= parseCookies(this.input.header('cookie')))
   }
 
   // --------------------------------------------------------------------------
@@ -495,12 +459,15 @@ export class RequestContext<
 
   /** @internal */
   resolverFor(token: AnyInjectableType): Container | ScopedContainer {
-    this.host.onScopedUse?.(token)
+    const { container, onScopedUse } = this.host
+    if (this.scope !== null && onScopedUse === null) {
+      return this.scope
+    }
+    if (!needsScope(container, token)) {
+      return this.scope ?? container
+    }
+    onScopedUse?.(token)
     if (this.scope === null) {
-      const { container } = this.host
-      if (!needsScope(container, token)) {
-        return container
-      }
       if (this.released) {
         throw new Error(
           '[Navios] Request-scoped services cannot be used: the response has finished, so nothing ' +
@@ -563,10 +530,14 @@ export class RequestContext<
 
   /**
    * Makes the request the owner of a lazy body, which is closed when the
-   * request is released, or at once when it already has been.
+   * request is released, or at once when it already has been. A body that is
+   * managed already is returned as it is.
    * @internal
    */
   ownBody(body: object): ManagedBody {
+    if (body instanceof ManagedBody) {
+      return body
+    }
     const owned = this.bodies?.find((managed) => managed.body === body)
     if (owned !== undefined) {
       return owned
@@ -595,11 +566,12 @@ export class RequestContext<
   }
 
   /**
-   * Sets the status of the response.
+   * Sets the status of the response. That of a response the handler writes
+   * itself is read again when it has finished.
    * @internal
    */
   respondWith(status: number): void {
-    this.responseStatus = this.takenOver ? this.input.respondedStatus?.() : status
+    this.responseStatus = status
   }
 
   // --------------------------------------------------------------------------
@@ -740,44 +712,6 @@ export class RequestContext<
       // Nor may a failing logger.
     }
   }
-}
-
-/** A request as the owner of the bodies it has produced. */
-class RequestOwner implements BodyOwner {
-  constructor(
-    private readonly ctx: RequestContext,
-    private readonly host: RequestHost,
-  ) {}
-
-  get name(): string {
-    return `${this.ctx.method} ${this.ctx.route.path}`
-  }
-
-  step<Step extends keyof Source>(source: Source, step: Step): ReturnType<Source[Step]> {
-    return this.host.asyncContext
-      ? runInContext(this.ctx, () => source[step]() as ReturnType<Source[Step]>)
-      : (source[step]() as ReturnType<Source[Step]>)
-  }
-
-  failed(error: unknown): void {
-    // Nobody is there to miss the rest, and a source that listens to
-    // `ctx.signal` usually fails because of it.
-    if (!this.ctx.signal.aborted) {
-      this.host.report(error, this.ctx)
-    }
-  }
-
-  closeFailed(error: unknown): void {
-    if ((error as Error | null)?.name !== 'AbortError') {
-      this.host.report(error, this.ctx)
-    }
-  }
-}
-
-async function closeBodies(bodies: ManagedBody[]): Promise<void> {
-  // A later body may wrap an earlier one, and then closes it itself.
-  const closing = bodies.reverse().map((body) => body.close())
-  await settledWithin(Promise.all(closing), CLOSE_TIMEOUT_MS)
 }
 
 RequestContext.prototype.use = function use(

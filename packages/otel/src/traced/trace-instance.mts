@@ -1,12 +1,13 @@
-import { context as otelContext, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 import type { AttributeValue, Tracer } from '@opentelemetry/api'
 
-import { parentContext } from '../tracing/parent-context.mjs'
-import { recordSpanError } from '../tracing/record-span-error.mjs'
+import { ATTR_CODE_FUNCTION_NAME } from '../tracing/attributes.mjs'
+import { parentContext } from '../tracing/context.mjs'
+import { recordSpanError, runInSpan } from '../tracing/span.mjs'
 
-import { extractTracedMetadata, hasTracedMetadata } from './traced-metadata.mjs'
+import { tracedClasses } from './traced-metadata.mjs'
 
 import type { MethodTracedMetadata } from './traced-metadata.mjs'
 
@@ -46,6 +47,7 @@ function prototypeMethods(prototype: object | null): string[] {
 function traceMethod(
   original: (...args: any[]) => unknown,
   tracer: Tracer,
+  className: string,
   baseName: string,
   methodName: string,
   methodMetadata: MethodTracedMetadata | undefined,
@@ -56,39 +58,27 @@ function traceMethod(
   const attributes: Record<string, AttributeValue> = {
     ...classAttributes,
     ...methodMetadata?.attributes,
-    'code.function': methodName,
-    'code.namespace': baseName,
+    [ATTR_CODE_FUNCTION_NAME]: `${className}.${methodName}`,
   }
 
   return function traced(this: unknown, ...args: any[]): unknown {
     const parent = parentContext()
     const span = tracer.startSpan(spanName, { kind: SpanKind.INTERNAL, attributes }, parent)
-    try {
-      // The method runs with its span active, so spans started inside it,
-      // including those of other traced services, become its children.
-      const result = otelContext.with(trace.setSpan(parent, span), () => original.apply(this, args))
-      if (result instanceof Promise) {
-        return result.then(
-          (value) => {
-            span.setStatus({ code: SpanStatusCode.OK })
-            span.end()
-            return value
-          },
-          (error) => {
-            recordSpanError(span, error)
-            span.end()
-            throw error
-          },
-        )
-      }
-      span.setStatus({ code: SpanStatusCode.OK })
-      span.end()
-      return result
-    } catch (error) {
-      recordSpanError(span, error)
-      span.end()
-      throw error
-    }
+    // The method runs with its span active, so spans started inside it,
+    // including those of other traced services, become its children.
+    return runInSpan(
+      span,
+      parent,
+      () => original.apply(this, args),
+      (error) => {
+        recordSpanError(span, error)
+        span.end()
+      },
+      () => {
+        span.setStatus({ code: SpanStatusCode.OK })
+        span.end()
+      },
+    )
   }
 }
 
@@ -108,10 +98,10 @@ export function traceInstance<T extends object>(
   classType: ClassType,
   tracer: Tracer,
 ): T {
-  if (!hasTracedMetadata(classType) || (instance as any)[instrumented] === true) {
+  const metadata = tracedClasses.get(classType)
+  if (metadata === undefined || (instance as any)[instrumented] === true) {
     return instance
   }
-  const metadata = extractTracedMetadata(classType)
   const baseName = metadata.name ?? classType.name
   const baseAttributes = metadata.attributes ?? {}
 
@@ -137,6 +127,7 @@ export function traceInstance<T extends object>(
       value: traceMethod(
         original,
         tracer,
+        classType.name,
         baseName,
         name,
         metadata.methods.get(name),

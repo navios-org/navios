@@ -1,10 +1,9 @@
 import { Container, inject, InjectableScope, Logger, registerInjectable } from '@navios/core'
-import { constructedInstances } from '@navios/core/transport'
+import { constructedInstances, settledWithin } from '@navios/core/transport'
 
 import type { ClassType, OnServiceDestroy } from '@navios/core'
 
 import { currentRun } from './jobs/active-run.mjs'
-import { MAX_DELAY_MS } from './jobs/cron-timer.mjs'
 import { jobLogger } from './jobs/job-logger.mjs'
 import { SchedulerJob } from './jobs/scheduler-job.mjs'
 import { extractScheduleMetadata, hasScheduleMetadata } from './schedulable/schedule-metadata.mjs'
@@ -15,6 +14,20 @@ import type { JobRun, ScheduledJob } from './jobs/scheduled-job.mjs'
 import type { ScheduleSettings } from './transport/schedule-settings.mjs'
 
 const DEFAULT_STOP_TIMEOUT_MS = 10_000
+
+/**
+ * Builds the registered classes that are singletons, so that a mistake in
+ * their wiring fails the start of the application instead of a run.
+ * `scheduleTransport()` calls it when the application initialises.
+ */
+export const prepareJobs = Symbol('prepareJobs')
+
+/**
+ * Warns about the schedulable classes that the application has built and
+ * that are registered nowhere. Never throws. `scheduleTransport()` calls it
+ * when the application starts.
+ */
+export const warnAboutUnregistered = Symbol('warnAboutUnregistered')
 
 /** The methods of a class that can be jobs. */
 type JobMethod<T> = {
@@ -103,7 +116,7 @@ export class SchedulerService implements OnServiceDestroy {
     for (const { classMethod, cronTime, timeZone, overlap, disabled } of metadata.jobs) {
       const job = new SchedulerJob({
         name: `${metadata.name}.${classMethod}()`,
-        cronTime: cronTime!,
+        cronTime,
         timeZone: timeZone ?? settings?.timeZone,
         overlap,
         disabled,
@@ -181,12 +194,8 @@ export class SchedulerService implements OnServiceDestroy {
     await this.halt(timeoutMs, () => true)
   }
 
-  /**
-   * Builds the registered classes that are singletons, so that a mistake in
-   * their wiring fails the start of the application instead of a run.
-   * @internal
-   */
-  async prepare(): Promise<void> {
+  // Not methods of the public API: the transport calls them by these keys.
+  async [prepareJobs](): Promise<void> {
     for (const service of this.services.keys()) {
       if (this.container.getProvider(service)?.scope === InjectableScope.Singleton) {
         await this.container.get(service)
@@ -194,12 +203,7 @@ export class SchedulerService implements OnServiceDestroy {
     }
   }
 
-  /**
-   * Warns about the schedulable classes that the application has built and
-   * that are registered nowhere. Never throws.
-   * @internal
-   */
-  warnAboutUnregistered(): void {
+  [warnAboutUnregistered](): void {
     for (const service of new Set(constructedInstances(this.container).map(classOf))) {
       if (service !== undefined && !this.services.has(service)) {
         this.logger.warn(
@@ -269,14 +273,7 @@ export class SchedulerService implements OnServiceDestroy {
     if (pending.length === 0) {
       return
     }
-    let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      Promise.allSettled(pending.map((run) => run.ended)),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, Math.min(timeoutMs, MAX_DELAY_MS))
-      }),
-    ])
-    clearTimeout(timer)
+    await settledWithin(Promise.allSettled(pending.map((run) => run.ended)), timeoutMs)
     const unfinished = pending.filter((run) => !run.hasEnded)
     if (unfinished.length > 0) {
       for (const run of unfinished) {

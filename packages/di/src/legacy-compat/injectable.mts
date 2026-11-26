@@ -1,13 +1,9 @@
-import {
-  Injectable as OriginalInjectable,
-  type InjectableOptions,
-} from '../decorators/injectable.mjs'
+import { registerInjectable } from '../provider/registration.mjs'
 
+import type { InjectableOptions } from '../decorators/injectable.mjs'
 import type { ClassType } from '../token/class-type.mjs'
 
-import { createClassContext } from './context-compat.mjs'
-
-export type { InjectableOptions }
+import { assertLegacyClass } from './context-compat.mjs'
 
 /**
  * Legacy-compatible Injectable decorator.
@@ -28,14 +24,9 @@ export type { InjectableOptions }
  * ```
  */
 export function Injectable(options: InjectableOptions = {}) {
-  return function (target: ClassType) {
-    const context = createClassContext(target)
-    // Use the no-args overload when options is empty, otherwise pass options
-    const originalDecorator =
-      Object.keys(options).length === 0
-        ? OriginalInjectable()
-        : // @ts-expect-error - InjectableOptions is a union type, we let runtime handle it
-          OriginalInjectable(options)
-    return originalDecorator(target, context)
+  return <T extends ClassType>(target: T): T => {
+    assertLegacyClass('Injectable', target)
+    registerInjectable(target, options)
+    return target
   }
 }

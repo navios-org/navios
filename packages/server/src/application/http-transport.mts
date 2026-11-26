@@ -1,6 +1,6 @@
-import { defineTransport } from '@navios/core/transport'
+import { defineTransport, settledWithin } from '@navios/core/transport'
 
-import type { Transport } from '@navios/core'
+import type { GuardClass, InterceptorClass, Transport } from '@navios/core'
 import type { ModuleNode } from '@navios/core/transport'
 import type { TransportHost } from '@navios/core/transport'
 
@@ -14,11 +14,11 @@ import {
   NotFoundResponderToken,
   ValidationErrorResponderToken,
 } from '../errors/error-responders.mjs'
-import { settledWithin } from '../internal/waiting.mjs'
 import { encodeResult } from '../pipeline/encode-result.mjs'
 import { joinPaths } from '../routing/join-paths.mjs'
 import { RouteTable } from '../routing/route-table.mjs'
 
+import type { CompiledRoute, RouteExecutor } from '../adapter/compiled-route.mjs'
 import type {
   AdapterDefinition,
   HttpAdapter,
@@ -28,8 +28,6 @@ import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
 import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
-import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
-import type { HttpGuardClass, HttpInterceptorClass } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 
 import { assembleRoutes } from './assemble-routes.mjs'
@@ -61,7 +59,14 @@ export interface HttpTransportOptions<Env extends HttpAdapterEnvironment = HttpA
   /** Send the message of unexpected errors to the client. @default false */
   exposeErrorDetails?: boolean
   /**
-   * When errors that are answered with a 4xx status capture a stack.
+   * When errors that are answered with a 4xx status capture a stack: an
+   * `HttpException` below 500, a denied guard, a request that does not match
+   * its schema. Capturing one costs more than the rest of the pipeline, and
+   * nothing in the framework reads it. `'development'` captures unless
+   * `NODE_ENV` is `production`. Other errors always have their stack.
+   *
+   * The choice applies to the process while the application runs: with
+   * several applications, stacks are captured if any of them wants them.
    * @default 'development'
    */
   clientErrorStacks?: ClientErrorStacks
@@ -71,12 +76,12 @@ export interface HttpTransportOptions<Env extends HttpAdapterEnvironment = HttpA
    * Guards of every route, whichever module it belongs to: those of modules
    * that plugins add as well. They run before the guards of the module.
    */
-  guards?: readonly HttpGuardClass[]
+  guards?: readonly GuardClass[]
   /**
    * Interceptors around every route and nothing else, outermost first, inside
    * the application-wide ones. Read when the routes are compiled.
    */
-  interceptors?: readonly HttpInterceptorClass[]
+  interceptors?: readonly InterceptorClass[]
 }
 
 /**
@@ -102,7 +107,7 @@ export interface HttpTransport<
    * Adds an interceptor around every route, inside the application-wide
    * ones, and around nothing else. Before routes are compiled.
    */
-  intercept(interceptor: HttpInterceptorClass): void
+  intercept(interceptor: InterceptorClass): void
 }
 
 function tokenName(token: unknown): string {
@@ -130,15 +135,10 @@ async function createHttpTransport(
       errors.add(errorClass, mapper)
     }
     const globalPrefix = joinPaths(options.globalPrefix ?? '')
-    const adapter: HttpAdapter<any> = await options.adapter.create({
-      container,
-      logger,
-      errors,
-      globalPrefix,
-    })
+    const adapter: HttpAdapter<any> = await options.adapter.create({ logger, errors })
 
     const encoders = new Map<string, ResponseEncoder>()
-    const interceptors: HttpInterceptorClass[] = []
+    const interceptors: InterceptorClass[] = []
     const table = new RouteTable<CompiledRoute>()
     /** The requests that hold something: until it is released, or the transport stops. */
     const live = new LiveRequests()

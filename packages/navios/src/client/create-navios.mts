@@ -1,11 +1,15 @@
 import { HttpClientError } from '../http-client-error.mjs'
-import { createInterceptorChain } from '../interceptors/index.mjs'
-import { buildInit, buildUrl, copyPlain, headerRecord, startDeadline } from '../request/index.mjs'
-import { parseJsonBody, readBody, readErrorBody } from '../response/index.mjs'
+import { createInterceptorChain } from '../interceptors/interceptor-manager.mjs'
+import { buildInit } from '../request/build-init.mjs'
+import { buildUrl } from '../request/build-url.mjs'
+import { copyPlain } from '../request/copy-plain.mjs'
+import { headerRecord } from '../request/merge-headers.mjs'
+import { startDeadline } from '../request/start-deadline.mjs'
+import { parseJsonBody, readBody, readErrorBody } from '../response/read-body.mjs'
 
 import type { NaviosConfig, NaviosDefaults } from '../navios-config.mjs'
-import type { NaviosRequestConfig, PreparedRequestConfig } from '../request/index.mjs'
-import type { NaviosResponse } from '../response/index.mjs'
+import type { NaviosRequestConfig, PreparedRequestConfig } from '../request/request-config.mjs'
+import type { NaviosResponse } from '../response/navios-response.mjs'
 
 import type { Navios } from './navios.mjs'
 

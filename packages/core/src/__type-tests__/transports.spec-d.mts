@@ -3,7 +3,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { fakeTransport } from '../testing/index.mjs'
 
 import type { Application } from '../application/application.mjs'
-import type { PluginApi } from '../plugins/index.mjs'
+import type { PluginApi } from '../plugins/plugin.mjs'
 import type { FakeTransport } from '../testing/index.mjs'
 
 describe('transport lookup', () => {

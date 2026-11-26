@@ -36,7 +36,7 @@ export const sqsConfigSchema = z.object({
       deduplicationScope: z.enum(['messageGroup', 'queue']).default('queue'),
       throughputLimit: z.enum(['perQueue', 'perMessageGroupId']).default('perQueue'),
     })
-    .optional(),
+    .prefault({}),
   /** Dead letter queue configuration */
   deadLetter: z
     .object({

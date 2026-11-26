@@ -39,10 +39,15 @@ const around: object[] = []
  */
 export function argsKey(value: unknown): string {
   around.length = 0
-  return keyOf(value)
+  return valueKey(value)
 }
 
-function keyOf(value: unknown): string {
+// The key an instance requested with `args` is stored under; `null` without args.
+export function keyOf(args: unknown): string | null {
+  return args === undefined ? null : argsKey(args)
+}
+
+function valueKey(value: unknown): string {
   switch (typeof value) {
     case 'string':
       return JSON.stringify(value)
@@ -79,7 +84,7 @@ function objectKey(object: object): string {
     return plainKey(object as Record<PropertyKey, unknown>)
   }
   if (Array.isArray(object)) {
-    return `[${object.map((item) => keyOf(item)).join()}]`
+    return `[${object.map((item) => valueKey(item)).join()}]`
   }
   // Only the built-in types themselves: a subclass may hold more than its
   // elements, and is keyed by identity like any other class instance.
@@ -87,9 +92,9 @@ function objectKey(object: object): string {
     case Date.prototype:
       return `D${(object as Date).getTime()}`
     case Map.prototype:
-      return `M{${Array.from(object as Map<unknown, unknown>, ([k, v]) => `${keyOf(k)}:${keyOf(v)}`).sort()}}`
+      return `M{${Array.from(object as Map<unknown, unknown>, ([k, v]) => `${valueKey(k)}:${valueKey(v)}`).sort()}}`
     case Set.prototype:
-      return `S{${Array.from(object as Set<unknown>, (item) => keyOf(item)).sort()}}`
+      return `S{${Array.from(object as Set<unknown>, (item) => valueKey(item)).sort()}}`
     case RegExp.prototype:
       return `R${JSON.stringify(String(object))}`
     case URL.prototype:
@@ -110,7 +115,7 @@ function plainKey(object: Record<PropertyKey, unknown>): string {
   const parts: string[] = []
   for (const key of Object.keys(object)) {
     if (object[key] !== undefined) {
-      parts.push(`${JSON.stringify(key)}:${keyOf(object[key])}`)
+      parts.push(`${JSON.stringify(key)}:${valueKey(object[key])}`)
     }
   }
   for (const symbol of Object.getOwnPropertySymbols(object)) {
@@ -118,7 +123,7 @@ function plainKey(object: Record<PropertyKey, unknown>): string {
       object[symbol] !== undefined &&
       Object.prototype.propertyIsEnumerable.call(object, symbol)
     ) {
-      parts.push(`${keyOf(symbol)}:${keyOf(object[symbol])}`)
+      parts.push(`${valueKey(symbol)}:${valueKey(object[symbol])}`)
     }
   }
   return `{${parts.sort()}}`

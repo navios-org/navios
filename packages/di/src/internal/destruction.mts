@@ -1,13 +1,15 @@
+import { misuse } from '../errors/create.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
 
 import { inBackground } from './background.mjs'
 import { EntryStatus, isLeaving } from './entry.mjs'
 import { runHook } from './frame.mjs'
 import { dependentsOf, unlink } from './links.mjs'
+import { isDisposed } from './liveness.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { DestroyListener, Entry } from './entry.mjs'
-import type { Host } from './host.mjs'
+import type { Host, ScopeHost } from './host.mjs'
 
 /**
  * One `invalidate()` or `dispose()` call: the entries it destroyed that
@@ -26,7 +28,7 @@ interface Cascade {
  * A dependent that is still being created is not waited for, since it may be
  * waiting for this very destruction. It is destroyed once it is ready.
  */
-export function destroyEntry(entry: Entry): void | Promise<void> {
+function destroyEntry(entry: Entry): void | Promise<void> {
   const cascade: Cascade = { gone: null }
   const result = destroy(entry, cascade)
   if (result !== undefined) {
@@ -189,7 +191,7 @@ function notify(cascade: Cascade): void {
   cascade.gone = null
   const failures: unknown[] = []
   for (const entry of gone) {
-    const disposing = entry.host.disposed || entry.host.root.disposed
+    const disposing = isDisposed(entry.host)
     // A listener that resolves again is refused when a disposal is the reason
     // why it is called. That is not an error of the listener.
     const isRefusal = (error: unknown) =>
@@ -238,6 +240,17 @@ export function rejectWith(error: unknown): Promise<never> {
 
 function reportListenerError(entry: Entry, error: unknown): void {
   entry.host.root.reportError?.(error, `An onInvalidate listener of ${entry.token} failed`)
+}
+
+// What `invalidate()` of a container or a scope does with `service`: destroys
+// the entries of `host` that hold it, as one cascade. `null` when there are
+// none.
+export function destroyHeld(host: Host, service: unknown): void | Promise<void> | null {
+  if (service === host) {
+    throw misuse(`${host.isScope ? 'A scope' : 'A container'} cannot be invalidated; use dispose()`)
+  }
+  const entries = host.store.findByInstance(service)
+  return entries.length === 0 ? null : destroyAll(entries)
 }
 
 /**
@@ -289,10 +302,10 @@ const byNewest = (a: Entry, b: Entry): number => b.seq - a.seq
  * Destroys the transients a container has handed out to nobody who would
  * destroy them.
  */
-export function destroyLoose(host: Host): void | Promise<void> {
-  const loose = host.looseTransients
+export function destroyLoose(scope: ScopeHost): void | Promise<void> {
+  const loose = scope.looseTransients
   if (loose !== null) {
-    host.looseTransients = null
+    scope.looseTransients = null
     return destroyAll(loose)
   }
 }

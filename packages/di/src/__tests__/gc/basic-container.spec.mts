@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Container } from '../../container/container.mjs'
 import { Injectable } from '../../decorators/injectable.mjs'
-import { inject } from '../../injection/injectors.mjs'
+import { inject } from '../../internal/inject-impl.mjs'
 
 import type { OnServiceDestroy } from '../../lifecycle-hooks.mjs'
 

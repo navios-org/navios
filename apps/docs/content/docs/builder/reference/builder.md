@@ -425,10 +425,9 @@ function isSocketError(error: unknown): error is SocketError
 
 | Export                        | Description                                                                          |
 | ----------------------------- | ------------------------------------------------------------------------------------ |
-| `SocketClient`                | Interface a connection must satisfy: `emit`, `on`, `off`; optional `sendRaw`, `url`, `connected`, `disconnect`, `close` |
-| `isSocketClient(value)`       | Type guard for `SocketClient`                                                        |
+| `SocketClient`                | Interface a connection must satisfy: `emit`, `on`, `off`; optional `sendRaw`, `url`, `disconnect`, `close` |
 | `MessageFormatter`            | `(topic: string, payload: unknown, ackId?: string) => unknown`                       |
-| `MessageParser`               | `(data: unknown) => { topic: string; payload: unknown; ackId?: string } \| null`     |
+| `MessageParser`               | `(data: unknown, event: string) => { topic: string; payload: unknown; ackId?: string } \| null` |
 | `Unsubscribe`                 | `() => void`                                                                         |
 | `InferSendPayload<Options>`   | Input type of `payloadSchema`, or `unknown`                                          |
 | `InferSendReturn<Options>`    | `Promise` of the `ackSchema` output, or `void`                                       |
@@ -494,8 +493,7 @@ function isEventSourceError(error: unknown): error is EventSourceError
 
 | Export                      | Description                                                                      |
 | --------------------------- | -------------------------------------------------------------------------------- |
-| `EventSourceClient`         | Interface a connection must satisfy: `on`, `off`, `close`, `connected`; optional `url` |
-| `isEventSourceClient(value)` | Type guard for `EventSourceClient`                                              |
+| `EventSourceClient`         | Interface a connection must satisfy: `on`, `off`, `close`; optional `url`        |
 | `EventSourceHandleState`    | `'connecting' \| 'open' \| 'closed'`                                             |
 | `EventUnsubscribe`          | `() => void`                                                                     |
 | `InferEventPayload<Options>` | Output type of `payloadSchema`, or `unknown`                                    |

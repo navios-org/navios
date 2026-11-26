@@ -1,18 +1,19 @@
 import { NaviosError } from '../shared/navios-error.mjs'
+import { Listeners } from '../shared/realtime.mjs'
+
+import type { ProvideClientOptions } from '../shared/realtime.mjs'
 
 import { createSendHandler, type CreateSendContext, type PendingAck } from './create-send.mjs'
 import {
-  createGlobalMessageHandler,
+  createMessageListener,
   createSubscribeHandler,
-  createTopicEventListener,
   type CreateSubscribeContext,
+  type MessageListenerContext,
 } from './create-subscribe.mjs'
-import { reportSocketError } from './report-socket-error.mjs'
+import { SocketError } from './socket-error.mjs'
+import { socketTransport } from './socket-transport.mjs'
 
-import type {
-  ProvideSocketClientOptions,
-  SocketBuilderInstance,
-} from './socket-builder-instance.mjs'
+import type { SocketBuilderInstance } from './socket-builder-instance.mjs'
 import type { SocketClient } from './socket-client.mjs'
 import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
 import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './socket-options.mjs'
@@ -66,14 +67,16 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
   let client: SocketClient | null = null
 
   // State for message handling
-  const topicHandlers = new Map<string, Set<(payload: unknown) => void>>()
+  const topicHandlers = new Listeners<(payload: unknown) => void>()
   const ackHandlers = new Map<string, PendingAck>()
 
   // What the builder listens to on the current client, once it does
   let listeners: [event: string, listener: (...args: unknown[]) => void][] | null = null
 
+  // How messages travel, as `topics` says
+  const transport = socketTransport(config)
+
   // With `topics: 'events'`: the listener of each subscribed topic on the current client
-  const perTopicEvents = config.topics === 'events'
   const topicListeners = new Map<string, (...args: unknown[]) => void>()
 
   /**
@@ -90,6 +93,14 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
   const connectionUrl = () => client?.url
 
+  const listenerContext: MessageListenerContext = {
+    config,
+    parse: transport.parse,
+    topicHandlers,
+    ackHandlers,
+    connectionUrl,
+  }
+
   /**
    * Listens to the client, when there is one. This is called lazily when the
    * first subscription is made or the first send waits for an acknowledgement,
@@ -102,31 +113,26 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     const active: [event: string, listener: (...args: unknown[]) => void][] = [
       ['disconnect', () => abandonAcks('The connection was closed')],
     ]
-    if (!perTopicEvents) {
-      // Every message arrives as one `message` event; parseMessage finds its topic
-      const onMessage = createGlobalMessageHandler(
-        config,
-        topicHandlers,
-        ackHandlers,
-        connectionUrl,
-      )
-      active.unshift(['message', onMessage as (...args: unknown[]) => void])
+    const { messageEvent } = transport
+    if (messageEvent) {
+      // Every message arrives as one event; parseMessage finds its topic
+      active.unshift([messageEvent, createMessageListener(messageEvent, listenerContext)])
     }
     listeners = active
     for (const [event, listener] of active) {
       client.on(event, listener)
     }
-    for (const topic of topicHandlers.keys()) {
+    for (const topic of topicHandlers.events()) {
       listenTopic(topic)
     }
   }
 
   /** With `topics: 'events'`, listens to the event of a topic that has subscribers. */
   function listenTopic(topic: string): void {
-    if (!perTopicEvents || !client || !listeners || topicListeners.has(topic)) {
+    if (transport.messageEvent || !client || !listeners || topicListeners.has(topic)) {
       return
     }
-    const listener = createTopicEventListener(config, topic, topicHandlers, connectionUrl)
+    const listener = createMessageListener(topic, listenerContext)
     topicListeners.set(topic, listener)
     client.on(topic, listener)
   }
@@ -151,7 +157,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     for (const { topic, release, reject } of pending) {
       release()
       reject(
-        reportSocketError(config.onError, {
+        SocketError.report(config.onError, {
           kind: 'transport',
           topic,
           url: connectionUrl(),
@@ -163,7 +169,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
   function provideClient(
     newClient: SocketClient,
-    { closePrevious = false }: ProvideSocketClientOptions = {},
+    { closePrevious = false }: ProvideClientOptions = {},
   ): void {
     if (newClient === client) {
       return
@@ -197,6 +203,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
   const sendContext: CreateSendContext = {
     getClient,
     config,
+    transport,
     ackHandlers,
     setupGlobalListener,
   }

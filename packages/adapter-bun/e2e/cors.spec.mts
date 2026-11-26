@@ -304,6 +304,51 @@ describe('bun adapter: CORS options', () => {
     await app.close()
   })
 
+  it('asks an origin function once per request, a preflight that it refuses included', async () => {
+    class AskedController {
+      get = handler({ config: { method: 'GET', url: '/own' } } as any, () => ({ get: 1 }))
+      options = handler({ config: { method: 'OPTIONS', url: '/own' } } as any, () => ({ own: 1 }))
+    }
+    decorate(AskedController, Controller())
+    class AskedModule {}
+    decorate(AskedModule, Module({ controllers: [AskedController] }))
+    const asked: Array<string | undefined> = []
+    const app = await NaviosFactory.create(AskedModule, {
+      adapter: defineBunEnvironment({
+        cors: {
+          origin: (origin, callback) => {
+            asked.push(origin)
+            callback(null, origin === 'https://a.test')
+          },
+        },
+      }),
+      logger: false,
+    })
+    const base = await app.listen({ port: 0, hostname: '127.0.0.1' })
+    try {
+      // To a path with a route for the method, one with a route for another
+      // method, and one with none.
+      for (const path of ['/own', '/nowhere']) {
+        for (const origin of ['https://a.test', 'https://b.test']) {
+          for (const init of [
+            { headers: { origin } },
+            { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'GET' } },
+            { method: 'DELETE', headers: { origin } },
+          ] as RequestInit[]) {
+            asked.length = 0
+            await (await fetch(`${base}${path}`, init)).text()
+            expect([`${init.method ?? 'GET'} ${path}`, ...asked]).toEqual([
+              `${init.method ?? 'GET'} ${path}`,
+              origin,
+            ])
+          }
+        }
+      }
+    } finally {
+      await app.close()
+    }
+  })
+
   it('does not send Vary: Origin for a wildcard origin', async () => {
     const app = await NaviosFactory.create(AppModule, {
       adapter: defineBunEnvironment({ cors: { origin: ['*'] } }),

@@ -1,10 +1,12 @@
+import { ownMetadata, requireMetadata } from '@navios/core/transport'
+
 import type { OverlapPolicy } from './cron.mjs'
 
 export const CronMetadataKey = Symbol('CronMetadataKey')
 
 export interface CronMetadata {
   classMethod: string
-  cronTime: string | null
+  cronTime: string
   disabled: boolean
   overlap: OverlapPolicy
   timeZone?: string
@@ -29,45 +31,34 @@ function inheritCronMetadata(parentJobs: Iterable<CronMetadata>): Set<CronMetada
   return jobs
 }
 
-/**
- * Whether the job was copied from a parent class and is not declared by the
- * class itself. Marks it as declared, so the answer is `true` only once.
- */
-export function takeInheritedCronMetadata(job: CronMetadata): boolean {
-  return inheritedJobs.delete(job)
-}
-
 export function getAllCronMetadata(
   context: ClassMethodDecoratorContext | ClassDecoratorContext,
 ): Set<CronMetadata> {
-  const { metadata } = context
-  if (!metadata) {
-    throw new Error(
-      '[Navios-Schedule] This environment does not provide decorator metadata, so jobs cannot be declared.',
-    )
-  }
-  // The metadata object of a subclass inherits from the one of its parent,
-  // so only an own property is the set of this class.
-  if (Object.hasOwn(metadata, CronMetadataKey)) {
-    return metadata[CronMetadataKey] as Set<CronMetadata>
-  }
-  const parentJobs = metadata[CronMetadataKey] as Set<CronMetadata> | undefined
-  const jobs = inheritCronMetadata(parentJobs ?? [])
-  metadata[CronMetadataKey] = jobs
-  return jobs
+  return ownMetadata<Set<CronMetadata>>(requireMetadata(context), CronMetadataKey, (parentJobs) =>
+    inheritCronMetadata(parentJobs ?? []),
+  )
 }
 
-export function getCronMetadata(context: ClassMethodDecoratorContext): CronMetadata {
+/**
+ * Adds the job of a method to its class. It replaces a job the class got
+ * from its parent for the same method.
+ *
+ * @throws when the class itself declares a job for the method already
+ */
+export function declareCronJob(context: ClassMethodDecoratorContext, job: CronMetadata): void {
   const jobs = getAllCronMetadata(context)
-  // Not the name of the function: a decorator applied before this one may have
-  // replaced the method with a function of another name.
-  const classMethod = String(context.name)
-  for (const job of jobs) {
-    if (job.classMethod === classMethod) {
-      return job
+  for (const declared of jobs) {
+    if (declared.classMethod !== job.classMethod) {
+      continue
     }
+    if (!inheritedJobs.delete(declared)) {
+      throw new Error(
+        `[Navios-Schedule] Method ${job.classMethod} has more than one @Cron. A method can have one schedule.`,
+      )
+    }
+    // In place, so the job keeps its position among those of the class.
+    Object.assign(declared, job)
+    return
   }
-  const job: CronMetadata = { classMethod, cronTime: null, disabled: false, overlap: 'skip' }
   jobs.add(job)
-  return job
 }

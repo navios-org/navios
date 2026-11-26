@@ -73,6 +73,7 @@ describe('builder({ errorSchema })', () => {
     const getMe = other.declareEndpoint({ method: 'GET', url: '/me', responseSchema: userSchema })
 
     expect(api.errorSchema).toBe(shared)
+    expect(other.errorSchema).toBe(shared)
     expect((await getMe.safe()).error?.kind).toBe('http')
   })
 

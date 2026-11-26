@@ -9,7 +9,8 @@ import { HttpException, NotFoundException } from '../errors/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { HttpInterceptor as Interceptor, RouteResult } from '../routing/index.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
+import type { RouteResult } from '../routing/index.mjs'
 
 import { drain, input, setup, tick } from './pipeline-setup.mjs'
 
@@ -223,7 +224,7 @@ describe('the release of a request', () => {
 
   it('takes a request out of the set of those that hold something', async () => {
     const { UnitOfWork } = tracked()
-    const live = new Set<RequestContext>()
+    const live = new LiveRequests()
     const { execute } = setup({}, (_params, ctx: RequestContext) => ctx.use(UnitOfWork) && 'ok', {
       live,
     })

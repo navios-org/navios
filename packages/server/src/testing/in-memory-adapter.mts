@@ -1,19 +1,23 @@
+import { settledWithin } from '@navios/core/transport'
+
 import { toTestMessage, toTestResponse } from '../adapter/test-exchange.mjs'
+import { parseQuery } from '../decoding/parse-query.mjs'
 import { readParts } from '../decoding/read-parts.mjs'
+import { malformedPath } from '../decoding/request-errors.mjs'
 import { problem } from '../errors/problem.mjs'
 import { encodeResult } from '../pipeline/encode-result.mjs'
 import { canonicalPath } from '../routing/route-path.mjs'
 import { RouteTable } from '../routing/route-table.mjs'
 
+import type { CompiledRoute, RouteExecutor } from '../adapter/compiled-route.mjs'
 import type {
   AdapterDefinition,
   HttpAdapter,
   HttpAdapterEnvironment,
 } from '../adapter/http-adapter.mjs'
+import type { BodySource, RouteInput } from '../adapter/route-input.mjs'
+import type { RouteBody, RouteResponse } from '../adapter/route-response.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
-import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
-import type { BodySource, RouteInput } from '../routing/route-input.mjs'
-import type { RouteBody, RouteResponse } from '../routing/route-response.mjs'
 
 export interface InMemoryEnvironment extends HttpAdapterEnvironment {
   raw: { request: TestRequest }
@@ -37,25 +41,6 @@ async function readBody(body: RouteBody): Promise<string> {
     text += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true })
   }
   return text
-}
-
-/**
- * The query as the Fastify and Bun adapters give it: a repeated parameter is
- * an array. Without a prototype, since the names come from the client.
- */
-function parseQuery(params: URLSearchParams): Record<string, string | string[]> {
-  const query: Record<string, string | string[]> = Object.create(null)
-  for (const [name, value] of params) {
-    const existing = query[name]
-    if (existing === undefined) {
-      query[name] = value
-    } else if (Array.isArray(existing)) {
-      existing.push(value)
-    } else {
-      query[name] = [existing, value]
-    }
-  }
-  return query
 }
 
 function bodySource(bytes: Uint8Array | undefined, contentType: string | undefined): BodySource {
@@ -121,7 +106,7 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
     try {
       match = this.routes.match(method, path)
     } catch {
-      return encodeResult(problem(400, `'${path}' is not a valid url component`))
+      return encodeResult(malformedPath(path))
     }
     const signal = new AbortController().signal
     const input: RouteInput = {
@@ -133,7 +118,7 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
       headers: () => new Headers(Object.entries(headers)),
       headerRecord: () => ({ ...headers }),
       urlParams: match?.urlParams ?? {},
-      query: () => parseQuery(url.searchParams),
+      query: () => parseQuery(url.search),
       body: bodySource(bytes, headers['content-type']),
       signal: () => signal,
       raw: { request },
@@ -147,16 +132,10 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
     if (this.inFlight === 0) {
       return
     }
-    let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      new Promise<void>((resolve) => {
-        this.idle = resolve
-      }),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, timeoutMs)
-      }),
-    ])
-    clearTimeout(timer)
+    const idle = new Promise<void>((resolve) => {
+      this.idle = resolve
+    })
+    await settledWithin(idle, timeoutMs)
   }
 }
 
@@ -165,5 +144,5 @@ export class InMemoryAdapter implements HttpAdapter<InMemoryEnvironment> {
  * through `app.inject()`.
  */
 export function defineInMemoryEnvironment(): AdapterDefinition<InMemoryEnvironment> {
-  return { name: 'in-memory', create: () => new InMemoryAdapter() }
+  return { create: () => new InMemoryAdapter() }
 }

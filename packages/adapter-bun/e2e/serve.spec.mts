@@ -203,8 +203,9 @@ describe('bun adapter: the options of Bun.serve', () => {
     const base = await created.listen(local)
     const response = await fetch(`${base}/events`)
     expect(await response.text()).toBe(':\n\ndata: one\n\n')
+    // Also one that a generator says itself is an event stream.
     const other = await fetch(`${base}/by-hand`)
-    expect(await other.text()).toBe('data: one\n\n')
+    expect(await other.text()).toBe(':\n\ndata: one\n\n')
     for (const path of ['/events', '/by-hand']) {
       const injected = await created.inject({ method: 'GET', url: path })
       expect(injected.text).toBe('data: one\n\n')

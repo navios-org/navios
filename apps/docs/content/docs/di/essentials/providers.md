@@ -66,7 +66,7 @@ It must be called before the token is first resolved in that container. Afterwar
 
 ## registerProvider
 
-`registerProvider(token, implementation, options?)` sets the default provider of a token from the same forms. Use it where a decorator does not fit: a token whose default is a value or a function.
+`registerProvider(token, implementation)` sets the default provider of a token from the same forms. Use it where a decorator does not fit: a token whose default is a value or a function.
 
 ```ts
 import { InjectionToken, registerProvider } from '@navios/di'
@@ -76,7 +76,7 @@ export const CLOCK = InjectionToken.create<{ now(): number }>('Clock')
 registerProvider(CLOCK, { value: { now: () => Date.now() } })
 ```
 
-A token has one default. A second, different one throws `ProviderConflict`, whichever way it is registered. `options.scope` replaces the scope the provider would have.
+A token has one default. A second, different one throws `ProviderConflict`, whichever way it is registered. A class or a factory takes a scope of its own as `{ class, scope }` or `{ factory, scope }`.
 
 Outside production (`NODE_ENV`) a second provider of the same form replaces the first instead: hot reload evaluates a module again, and each time with new functions and values. A warning names the token when the two do not look alike.
 

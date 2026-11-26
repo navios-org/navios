@@ -88,18 +88,12 @@ export function write(
   }
   if (release !== undefined) {
     // 'finish' covers a completed response, 'close' a connection that went
-    // away first. Whichever comes first releases; the other is ignored. Both
-    // stay attached: a response is not reused, and `once` would wrap each
-    // listener in a function of its own for every request that holds something.
-    let released = false
-    const done = () => {
-      if (!released) {
-        released = true
-        void release()
-      }
-    }
-    raw.on('finish', done)
-    raw.on('close', done)
+    // away first. Whichever comes first releases; a second call of `release`
+    // does nothing. Both stay attached: a response is not reused, and `once`
+    // would wrap each listener in a function of its own for every request
+    // that holds something.
+    raw.on('finish', release)
+    raw.on('close', release)
   }
   if (reply.sent) {
     // The response was taken over through ctx.raw.reply. If the handler failed

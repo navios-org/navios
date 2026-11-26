@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Added
+
+- **`ServiceHook<K>` and `ServiceHookResults<T>`**: the overloads the service hooks share, as one type. `useService` is a `ServiceHook<'service'>`, `useOptionalService` a `ServiceHook<'optional'>` and `useSuspenseService` a `ServiceHook<'suspense'>`. The hooks are declared as constants of that type; what they accept and return is unchanged.
+
+### Changed
+
+- **Breaking:** `useService` and `useOptionalService` report `isLoading: true` on the first render when the container does not hold the instance yet. That render used to have every flag `false`.
+- **Breaking:** `useService` reports an error the container raises while reading the token on the first render (an alias cycle, args that contain themselves, a value that is not a token) in `error`. It used to throw during render.
+- **`refetch()` of `useOptionalService`** works like the one of `useService`: it re-renders through `isLoading` and returns `undefined` instead of a promise.
+
+### Fixed
+
+- **Stale instance in `useOptionalService` after an args change**: a resolution for the previous args that finished after the one for the current args replaced its instance.
+- **`useOptionalService` after `refetch()`**: an instance it resolved after a failure or `isNotFound` was not subscribed to, so invalidating it did not resolve again.
+- **`useSuspenseService` retries after a failure**: a rejected resolution stayed cached for the container, token and args, so resetting the error boundary or mounting the component again threw the same error without another attempt. The error still reaches the error boundary; the next render resolves again. A failure is resolved once per attempt also when the component renders slowly: the entry is dropped two timer turns after the last render that threw.
+
+### Removed
+
+- **Breaking:** the types `UnionToArray` and `Join`. No hook used them, and `UnionToArray` evaluated to `never` for every input.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 ### Fixed

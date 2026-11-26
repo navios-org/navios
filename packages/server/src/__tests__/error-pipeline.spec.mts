@@ -179,6 +179,74 @@ describe('an error outside a route', () => {
   })
 })
 
+describe('an error that throws when it is looked at', () => {
+  /** A proxy every trap of which throws, as `instanceof` and reading a property would. */
+  const hostile = () =>
+    new Proxy(
+      {},
+      {
+        getPrototypeOf: fails(new Error('getPrototypeOf')),
+        get: fails(new Error('get')),
+        has: fails(new Error('has')),
+        ownKeys: fails(new Error('ownKeys')),
+        getOwnPropertyDescriptor: fails(new Error('getOwnPropertyDescriptor')),
+      },
+    )
+
+  it('is answered with a 500, whether mappers are registered or not', async () => {
+    for (const withMapper of [false, true]) {
+      const { execute, errors, unhandled } = setup({}, fails(hostile()))
+      if (withMapper) {
+        errors.add(Error, () => reply(418, {}))
+      }
+      const answer = await execute(input())
+      expect(answer.status).toBe(500)
+      expect(answer.headers['content-type']).toBe('application/problem+json')
+      expect(unhandled).toHaveLength(1)
+    }
+  })
+
+  it('is answered with a 500 when an error mapper fails with it', async () => {
+    class Mapped extends Error {}
+    for (const mapper of [
+      fails(hostile()),
+      async () => {
+        throw hostile()
+      },
+    ]) {
+      const { execute, errors } = setup({}, fails(new Mapped()))
+      errors.add(Mapped, mapper)
+      const answer = await execute(input())
+      expect(answer.status).toBe(500)
+      expect(answer.headers['content-type']).toBe('application/problem+json')
+    }
+  })
+
+  it('is answered with a 500 when a handler that an interceptor left behind fails with it', async () => {
+    const { execute, unhandled } = setup({}, fails(hostile()), {
+      interceptors: [
+        {
+          intercept(_ctx: RequestContext, next) {
+            void next()
+            return reply(200, { ok: true })
+          },
+        },
+      ],
+    })
+    expect((await execute(input())).status).toBe(200)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(unhandled).toHaveLength(1)
+  })
+
+  it('is answered with a 500 outside a route', () => {
+    const { errors, unhandled } = setup({}, () => ({}))
+    const response = errors.unexpected(hostile(), { method: 'GET', path: '/hook' })
+    expect(response.status).toBe(500)
+    expect(response.headers['content-type']).toBe('application/problem+json')
+    expect(unhandled).toHaveLength(1)
+  })
+})
+
 describe('HttpException', () => {
   it('has the status of an error', () => {
     for (const status of [0, 200, 204, 304, 399, 600, 999, 404.5, Number.NaN]) {

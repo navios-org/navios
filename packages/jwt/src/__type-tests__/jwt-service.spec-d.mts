@@ -5,7 +5,14 @@ import { describe, expectTypeOf, it } from 'vitest'
 
 import { JwtService, provideJwtService } from '../index.mjs'
 
-import type { JwtComplete, JwtPayload, JwtServiceOptions, JwtVerifyOptions } from '../index.mjs'
+import type {
+  JwtComplete,
+  JwtPayload,
+  JwtServiceOptions,
+  JwtVerifyOptions,
+  SignOptions,
+  VerifyOptions,
+} from '../index.mjs'
 
 declare const service: JwtService
 declare const token: string
@@ -145,5 +152,12 @@ describe('provideJwtService', () => {
     provide(Async, { class: JwtService })
     // @ts-expect-error not a JwtService
     provide(Async, class Fake {})
+  })
+})
+
+describe('JwtServiceOptions', () => {
+  it('should type the default options with exported types', () => {
+    expectTypeOf<JwtServiceOptions['signOptions']>().toEqualTypeOf<SignOptions | undefined>()
+    expectTypeOf<JwtServiceOptions['verifyOptions']>().toEqualTypeOf<VerifyOptions | undefined>()
   })
 })

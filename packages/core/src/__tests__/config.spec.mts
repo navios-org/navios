@@ -1,4 +1,5 @@
 import { inspect } from 'node:util'
+import { runInNewContext } from 'node:vm'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
@@ -221,6 +222,19 @@ describe('provideConfig', () => {
       schema: z.object({}).refine(async () => true),
       load: () => ({}),
     })
+
+    await expect(container.get(AppConfig)).rejects.toThrow('must validate synchronously')
+  })
+
+  it('refuses a schema that answers with a promise of another realm', async () => {
+    const foreign: StandardSchemaV1<object> = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        validate: () => runInNewContext('Promise.resolve({ value: {} })'),
+      },
+    }
+    const AppConfig = provideConfig({ schema: foreign, load: () => ({}) })
 
     await expect(container.get(AppConfig)).rejects.toThrow('must validate synchronously')
   })

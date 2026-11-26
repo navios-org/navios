@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import { z } from 'zod/v4'
 
-import { Factory } from '../decorators/index.mjs'
+import { Factory } from '../decorators/factory.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 

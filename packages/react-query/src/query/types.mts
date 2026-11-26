@@ -1,7 +1,6 @@
-import type { BaseEndpointOptions } from '@navios/builder'
 import type { DataTag, InvalidateQueryFilters, SkipToken } from '@tanstack/react-query'
 
-import type { EndpointArgs, RequiredKeys } from '../endpoint/types.mjs'
+import type { RequiredKeys } from '../endpoint/types.mjs'
 
 /** A cache key tagged with the data and error types stored under it. */
 export type TaggedKey<TData, TError> = DataTag<readonly unknown[], TData, TError>
@@ -10,12 +9,6 @@ export type TaggedKey<TData, TError> = DataTag<readonly unknown[], TData, TError
 export type HookArgsOf<Args, Rest extends unknown[]> = [RequiredKeys<Args>] extends [never]
   ? [args?: Args | SkipToken, ...rest: Rest]
   : [args: Args | SkipToken, ...rest: Rest]
-
-/** `[args | skipToken, ...Rest]`, with `args` optional when nothing is required. */
-export type HookArgsWith<Options extends BaseEndpointOptions, Rest extends unknown[]> = HookArgsOf<
-  EndpointArgs<Options>,
-  Rest
->
 
 /** Filters accepted by `invalidate`, minus the key this library builds. */
 export type InvalidateFilters = Omit<InvalidateQueryFilters, 'queryKey'>

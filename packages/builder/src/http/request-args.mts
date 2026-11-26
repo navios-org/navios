@@ -1,3 +1,4 @@
+import type { ConnectArgs } from '../shared/connect-args.mjs'
 import type { InferSchemaInput, InferSchemaOutput, Schema } from '../shared/schema.mjs'
 import type { OptionalIfEmpty, Simplify } from '../shared/type-helpers.mjs'
 import type { UrlHasParams, UrlParams } from '../shared/url-params.mjs'
@@ -12,6 +13,16 @@ export interface RequestBase extends Pick<AbstractRequestConfig, 'headers'> {
   signal?: AbortSignal | null
   /** Timeout in milliseconds for this call. Wins over the endpoint's `timeout`. */
   timeout?: number
+}
+
+/**
+ * The arguments of a call as the runtime sees them: {@link ClientRequestArgs}
+ * of any endpoint.
+ */
+export interface CallArgs extends RequestBase {
+  urlParams?: Record<string, unknown>
+  params?: Record<string, unknown>
+  data?: unknown
 }
 
 /**
@@ -47,22 +58,13 @@ export interface RequestArgsOptions {
  * ```
  */
 export type ClientRequestArgs<Options extends RequestArgsOptions> = Simplify<
-  RequestBase &
-    // URL Parameters: Use urlParamsSchema if provided, else default UrlParams type
-    (UrlHasParams<Options['url']> extends true
-      ? Options['urlParamsSchema'] extends Schema
-        ? { urlParams: InferSchemaInput<Options['urlParamsSchema']> }
-        : { urlParams: Simplify<UrlParams<Options['url']>> }
-      : {}) &
-    // Query Parameters
-    (Options['querySchema'] extends Schema
-      ? OptionalIfEmpty<'params', InferSchemaInput<Options['querySchema']>>
-      : {}) &
-    // Request Body
-    (Options['requestSchema'] extends Schema
-      ? OptionalIfEmpty<'data', InferSchemaInput<Options['requestSchema']>>
-      : {})
+  RequestBase & ConnectArgs<Options> & BodyArgs<Options>
 >
+
+/** The `data` of a call: the input of `requestSchema`, optional when it has no required fields. */
+type BodyArgs<Options extends RequestArgsOptions> = Options['requestSchema'] extends Schema
+  ? OptionalIfEmpty<'data', InferSchemaInput<Options['requestSchema']>>
+  : {}
 
 /**
  * Server-side request arguments derived from an endpoint's options.

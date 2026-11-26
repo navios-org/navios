@@ -1,7 +1,6 @@
 import { describeValue } from '../internal/describe-value.mjs'
 import { ignore } from '../internal/promises.mjs'
 import { settledOrAborted } from '../internal/waiting.mjs'
-import { SseBody } from '../sse/sse-body.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -136,7 +135,13 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
   private ended = false
   private failed = false
   private first: Promise<Chunk> | null = null
+  /**
+   * Whether the first chunk is waited for before the response is sent, so
+   * that what reading it fails with is answered, and not reported.
+   */
+  private isPrimed = false
   private closing: Promise<void> | null = null
+  private isEvents = false
 
   /** @internal */
   constructor(
@@ -151,10 +156,19 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
    * What may be sent before the first chunk and means nothing to the client,
    * if there is such a thing: for a server that sends the headers of a
    * response together with the first bytes of its body, which an event stream
-   * may not have for a long time.
+   * may not have for a long time. Not `null` for an event stream, and only
+   * for one.
    */
   get opening(): string | null {
-    return this.body instanceof SseBody ? OPENING_COMMENT : null
+    return this.isEvents ? OPENING_COMMENT : null
+  }
+
+  /**
+   * Notes that the body is that of an event stream, as its response says.
+   * @internal
+   */
+  sendsEvents(): void {
+    this.isEvents = true
   }
 
   /**
@@ -170,7 +184,7 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
    * there at once.
    */
   get isStarted(): boolean {
-    return this.first !== null
+    return this.first !== null && this.isPrimed
   }
 
   [Symbol.asyncIterator](): this {
@@ -183,32 +197,38 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
       this.first = null
       return first
     }
-    return this.read(true)
+    return this.read(false)
   }
 
   /**
-   * Reads the first chunk before the response is sent. Rejects with what a
-   * source that cannot start fails with: that can still be answered. Waits no
-   * longer than the client does.
+   * Starts reading the first chunk, unless that has begun, and returns it:
+   * what produces the body runs up to it. A generator's body does not run
+   * before it is first pulled, and the headers it sets through `ctx.reply`
+   * before its first `yield` must be set before the response's are taken. The
+   * chunk is handed to the first `next()`. What reading it fails with is
+   * reported, like what any other chunk fails with, unless the response waits
+   * for it with `prime()`.
+   * @internal
+   */
+  start(): Promise<Chunk> {
+    return (this.first ??= this.read(true))
+  }
+
+  /**
+   * Reads the first chunk before the response is sent, and waits for it, no
+   * longer than the client does. Rejects with what a source that cannot start
+   * fails with: that can still be answered, and is not reported.
    * @internal
    */
   prime(signal: () => AbortSignal): Promise<void> {
-    this.first = this.read(false)
-    return settledOrAborted(this.first, signal)
-  }
-
-  /**
-   * Takes the first chunk from whoever has read it from the source. Throws for
-   * one that cannot be sent.
-   * @internal
-   */
-  accept({ done, value }: IteratorResult<unknown>): void {
-    this.first = Promise.resolve(this.toChunk(done, value))
+    const first = this.start()
+    this.isPrimed = true
+    return settledOrAborted(first, signal)
   }
 
   // Every chunk passes here, so it is one promise of its own per chunk and not
   // an async function around another.
-  private read(report: boolean): Promise<Chunk> {
+  private read(isFirst: boolean): Promise<Chunk> {
     if (!this.isOpen) {
       return Promise.resolve(END)
     }
@@ -223,20 +243,22 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
         try {
           return this.toChunk(result.done, result.value)
         } catch (error) {
-          return this.fail(error, report)
+          return this.fail(error, isFirst)
         }
       },
-      (error) => this.fail(error, report),
+      (error) => this.fail(error, isFirst),
     )
   }
 
-  private fail(error: unknown, report: boolean): Chunk {
+  private fail(error: unknown, isFirst: boolean): Chunk {
     if (this.closing !== null) {
       // It was closed while this read was under way, so nobody reads on.
       return END
     }
     this.failed = true
-    if (report) {
+    // What the first chunk fails with is an error of the response, if the
+    // response waited for it.
+    if (!(isFirst && this.isPrimed)) {
       this.owner.failed(error)
     }
     throw error
@@ -263,6 +285,16 @@ export class ManagedBody implements AsyncIterableIterator<string | Uint8Array> {
   async return(): Promise<Chunk> {
     await this.close()
     return END
+  }
+
+  /**
+   * Stops the body with an error, for a reader that delegates to it, such as
+   * `yield*` in a generator that wraps it: what produces it is closed, and the
+   * error is thrown.
+   */
+  async throw(error?: unknown): Promise<Chunk> {
+    await this.close()
+    throw error
   }
 
   /**

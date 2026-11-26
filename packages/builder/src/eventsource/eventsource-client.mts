@@ -31,29 +31,8 @@ export interface EventSourceClient {
   close(): void
 
   /**
-   * Whether the EventSource is currently connected.
-   */
-  readonly connected: boolean
-
-  /**
    * Optional: URL of the connection. When present it is copied to
    * `EventSourceError.url`.
    */
   readonly url?: string
-}
-
-/**
- * Type guard to check if an object implements EventSourceClient interface.
- */
-export function isEventSourceClient(obj: unknown): obj is EventSourceClient {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    'on' in obj &&
-    typeof obj.on === 'function' &&
-    'off' in obj &&
-    typeof obj.off === 'function' &&
-    'close' in obj &&
-    typeof obj.close === 'function'
-  )
 }

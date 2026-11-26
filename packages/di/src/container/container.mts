@@ -1,24 +1,24 @@
 import { misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { instancesOf, readyEntries } from '../internal/access.mjs'
-import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
-import { destroyAll, destroyLoose } from '../internal/destruction.mjs'
-import { EntryStatus } from '../internal/entry.mjs'
+import { abandonBuilds, settleHost } from '../internal/background.mjs'
+import { destroyAll, destroyHeld } from '../internal/destruction.mjs'
+import { EntryStatus, isSelfEntry } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
+import { assertLive } from '../internal/liveness.mjs'
 import {
   baseToken,
-  followAlias,
+  finalRecord,
   hasProvider,
   isResolved,
   lookupRecord,
   requireToken,
-} from '../internal/normalize.mjs'
-import { assertLive, resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
+} from '../internal/lookup.mjs'
+import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
 import { peek, storeValue } from '../internal/stored-values.mjs'
 import { provide } from '../provider/provide.mjs'
 import { registerInjectable } from '../provider/registration.mjs'
-import { findInjectableToken } from '../token/injectable-token.mjs'
 
 import type {
   AsyncResolve,
@@ -70,6 +70,8 @@ type DecoratorFor<K> = K extends unknown
  * The root container. Holds singletons and creates scopes.
  */
 export class Container implements IContainer {
+  // What the engine reads of a container or a scope comes first, in the same
+  // order in both.
   /** @internal */
   readonly root: RootHost = this
   /** @internal */
@@ -77,11 +79,7 @@ export class Container implements IContainer {
   /** @internal */
   readonly isScope = false
   /** @internal */
-  readonly facade: IContainer = this
-  /** @internal */
   disposed = false
-  /** @internal */
-  looseTransients: Entry[] | null = null
   /** @internal */
   background: Set<Promise<unknown>> | null = null
   /** @internal */
@@ -138,12 +136,14 @@ export class Container implements IContainer {
     return undefined
   }
 
-  get: AsyncResolve = ((token: AnyInjectableType, args?: unknown) => {
-    return resolveInstance(this, token, args)
-  }) as AsyncResolve
+  /** Resolves an instance, waiting for asynchronous initialisers. */
+  declare get: AsyncResolve
 
-  getSync: SyncResolve = ((token: AnyInjectableType, args?: unknown) =>
-    resolveSyncOrThrow(this, token, args).instance) as SyncResolve
+  /**
+   * Resolves an instance synchronously. Throws `AsyncInitRequired` when the
+   * service or one of its dependencies has an unfinished async initialiser.
+   */
+  declare getSync: SyncResolve
 
   /** Returns an instance that is already built, or `null`. Never constructs. */
   declare peek: OptionalResolve
@@ -204,7 +204,7 @@ export class Container implements IContainer {
   /**
    * The provider that would be used for `token` in this container.
    */
-  getProvider(token: ClassType | InjectionToken<any, any>): ProviderInfo | undefined {
+  getProvider(token: AnyInjectableType): ProviderInfo | undefined {
     const base = baseToken(token)
     const record = base === undefined ? undefined : lookupRecord(this, base)
     if (record === undefined) {
@@ -214,8 +214,8 @@ export class Container implements IContainer {
     if (kind !== 'existing') {
       return { kind, scope, target }
     }
-    const aliased = this.getProvider(followAlias(this, token) as InjectionToken<any, any>)
-    return { kind, scope: aliased?.scope ?? scope, target }
+    // An alias has the scope of what it points to.
+    return { kind, scope: finalRecord(this, token)?.scope ?? scope, target }
   }
 
   /**
@@ -241,23 +241,24 @@ export class Container implements IContainer {
    * from it. The next resolution builds it again.
    */
   async invalidate(service: unknown): Promise<void> {
-    if (service === this) {
-      throw misuse('A container cannot be invalidated; use dispose()')
-    }
-    const entries = this.store.findByInstance(service)
-    if (entries.length === 0) {
+    const held = destroyHeld(this, service)
+    if (held === null) {
       this.logger?.warn(`[Container] Service instance not found for invalidation`)
       return
     }
-    await destroyAll([...entries])
+    await held
   }
 
   onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
     return addInvalidateListener(this, () => this.store, token, args, listener)
   }
 
-  async ready(): Promise<void> {
-    await settleStore(this.store)
+  /**
+   * Resolves when nothing is still being created here, and the cleanup that
+   * nobody awaits is over.
+   */
+  ready(): Promise<void> {
+    return settleHost(this)
   }
 
   /**
@@ -296,12 +297,11 @@ export class Container implements IContainer {
 
   private async destroyEverything(): Promise<void> {
     this.disposed = true
-    const self = this.store.get(findInjectableToken(Container)!, null)!
     await abandonBuilds(this)
     await settleHost(this)
     try {
-      await destroyLoose(this)
-      await destroyAll(this.store.entries().filter((entry) => entry !== self))
+      // What holds the container itself stays while the container is usable.
+      await destroyAll(this.store.entries().filter((entry) => !isSelfEntry(entry)))
       await destroyAll(
         Array.from(this.factoryValues.values()).filter(
           (value) => value.status !== EntryStatus.Creating,
@@ -315,13 +315,29 @@ export class Container implements IContainer {
         this.disposed = false
         this.disposal = null
       } else {
-        this.store.delete(self)
+        this.store
+          .entries()
+          .filter(isSelfEntry)
+          .forEach((entry) => this.store.delete(entry))
       }
     }
   }
 }
 
-// A method with the overloads of `OptionalResolve`.
+// Methods with the overloads of their types, on the prototype like the methods
+// declared in the class.
+Container.prototype.get = function get(this: Container, token: AnyInjectableType, args?: unknown) {
+  return resolveInstance(this, token, args)
+} as AsyncResolve
+
+Container.prototype.getSync = function getSync(
+  this: Container,
+  token: AnyInjectableType,
+  args?: unknown,
+) {
+  return resolveSyncOrThrow(this, token, args).instance
+} as SyncResolve
+
 Container.prototype.peek = peek as OptionalResolve
 
 registerInjectable(Container)

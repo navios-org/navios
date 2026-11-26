@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Breaking
+
+- **`@navios/core/transport` exports less.** A transport that imports these from it, `@navios/commander` included, changes the import:
+  - `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
+  - The types that `@navios/core` exports are no longer exported a second time: `Transport`, `TransportFactory`, `TransportInstance`, `Guard`, `GuardClass`, `Interceptor`, `InterceptorClass`, `ExecutionContext`, `HandlerInfo`, `AttributeMap`, `ClassType` and `LoggerService`. Import them from `@navios/core`. `TransportDefinition` and `TransportHost` stay.
+- **`isLogLevel` is removed** from `@navios/core`. `filterLogLevels` reads levels from a setting, and throws for one that does not exist.
+- **`BasicExecutionContextInit` has no `signal`**, which no transport passed: the signal of a `BasicExecutionContext` is its own and never aborts.
+- **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
+- **`ConsoleLogger`'s protected `printMessages()` takes no `requestId`**, which nothing passed: the id is that of `currentContext()` when the `requestId` option is on. `getRequestId()` and `printAsJson()`, protected as well, print the id they are given without checking the option again.
+- **`handlerChain` builds the `HandlerInfo`.** It takes the `controller` and the `handlerName` of the handler besides `node`, `owner` and `member`, and returns `{ info, outer, inner }`: `info` is what the handler's contexts carry as `ctx.handler`, its guards in `info.guards`. `HandlerChain.guards` and `HandlerChain.interceptors` are removed. `resolveChain` takes what `handlerChain` returns, the guards in `info.guards`.
+- **`ContextHost.onScopedUse` is called only for a token that `needsScope` is true for**, and no longer checks that itself. A context of a transport's own calls `needsScope` first, as `BasicExecutionContext` does; with the `'warn'` and `'forbid'` policies a context looks up the provider of a token once per resolution instead of twice.
+
+### Added
+
+- **`executeChain(host, ctx, chain, handler, onDenied)`** in `@navios/core/transport`: `runChain` with a context of the transport's own, in the async context when `host.asyncContext` is set, and `ctx.finish()` afterwards, whatever the outcome.
+- **`moduleClasses(node, entry)`** in `@navios/core/transport`: the classes a module lists under an option of a transport, once each. Something that is not a class fails with the module and the option, as an import cycle between files leaves `undefined` behind.
+- **`classMetadata(key, what, decorator)`** in `@navios/core/transport`: `define`, `get` and `has` for what a class decorator stores on a class. Only the class itself carries it, not a subclass, and `get` throws `Users is not a controller. Make sure it is decorated with @Controller.` for a class without it.
+- **`ownMetadata(metadata, key, create)` and `requireMetadata(context)`** in `@navios/core/transport`, for decorators that keep their own entries in decorator metadata: the entry of this class, created from what its parent has, and the metadata of a context that has to have one.
+- **`settledWithin(work, ms)` and `MAX_DELAY_MS`** in `@navios/core/transport`: whether a promise settles within `ms`, for a transport's `stop(timeoutMs)`. A longer time than a timer takes is cut to `MAX_DELAY_MS`.
+
+### Fixed
+
+- **A schema that answers with a thenable that is not a native promise**, such as a promise of another realm, is refused by `AttributeFactory.createAttribute` and `provideConfig` as one that answers with a promise is. It was taken for a result without issues, so the value was `undefined`.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 `@navios/core` is now the part of Navios that does not depend on HTTP. The HTTP framework it was in 1.x is `@navios/server`, which is built on this package and re-exports it. The changes to the HTTP framework itself are listed in the changelog of `@navios/server`.

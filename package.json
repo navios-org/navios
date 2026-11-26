@@ -12,6 +12,7 @@
     "build": "turbo run build",
     "check": "turbo run check",
     "check:dts": "turbo run check:dts --filter=@navios/dts-check",
+    "check:pack": "node scripts/check-exports-packed.mjs",
     "check:size": "turbo run check:size --filter=@navios/size-check",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci",

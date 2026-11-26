@@ -2,7 +2,7 @@ import { Container } from '../container/container.mjs'
 import { ScopedContainer } from '../container/scoped-container.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { baseToken, isResolved } from '../internal/normalize.mjs'
+import { baseToken } from '../internal/lookup.mjs'
 import { provide } from '../provider/provide.mjs'
 import { attachToken, findInjectableToken } from '../token/injectable-token.mjs'
 import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
@@ -16,16 +16,10 @@ import type { AnyInjectableType } from '../token/injection-token.mjs'
 import type { PublicPart } from '../token/public-part.mjs'
 
 import { createAutoMockProxy } from './auto-mock.mjs'
-import { argsMatch, createTrackingProxy, formatArgs } from './call-tracking.mjs'
+import { createTrackingProxy } from './call-tracking.mjs'
+import { TrackingContainer } from './tracking-container.mjs'
 
-import type { LifecycleRecord, MethodCallRecord, MockServiceStats } from './call-tracking.mjs'
-
-type Token = InjectionToken<any, any>
-
-type AnyToken =
-  | InjectionToken<any, any>
-  | BoundInjectionToken<any, any>
-  | (new (...args: any[]) => any)
+import type { AnyToken, Token } from './tracking-container.mjs'
 
 /**
  * Provider configuration for UnitTestContainer.
@@ -128,10 +122,7 @@ export interface UnitTestContainerOptions<Provided extends readonly unknown[] = 
 export class UnitTestContainer<
   // With `[]` in it, the list is inferred as a tuple.
   Provided extends readonly unknown[] | [] = any[],
-> extends Container {
-  private readonly methodCalls = new Map<Token, MethodCallRecord[]>()
-  private readonly lifecycleEvents = new Map<Token, LifecycleRecord[]>()
-  private readonly instanceCounts = new Map<Token, number>()
+> extends TrackingContainer {
   private readonly registeredTokens = new Set<Token>()
   private readonly autoMockedTokens = new Set<Token>()
   private readonly autoMocks = new Map<Token, { mock: object; record: ProviderRecord }>()
@@ -165,11 +156,11 @@ export class UnitTestContainer<
     return super.invalidate(this.tracked.get(service as object) ?? service)
   }
 
-  // `get` and `getSync` are instance properties of a container, so they are
-  // wrapped here instead of being overridden as methods.
+  // Scopes are created by `Container`, so `get` and `getSync` are wrapped on
+  // each container instead of being overridden as methods.
   private trackResolutions(container: Container | ScopedContainer): void {
-    const baseGet = container.get as (token: any, args?: unknown) => Promise<any>
-    const baseGetSync = container.getSync as (token: any, args?: unknown) => any
+    const baseGet = container.get as (this: unknown, token: any, args?: unknown) => Promise<any>
+    const baseGetSync = container.getSync as (this: unknown, token: any, args?: unknown) => any
 
     container.get = ((token: any, args?: unknown) => {
       let realToken: Token
@@ -183,7 +174,9 @@ export class UnitTestContainer<
       if (mock !== undefined) {
         return Promise.resolve(mock)
       }
-      return baseGet(token, args).then((instance) => this.track(realToken, instance))
+      return baseGet
+        .call(container, token, args)
+        .then((instance) => this.track(realToken, instance))
     }) as AsyncResolve
 
     container.getSync = ((token: any, args?: unknown) => {
@@ -192,7 +185,7 @@ export class UnitTestContainer<
       if (mock !== undefined) {
         return mock
       }
-      return this.track(realToken, baseGetSync(token, args))
+      return this.track(realToken, baseGetSync.call(container, token, args))
     }) as SyncResolve
 
     if (container !== this) {
@@ -223,14 +216,11 @@ export class UnitTestContainer<
   }
 
   /**
-   * Destroys every resolved instance and resets the recorded calls and
-   * lifecycle events. The providers stay in place.
+   * Destroys every resolved instance and forgets the recorded calls and the
+   * auto-mocks. The providers stay in place.
    */
-  async clear(): Promise<void> {
-    await this.reset()
-    this.methodCalls.clear()
-    this.lifecycleEvents.clear()
-    this.instanceCounts.clear()
+  override async clear(): Promise<void> {
+    await super.clear()
     this.autoMockedTokens.clear()
     this.autoMocks.clear()
   }
@@ -271,30 +261,6 @@ export class UnitTestContainer<
   // ============================================================================
 
   /**
-   * Asserts that a service has been resolved at least once.
-   */
-  expectResolved(token: AnyToken): void {
-    const realToken = this.resolveToken(token)
-    const found = isResolved(this, realToken)
-
-    if (!found) {
-      throw new Error(`Expected ${realToken.toString()} to be resolved, but it was not`)
-    }
-  }
-
-  /**
-   * Asserts that a service has NOT been resolved.
-   */
-  expectNotResolved(token: AnyToken): void {
-    const realToken = this.resolveToken(token)
-    const found = isResolved(this, realToken)
-
-    if (found) {
-      throw new Error(`Expected ${realToken.toString()} to NOT be resolved, but it was`)
-    }
-  }
-
-  /**
    * Asserts that a service was auto-mocked (not in providers list).
    */
   expectAutoMocked(token: AnyToken): void {
@@ -319,186 +285,6 @@ export class UnitTestContainer<
     }
   }
 
-  // ============================================================================
-  // LIFECYCLE ASSERTIONS
-  // ============================================================================
-
-  /**
-   * Records a lifecycle event for tracking. It is the only source of what
-   * `expectInitialized()`, `expectDestroyed()` and `expectNotDestroyed()`
-   * see; call it from the hooks of your mocks. The container itself records
-   * only `created`, and only for a `useValue` provider or a bound token.
-   */
-  recordLifecycleEvent(
-    token: AnyToken,
-    event: 'created' | 'initialized' | 'destroyed',
-    instanceName: string,
-  ): void {
-    const realToken = this.resolveToken(token)
-    const events = this.lifecycleEvents.get(realToken) || []
-    events.push({
-      event,
-      timestamp: Date.now(),
-      instanceName,
-    })
-    this.lifecycleEvents.set(realToken, events)
-
-    if (event === 'created') {
-      const count = this.instanceCounts.get(realToken) || 0
-      this.instanceCounts.set(realToken, count + 1)
-    }
-  }
-
-  /**
-   * Asserts that an `initialized` event was recorded for the token with
-   * `recordLifecycleEvent()`. The container does not observe `onServiceInit()`
-   * of real instances: without a recorded event this fails even for a service
-   * that was initialised.
-   */
-  expectInitialized(token: AnyToken): void {
-    const realToken = this.resolveToken(token)
-    const events = this.lifecycleEvents.get(realToken) || []
-    const initialized = events.some((e) => e.event === 'initialized')
-
-    if (!initialized) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be initialized, but onServiceInit was not called`,
-      )
-    }
-  }
-
-  /**
-   * Asserts that a `destroyed` event was recorded for the token with
-   * `recordLifecycleEvent()`. The container does not observe
-   * `onServiceDestroy()` of real instances: without a recorded event this
-   * fails even for a service that was destroyed.
-   */
-  expectDestroyed(token: AnyToken): void {
-    const realToken = this.resolveToken(token)
-    const events = this.lifecycleEvents.get(realToken) || []
-    const destroyed = events.some((e) => e.event === 'destroyed')
-
-    if (!destroyed) {
-      throw new Error(
-        `Expected ${realToken.toString()} to be destroyed, but onServiceDestroy was not called`,
-      )
-    }
-  }
-
-  /**
-   * Asserts that no `destroyed` event was recorded for the token with
-   * `recordLifecycleEvent()`. It passes for a service that was destroyed
-   * without anything recording the event.
-   */
-  expectNotDestroyed(token: AnyToken): void {
-    const realToken = this.resolveToken(token)
-    const events = this.lifecycleEvents.get(realToken) || []
-    const destroyed = events.some((e) => e.event === 'destroyed')
-
-    if (destroyed) {
-      throw new Error(
-        `Expected ${realToken.toString()} to NOT be destroyed, but onServiceDestroy was called`,
-      )
-    }
-  }
-
-  // ============================================================================
-  // CALL TRACKING (AUTO-TRACKED VIA PROXY)
-  // ============================================================================
-
-  /**
-   * Asserts that a method was called through the proxy that `get()` or
-   * `getSync()` returned for the token. A call made on the instance another
-   * service received through `inject()` is not seen.
-   */
-  expectCalled(token: AnyToken, method: string): void {
-    const realToken = this.resolveToken(token)
-    const calls = this.methodCalls.get(realToken) || []
-    const found = calls.some((c) => c.method === method)
-
-    if (!found) {
-      throw new Error(`Expected ${realToken.toString()}.${method}() to be called, but it was not`)
-    }
-  }
-
-  /**
-   * Asserts that a method was NOT called through the proxy that `get()` or
-   * `getSync()` returned for the token. It passes for a call made on the
-   * instance another service received through `inject()`.
-   */
-  expectNotCalled(token: AnyToken, method: string): void {
-    const realToken = this.resolveToken(token)
-    const calls = this.methodCalls.get(realToken) || []
-    const found = calls.some((c) => c.method === method)
-
-    if (found) {
-      throw new Error(`Expected ${realToken.toString()}.${method}() to NOT be called, but it was`)
-    }
-  }
-
-  /**
-   * Asserts that a method was called with specific arguments through the
-   * proxy that `get()` or `getSync()` returned for the token.
-   */
-  expectCalledWith(token: AnyToken, method: string, expectedArgs: unknown[]): void {
-    const realToken = this.resolveToken(token)
-    const calls = this.methodCalls.get(realToken) || []
-    const found = calls.some((c) => c.method === method && argsMatch(c.args, expectedArgs))
-
-    if (!found) {
-      const methodCalls = calls.filter((c) => c.method === method)
-      const actualArgs = methodCalls.map((c) => formatArgs(c.args)).join(', ')
-      throw new Error(
-        `Expected ${realToken.toString()}.${method}() to be called with ${formatArgs(expectedArgs)}. ` +
-          `Actual calls: [${actualArgs}]`,
-      )
-    }
-  }
-
-  /**
-   * Asserts how many times a method was called through the proxy that `get()`
-   * or `getSync()` returned for the token.
-   */
-  expectCallCount(token: AnyToken, method: string, count: number): void {
-    const realToken = this.resolveToken(token)
-    const calls = this.methodCalls.get(realToken) || []
-    const actualCount = calls.filter((c) => c.method === method).length
-
-    if (actualCount !== count) {
-      throw new Error(
-        `Expected ${realToken.toString()}.${method}() to be called ${count} times, but was called ${actualCount} times`,
-      )
-    }
-  }
-
-  /**
-   * Gets the method calls recorded by the proxies that `get()` and
-   * `getSync()` returned for the token.
-   */
-  getMethodCalls(token: AnyToken): MethodCallRecord[] {
-    const realToken = this.resolveToken(token)
-    return this.methodCalls.get(realToken) || []
-  }
-
-  /**
-   * Gets statistics about a service.
-   */
-  getServiceStats(token: AnyToken): MockServiceStats {
-    const realToken = this.resolveToken(token)
-    return {
-      instanceCount: this.instanceCounts.get(realToken) || 0,
-      methodCalls: this.methodCalls.get(realToken) || [],
-      lifecycleEvents: this.lifecycleEvents.get(realToken) || [],
-    }
-  }
-
-  /**
-   * Clears all recorded method calls.
-   */
-  clearMethodCalls(): void {
-    this.methodCalls.clear()
-  }
-
   /**
    * Gets the tokens of all registered providers.
    */
@@ -517,7 +303,8 @@ export class UnitTestContainer<
   // INTERNAL HELPERS
   // ============================================================================
 
-  private resolveToken(token: AnyToken): Token {
+  /** @internal */
+  protected resolveToken(token: AnyToken): Token {
     if (typeof token === 'function') {
       return findInjectableToken(token) ?? newToken(token)
     }
@@ -612,21 +399,9 @@ export class UnitTestContainer<
   }
 
   private registerValueBinding(token: AnyToken, realToken: Token, value: unknown): void {
-    const { record } = provide(realToken, { value })
-    this.overrides.set(realToken, record)
-
-    // Store the value right away, so that it counts as resolved before the
-    // first `get`. A token that needs args has no single address to store the
-    // value under, and the value of another scope does not belong in the root;
-    // both are served by the provider on resolution instead.
-    if (record.scope === InjectableScope.Singleton) {
-      if (token instanceof BoundInjectionToken) {
-        this.addInstance(token, value)
-      } else if (realToken.schema === undefined) {
-        this.addInstance(realToken, value)
-      }
-    }
-    this.recordLifecycleEvent(realToken, 'created', realToken.toString())
+    const provider = provide(realToken, { value })
+    this.overrides.set(realToken, provider.record)
+    this.storeBoundValue(token, provider, value)
   }
 }
 

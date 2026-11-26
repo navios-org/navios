@@ -2,7 +2,15 @@ import { builder } from '@navios/builder'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 
-import { Controller, handler, Module, NaviosFactory, sse, sseStream } from '../index.mjs'
+import {
+  Controller,
+  handler,
+  Module,
+  NaviosFactory,
+  ResponseValidationError,
+  sse,
+  sseStream,
+} from '../index.mjs'
 import { encodeSse } from '../sse/sse-message.mjs'
 import { createTestClient, defineInMemoryEnvironment } from '../testing/index.mjs'
 
@@ -52,7 +60,7 @@ describe('server-sent events', () => {
       data: { userId: '1' },
     })
     // @ts-expect-error wrong payload type
-    expect(() => sse(userJoined, { userId: 1 })).toThrow(/Validation failed/)
+    expect(() => sse(userJoined, { userId: 1 })).toThrow(ResponseValidationError)
   })
 
   it('sends the payload of a declared event as JSON, also when it is a string', () => {

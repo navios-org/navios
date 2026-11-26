@@ -36,6 +36,7 @@ describe('the main entry', () => {
       'RequestContext',
       'RequestContextToken',
       'RequestValue',
+      'ResponseValidationError',
       'TooManyRequestsException',
       'UnauthorizedException',
       'UnprocessableEntityException',
@@ -66,16 +67,19 @@ describe('the main entry', () => {
 describe('the adapter entry', () => {
   it('exports what an adapter is written with', () => {
     expect(names(adapter)).toEqual([
-      'ErrorPipeline',
       'ManagedBody',
       'RouteTable',
+      'bodyTooLarge',
       'canonicalPath',
-      'compileRoutePath',
       'describesSuccess',
       'encodeResult',
+      'incompleteBody',
       'isEventStream',
       'malformedMultipart',
+      'malformedPath',
+      'parseQuery',
       'readParts',
+      'settledWithin',
       'toTestMessage',
       'toTestResponse',
     ])

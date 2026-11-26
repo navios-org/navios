@@ -30,23 +30,30 @@ export type ClientOptions<Errors extends ErrorSchemaRecord = {}> = {
   defaults?: KeyOptions
 }
 
+/**
+ * Every key of an endpoint declaration. Typed as a complete record, so a key
+ * the builder adds to `BaseEndpointOptions` is a compile error until it is
+ * listed here.
+ */
+const ENDPOINT_OPTIONS: { readonly [K in keyof BaseEndpointOptions]-?: true } = {
+  method: true,
+  url: true,
+  querySchema: true,
+  requestSchema: true,
+  responseSchema: true,
+  responses: true,
+  errorSchema: true,
+  urlParamsSchema: true,
+  body: true,
+  response: true,
+  headers: true,
+  timeout: true,
+  clientOptions: true,
+  validateResponse: true,
+}
+
 /** Keys of an inline config that belong to the endpoint declaration. */
-const ENDPOINT_KEYS = [
-  'method',
-  'url',
-  'querySchema',
-  'requestSchema',
-  'responseSchema',
-  'responses',
-  'errorSchema',
-  'urlParamsSchema',
-  'body',
-  'response',
-  'headers',
-  'timeout',
-  'clientOptions',
-  'validateResponse',
-] as const satisfies readonly (keyof BaseEndpointOptions)[]
+const ENDPOINT_KEYS: ReadonlySet<string> = new Set(Object.keys(ENDPOINT_OPTIONS))
 
 type AnyHandler = EndpointHandler<BaseEndpointOptions>
 
@@ -62,7 +69,7 @@ function splitInline(config: Record<string, unknown>) {
   const endpointOptions: Record<string, unknown> = {}
   const surface: Record<string, unknown> = {}
   for (const key of Object.keys(config)) {
-    if ((ENDPOINT_KEYS as readonly string[]).includes(key)) {
+    if (ENDPOINT_KEYS.has(key)) {
       endpointOptions[key] = config[key]
     } else {
       surface[key] = config[key]

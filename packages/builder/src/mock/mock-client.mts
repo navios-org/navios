@@ -1,3 +1,4 @@
+import { getOrCreate } from '../shared/get-or-create.mjs'
 import { NaviosError } from '../shared/navios-error.mjs'
 
 import type {
@@ -145,11 +146,7 @@ export function createMockClient(options: MockClientOptions = {}): MockClient {
 
   function register(target: AnyMockTarget, entry: Registered, once: boolean) {
     const endpoint = endpointOf(target)
-    let mocks = registry.get(endpoint)
-    if (!mocks) {
-      mocks = { queued: [] }
-      registry.set(endpoint, mocks)
-    }
+    const mocks = getOrCreate(registry, endpoint, (): Mocks => ({ queued: [] }))
     if (once) mocks.queued.push(entry)
     else mocks.persistent = entry
     return { endpoint, mocks }

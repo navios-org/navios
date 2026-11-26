@@ -7,10 +7,11 @@ import { BoundInjectionToken, FactoryInjectionToken } from '../token/injection-t
 import type { AbstractClassType } from '../token/class-type.mjs'
 import type { AnyInjectableType, InjectionToken } from '../token/injection-token.mjs'
 
-import { argsKey } from './args-key.mjs'
+import { keyOf } from './args-key.mjs'
 import { createEntry, EntryStatus, markReady } from './entry.mjs'
-import { baseToken, followAlias, lookupRecord, requireToken } from './normalize.mjs'
-import { assertLive } from './resolution.mjs'
+import { assertLive } from './liveness.mjs'
+import { baseToken, followAlias, lookupRecord, requireToken } from './lookup.mjs'
+import { findStored } from './store.mjs'
 
 import type { Entry } from './entry.mjs'
 import type { Host } from './host.mjs'
@@ -42,9 +43,7 @@ export function findReady(host: Host, raw: AnyInjectableType, rawArgs: unknown):
       return undefined
     }
   }
-  const key = args === undefined ? null : argsKey(args)
-  const entry =
-    (host.isScope ? host.store.get(token, key) : undefined) ?? host.root.store.get(token, key)
+  const entry = findStored(host, token, keyOf(args))
   return entry !== undefined && entry.status === EntryStatus.Ready ? entry : undefined
 }
 
@@ -89,7 +88,7 @@ export function storeValue(
       throw requestInstanceInRoot(token.toString())
     }
   }
-  const key = args === undefined ? null : argsKey(args)
+  const key = keyOf(args)
   const existing = host.store.get(token, key)
   if (existing !== undefined && existing.status <= EntryStatus.Ready) {
     throw misuse(
@@ -97,7 +96,7 @@ export function storeValue(
     )
   }
   const entry = createEntry(
-    createRecord(token, 'value', scope, undefined, undefined, value),
+    createRecord('value', scope, undefined, undefined, value),
     token,
     key,
     args,

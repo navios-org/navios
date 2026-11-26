@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { definePlugin } from '../plugins/index.mjs'
 import { orderPlugins } from '../plugins/order-plugins.mjs'
+import { definePlugin } from '../plugins/plugin.mjs'
 
 function named(name: string, dependsOn?: string[]) {
   return definePlugin({ name, dependsOn, setup(_api, _options: Record<string, unknown>) {} })

@@ -37,7 +37,6 @@ export function getOtelConfig(): OtelPluginOptions {
     exporterOptions: {
       endpoint: env.OTEL_TRACES_ENDPOINT || 'http://localhost:4318/v1/traces',
       headers,
-      useHttp: env.OTEL_USE_HTTP !== 'false',
     },
 
     // Auto-instrumentation: one server span per HTTP request

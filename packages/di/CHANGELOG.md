@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Breaking
+
+- `@navios/di/testing`: the lifecycle records are removed. `recordLifecycleEvent()`, `expectInitialized()`, `expectDestroyed()`, `expectNotDestroyed()` and the type `LifecycleRecord` are gone, and `getServiceStats()` returns `{ methodCalls }`: the containers never observed a hook, so the assertions only checked what a test had recorded itself. Let a fake record its hooks, or spy on them.
+- `get()` and `getSync()` of `Container` and `ScopedContainer` are methods on the prototype, like `peek()`, instead of functions bound to each instance. Call them on the container; `const { get } = container` loses the container. A scope allocates two closures fewer.
+- `registerProvider()` takes no third argument. Give a class or a factory its scope in the provider: `registerProvider(TOKEN, { class: Impl, scope })`. `RegisterProviderOptions` is deprecated and will be removed.
+
+### Added
+
+- `container.getProvider()` accepts bound and factory tokens, as `isRegistered()` does, and tells the provider of their token.
+- `TestContainer` has `expectNotCalled()`, as `UnitTestContainer` does. A failed `expectCalledWith()` lists the recorded calls in both containers.
+
+### Changed
+
+- `InjectableOptions` and `FactoryOptions` are other names of `RegisterInjectableOptions` and `RegisterFactoryOptions`.
+- `ready()` of a container and of a scope also waits for the cleanup that nobody awaits, as `dispose()` does: destroy listeners of a build that failed, and the destruction of transients nobody received. A destroy hook that never settles keeps `ready()` from resolving.
+- `ctx.inject()` gives up on a request under the same rule as `get()`: when what was built for it is gone before it could be handed out, more than 32 times in a row. Waiting for an instance that is being destroyed, or for the args of a factory token, no longer counts towards that.
+- `ContainerDisposed` names `ScopedContainer` only when the scope itself is disposed, wherever it is thrown. A request in a scope that fails because the root container was disposed says `Container has been disposed`.
+
 ### Fixed
 
+- `isRegistered()` and `optional()` follow an alias to its end, as resolving it does. An instance of a token halfway along a chain of aliases no longer makes the alias count as provided when what it points to in the end is not.
+- `@Injectable()` and `@Factory()` of `@navios/di/legacy-compat` throw `DIError` when they are applied to something other than a class, like the standard decorators, instead of registering what they were given.
 - A bundle made with rolldown, or a tool built on it such as tsdown, keeps the `Symbol.metadata` polyfill. rolldown left out an entry point that only re-exports, because `sideEffects` did not list it, and with it the import of the polyfill. Decorated classes then had no metadata, and `@navios/core` threw `Decorator metadata is not available` at start. The entry points are now listed.
 
 ## [2.0.0-alpha.0] - 2026-11-26

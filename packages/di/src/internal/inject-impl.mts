@@ -1,41 +1,25 @@
-import { accessBeforeInit, misuse, outsideInjectionContext } from '../errors/create.mjs'
+import { accessBeforeInit, outsideInjectionContext } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { validateSync } from '../schema/standard-schema.mjs'
-import { FactoryInjectionToken } from '../token/injection-token.mjs'
 
-import type { FactoryContext } from '../provider/factory-context.mjs'
+import type {
+  AsyncResolve,
+  OptionalResolve,
+  SyncResolve,
+} from '../injection/resolve-signatures.mjs'
 import type {
   AnyInjectableType,
-  InjectionToken,
+  FactoryInjectionToken,
   InjectionTokenType,
 } from '../token/injection-token.mjs'
 
-import { argsKey } from './args-key.mjs'
-import { inBackground } from './background.mjs'
-import { discard, runDestroyListener } from './destruction.mjs'
-import { EntryStatus, isLeaving } from './entry.mjs'
-import { current, runHook } from './frame.mjs'
-import { addWaitEdge, isIntact, linkTo, relink } from './links.mjs'
-import {
-  finalToken,
-  followAlias,
-  hasInstance,
-  hasProvider,
-  lookupRecord,
-  normalize,
-  normArgs,
-  normToken,
-} from './normalize.mjs'
-import {
-  assertInTime,
-  assertSettles,
-  DependencyNotReady,
-  keepLoose,
-  resolve,
-  resolveAsync,
-  resolveTop,
-  Wait,
-} from './resolution.mjs'
+import { DependencyNotReady, resolve, resolveTop, Wait } from './construction.mjs'
+import { discard } from './destruction.mjs'
+import { EntryStatus } from './entry.mjs'
+import { current } from './frame.mjs'
+import { addWaitEdge, linkTo } from './links.mjs'
+import { finalRecord, hasProvider } from './lookup.mjs'
+import { normalize, normArgs, normToken } from './normalize.mjs'
+import { keepLoose, resolveAsync } from './resolution.mjs'
 import { noop } from './thenable.mjs'
 
 import type { Entry } from './entry.mjs'
@@ -90,57 +74,8 @@ function suspend(
   return placeholder(name)
 }
 
-// Throws what `token` failed with while an earlier pass was waiting for it.
-function rethrowFailure(frame: Frame, token: InjectionTokenType, key: string | null): void {
-  const known = frame.failures?.find((failure) => failure.token === token && failure.key === key)
-  if (known !== undefined) {
-    throw known.error
-  }
-}
-
-// What an earlier pass already came to for this request: a transient it
-// built, which is handed back, or the error of a dependency that failed.
-// Both are known by what an alias points to, unless it has an instance itself.
-function fromEarlierPass(
-  frame: Frame,
-  asked: InjectionToken<any, any>,
-  rawArgs: unknown,
-): Entry | null {
-  const { host } = frame.entry
-  const followed = !hasInstance(host, asked)
-  const target = followed ? followAlias(host, asked) : asked
-  if (target instanceof FactoryInjectionToken) {
-    rethrowFailure(frame, target, null)
-  }
-  if (normalize(host, target, rawArgs) !== null) {
-    return null
-  }
-  let args = normArgs
-  const token = followed ? finalToken(host, normToken)! : asked
-  if (token.schema !== undefined) {
-    args = validateSync(token.schema, args, token.toString())
-  }
-  const key = args === undefined ? null : argsKey(args)
-  rethrowFailure(frame, token, key)
-  const index =
-    frame.reuse?.findIndex((candidate) => candidate.token === token && candidate.key === key) ?? -1
-  if (index < 0) {
-    return null
-  }
-  const [reused] = frame.reuse!.splice(index, 1)
-  if (reused.status === EntryStatus.Ready && isIntact(reused)) {
-    relink(reused)
-    return reused
-  }
-  discard(reused)
-  return null
-}
-
-export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
+function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const frame = requireFrame('inject')
-  if (frame.failures !== null && raw instanceof FactoryInjectionToken) {
-    rethrowFailure(frame, raw, null)
-  }
   const value = normalize(frame.entry.host, raw, rawArgs)
   if (value !== null) {
     addWaitEdge(frame.entry, value)
@@ -150,15 +85,7 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const args = normArgs
   if (args === undefined) {
     // A request with args is never planned: the args are those of this build.
-    frame.requests?.push({ token })
-  }
-
-  if (frame.reuse !== null || frame.failures !== null) {
-    const reused = fromEarlierPass(frame, token, args)
-    if (reused !== null) {
-      ;(frame.used ??= []).push(reused)
-      return reused.instance
-    }
+    frame.requests?.push(token)
   }
 
   const resolved = resolve(frame.entry.host, token, args)
@@ -182,7 +109,22 @@ export function injectImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   return resolved.instance
 }
 
-export function optionalImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
+/**
+ * Injects a dependency while a class is being constructed (in a field
+ * initialiser or the constructor).
+ *
+ * Returns the real instance whenever it can be built synchronously, including
+ * transients (each call gets its own instance).
+ */
+export const inject: SyncResolve = injectImpl
+
+/**
+ * Like `inject`, but returns `null` when nothing provides the token. Any
+ * other failure, such as a constructor that throws, propagates.
+ */
+export const optional: OptionalResolve = optionalImpl
+
+function optionalImpl(raw: AnyInjectableType, rawArgs?: unknown): any {
   const frame = requireFrame('optional')
   if (!hasProvider(frame.entry.host, raw)) {
     return null
@@ -213,7 +155,7 @@ class InjectionPromise<T> extends Promise<T> {
   }
 }
 
-export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any> {
+function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Promise<any> {
   const frame = requireFrame('asyncInject')
   const host = frame.entry.host
   const requester = frame.entry
@@ -320,74 +262,13 @@ export function asyncInjectImpl(raw: AnyInjectableType, rawArgs?: unknown): Prom
   }
 }
 
+/**
+ * Injects a dependency as a promise. It starts resolving after the current
+ * construction has returned, so it can be used to break a circular dependency
+ * deliberately.
+ */
+export const asyncInject: AsyncResolve = asyncInjectImpl as AsyncResolve
+
 function isTransient(host: Host, raw: AnyInjectableType): boolean {
-  const token = finalToken(host, raw)
-  return token !== undefined && lookupRecord(host, token)?.scope === InjectableScope.Transient
-}
-
-export function createFactoryContext(entry: Entry): FactoryContext {
-  const { host } = entry
-  return {
-    inject: (token: any, args?: unknown) => contextInject(entry, token, args),
-    container: host.facade,
-    addDestroyListener: (listener) => {
-      if (entry.status <= EntryStatus.Ready || entry.status === EntryStatus.Leaving) {
-        ;(entry.destroyListeners ??= []).push(listener)
-        return
-      }
-      // The teardown is past the listeners, so what this one releases would
-      // stay behind.
-      const released = runDestroyListener(entry, listener)
-      if (released !== undefined) {
-        inBackground(host, released)
-      }
-    },
-  }
-}
-
-async function contextInject(owner: Entry, raw: AnyInjectableType, rawArgs: unknown): Promise<any> {
-  const { host } = owner
-  for (let restarts = 0; ; assertSettles(raw, ++restarts)) {
-    const building = owner.status === EntryStatus.Creating
-    const by = building ? owner : null
-    const resolved = isLeaving(owner)
-      ? runHook(owner, () => resolveTop(host, raw, rawArgs, by))
-      : resolveTop(host, raw, rawArgs, by)
-    if (resolved instanceof Wait) {
-      if (resolved.leaving !== null && isLeaving(owner)) {
-        throw misuse(
-          `${resolved.leaving.token} is being destroyed, and ${owner.token} cannot wait for that ` +
-            `while it is being destroyed itself`,
-        )
-      }
-      await resolved.promise
-      continue
-    }
-    const inTime = resolved.status !== EntryStatus.Creating
-    if (!inTime) {
-      addWaitEdge(owner, resolved)
-      try {
-        await resolved.promise
-      } finally {
-        owner.waitingFor?.delete(resolved)
-      }
-      if ((resolved.status as number) !== EntryStatus.Ready) {
-        continue
-      }
-      assertInTime(resolved)
-    }
-    if (resolved.store !== null) {
-      linkTo(resolved, owner)
-    } else if (owner.status === EntryStatus.Creating) {
-      ;(owner.transients ??= []).push(resolved)
-    } else if (owner.status === EntryStatus.Failed) {
-      discard(resolved)
-    } else {
-      // Once the owner is built, `inject` may be called any number of times,
-      // so the owner does not keep what it hands out. A scope does, as for a
-      // `get`.
-      keepLoose(host, resolved)
-    }
-    return resolved.instance
-  }
+  return finalRecord(host, raw)?.scope === InjectableScope.Transient
 }

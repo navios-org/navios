@@ -298,50 +298,34 @@ describe('Handler types', () => {
 describe('WebSocket handler types', () => {
   describe('DeclareWebSocketOptions', () => {
     test('minimal options with only url', () => {
-      type Options = DeclareWebSocketOptions<'wss://example.com/ws'>
-
-      const options: Options = {
+      expectTypeOf({
         url: 'wss://example.com/ws',
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareWebSocketOptions>()
     })
 
     test('options with querySchema', () => {
       const querySchema = zod.object({ token: zod.string() })
 
-      type Options = DeclareWebSocketOptions<'wss://example.com/ws', typeof querySchema>
-
-      const options: Options = {
+      expectTypeOf({
         url: 'wss://example.com/ws',
         querySchema,
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareWebSocketOptions>()
     })
 
     test('options with urlParamsSchema', () => {
       const urlParamsSchema = zod.object({ roomId: zod.string().uuid() })
 
-      type Options = DeclareWebSocketOptions<
-        'wss://example.com/ws/$roomId',
-        undefined,
-        typeof urlParamsSchema
-      >
-
-      const options: Options = {
+      expectTypeOf({
         url: 'wss://example.com/ws/$roomId',
         urlParamsSchema,
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareWebSocketOptions>()
     })
 
     test('options with protocols', () => {
-      type Options = DeclareWebSocketOptions<'wss://example.com/ws'>
-
-      const options: Options = {
+      expectTypeOf({
         url: 'wss://example.com/ws',
         protocols: ['v1.chat', 'v2.chat'],
-      }
-      assertType<Options>(options)
+      }).toExtend<DeclareWebSocketOptions>()
     })
   })
 

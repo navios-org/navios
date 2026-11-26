@@ -7,12 +7,12 @@ import {
   canonicalPath,
   describesSuccess,
   encodeResult,
+  settledWithin,
   toTestMessage,
   toTestResponse,
 } from '@navios/server/adapter'
 import { fastify } from 'fastify'
 
-import type { RouteResult } from '@navios/server'
 import type {
   AdapterContext,
   CompiledRoute,
@@ -136,11 +136,11 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
   }
 
   /** Answers an error that Fastify, a plugin or a hook has raised. */
-  private async fail(
+  private fail(
     error: any,
     request: FastifyRequest,
     reply: FastifyReply,
-  ): Promise<FastifyReply> {
+  ): FastifyReply | Promise<FastifyReply> {
     if (reply.raw.destroyed) {
       // For example the end of a stream whose connection is gone.
       return reply
@@ -151,28 +151,30 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
         reply.removeHeader(name)
       }
     }
-    const at = { method: request.method, path: canonicalPath(request.url) }
-    let response: RouteResponse
-    try {
-      response = encodeResult(await this.toResult(error, at))
-    } catch (defect) {
-      response = this.context.errors.unexpected(defect, at)
-    }
-    return write(reply, response)
+    return write(
+      reply,
+      this.answer(error, { method: request.method, path: canonicalPath(request.url) }),
+    )
   }
 
-  private toResult(error: any, at: ErrorSite): RouteResult | Promise<RouteResult> {
+  /** An error of Fastify or of one of its plugins has the status it is meant to have. */
+  private answer(error: any, at: ErrorSite): RouteResponse {
     const { errors } = this.context
-    const status = error instanceof HttpException ? undefined : error?.statusCode
-    if (status >= 400 && status < 500) {
-      return problem(status, String(error.message ?? ''))
+    try {
+      const status = error instanceof HttpException ? undefined : error?.statusCode
+      if (status >= 400 && status < 500) {
+        return encodeResult(problem(status, String(error.message ?? '')))
+      }
+      if (status > 500 && status < 600) {
+        // The status is meant for the client, what went wrong is not.
+        errors.report(error, at)
+        return encodeResult(problem(status))
+      }
+    } catch (defect) {
+      // A status that cannot be sent, or an error that throws when it is looked at.
+      return errors.unexpected(defect, at)
     }
-    if (status > 500 && status < 600) {
-      // The status is meant for the client, what went wrong is not.
-      errors.report(error, at)
-      return problem(status)
-    }
-    return errors.toResult(error, null, null, at)
+    return errors.unexpected(error, at)
   }
 
   private handlerFor(execute: RouteExecutor) {
@@ -256,7 +258,7 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
       }
     }, IDLE_SWEEP_MS)
     try {
-      if (!(await isDoneWithin(closing, timeoutMs))) {
+      if (!(await settledWithin(closing, timeoutMs))) {
         // What has outlived the timeout: requests in flight, and connections
         // that Fastify no longer knows, such as those of WebSockets.
         // A request learns of it when its connection has been closed, and has
@@ -266,24 +268,11 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
           socket.destroy()
           return pending
         })
-        await isDoneWithin(Promise.all([closing, ...closed]), FORCED_CLOSE_MS)
+        await settledWithin(Promise.all([closing, ...closed]), FORCED_CLOSE_MS)
       }
     } finally {
       clearInterval(sweep)
     }
-  }
-}
-
-/** Waits for `work`, for at most `ms`. */
-async function isDoneWithin(work: PromiseLike<unknown>, ms: number): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(resolve, ms, false)
-  })
-  try {
-    return await Promise.race([work.then(() => true), timeout])
-  } finally {
-    clearTimeout(timer)
   }
 }
 

@@ -53,7 +53,6 @@ describe('the exports of', () => {
         // logging
         'ConsoleLogger',
         'filterLogLevels',
-        'isLogLevel',
         'LOG_LEVELS',
         'Logger',
         'LoggerInstance',
@@ -67,17 +66,23 @@ describe('the exports of', () => {
       [
         'BasicExecutionContext',
         'buildModuleGraph',
+        'classMetadata',
         'constructedInstances',
         'defineTransport',
         'describeHandlerClass',
+        'executeChain',
         'getModuleMetadata',
         'handlerChain',
-        'hasModuleMetadata',
+        'MAX_DELAY_MS',
         'memberMetadata',
+        'moduleClasses',
         'needsScope',
+        'ownMetadata',
+        'requireMetadata',
         'resolveChain',
         'runChain',
         'runInContext',
+        'settledWithin',
       ].sort(),
     )
   })

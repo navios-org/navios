@@ -94,11 +94,9 @@ describe('messageTransport', () => {
 
     const { transport } = await createApp(AppModule)
 
-    expect(
-      transport.handlers().map((handler) => [handler.pattern, handler.destination, handler.name]),
-    ).toEqual([
-      ['pubsub', 'user.created', 'UsersConsumer.onCreated'],
-      ['request-reply', 'user.get', 'UsersConsumer.get'],
+    expect(transport.handlers().map((handler) => [handler.message, handler.name])).toEqual([
+      [userCreated.config, 'UsersConsumer.onCreated'],
+      [getUser.config, 'UsersConsumer.get'],
     ])
   })
 
@@ -595,6 +593,20 @@ describe('messageTransport', () => {
 
     await expect(app.init()).rejects.toThrow(
       '[Navios] Plain is not a message controller. Make sure it is decorated with @MessageController.',
+    )
+  })
+
+  it('names the module that lists something other than a class', async () => {
+    @Module({ messageControllers: [undefined as never] })
+    class CyclicModule {}
+    const app = createApplication(CyclicModule, {
+      logger: false,
+      transports: [messageTransport({})],
+    })
+    apps.push(app)
+
+    await expect(app.init()).rejects.toThrow(
+      '[Navios] Module CyclicModule lists undefined in messageControllers.',
     )
   })
 

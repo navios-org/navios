@@ -6,7 +6,8 @@ import { reply, result } from '../responses/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { HttpInterceptor as Interceptor, RouteResult } from '../routing/index.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
+import type { RouteResult } from '../routing/index.mjs'
 import type { SseMessage } from '../sse/index.mjs'
 
 import { input, JSON_TYPE, setup } from './pipeline-setup.mjs'

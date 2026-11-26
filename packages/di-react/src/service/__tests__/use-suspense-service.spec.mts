@@ -1,8 +1,10 @@
 import { Container, inject, Injectable, InjectionToken } from '@navios/di'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { createElement, Suspense, useMemo } from 'react'
+import { Component, createElement, Suspense, useMemo } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
+
+import type { ReactNode } from 'react'
 
 import { ContainerProvider } from '../../container/container-provider.mjs'
 import { useSuspenseService } from '../use-suspense-service.mjs'
@@ -57,11 +59,141 @@ describe('useSuspenseService', () => {
 
       expect(screen.getByTestId('result').textContent).toBe('suspense-value')
     })
+  })
 
-    // Skip error boundary test - causes memory issues in vitest
-    // Error throwing behavior is implicitly tested by the suspense mechanism
-    it.skip('should throw error to error boundary when service fails', async () => {
-      // Test skipped
+  describe('errors', () => {
+    class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+      state: { error: Error | null } = { error: null }
+
+      static getDerivedStateFromError(error: Error) {
+        return { error }
+      }
+
+      render() {
+        if (this.state.error) {
+          return createElement(
+            'button',
+            { 'data-testid': 'error', onClick: () => this.setState({ error: null }) },
+            this.state.error.message,
+          )
+        }
+        return this.props.children
+      }
+    }
+
+    const renderFlaky = ({ slow = false } = {}) => {
+      const log = { attempts: 0, renders: 0, failing: true, release: null as (() => void) | null }
+
+      @Injectable()
+      class Flaky {
+        readonly value = 'ready'
+
+        async onServiceInit() {
+          log.attempts++
+          if (log.failing) {
+            throw new Error('Not ready yet')
+          }
+          await new Promise<void>((resolve) => {
+            log.release = resolve
+          })
+        }
+      }
+
+      function TestComponent() {
+        // Longer than a time slice of React, so that it yields after this render
+        for (const end = performance.now() + (slow ? 8 : 0); performance.now() < end;) {
+          // busy
+        }
+        if (++log.renders > 100) {
+          throw new Error('useSuspenseService never settled')
+        }
+        const service = useSuspenseService(Flaky)
+        return createElement('div', { 'data-testid': 'result' }, service.value)
+      }
+
+      render(
+        createWrapper(
+          createElement(
+            Boundary,
+            null,
+            createElement(
+              Suspense,
+              { fallback: createElement('div', { 'data-testid': 'loading' }, 'Loading...') },
+              createElement(TestComponent),
+            ),
+          ),
+        ),
+      )
+
+      return log
+    }
+
+    beforeEach(() => {
+      // React reports the errors an error boundary catches
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should throw the error to the error boundary once', async () => {
+      const log = renderFlaky()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('error').textContent).toContain('Not ready yet')
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      expect(screen.getByTestId('error').textContent).toContain('Not ready yet')
+      expect(log.attempts).toBe(1)
+    })
+
+    it('should not resolve again when React yields before it renders the failure again', async () => {
+      const log = renderFlaky({ slow: true })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('error').textContent).toContain('Not ready yet')
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      expect(screen.getByTestId('error').textContent).toContain('Not ready yet')
+      expect(log.attempts).toBe(1)
+    })
+
+    it('should resolve again after the error boundary is reset', async () => {
+      const log = renderFlaky()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('error')).toBeDefined()
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+
+      log.failing = false
+      await act(async () => {
+        screen.getByTestId('error').click()
+      })
+
+      // Suspends again for the next resolution
+      await waitFor(() => {
+        expect(log.release).not.toBeNull()
+      })
+      expect(screen.getByTestId('loading')).toBeDefined()
+      expect(log.attempts).toBe(2)
+
+      await act(async () => {
+        log.release!()
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('result').textContent).toBe('ready')
+      })
+      expect(log.attempts).toBe(2)
     })
   })
 

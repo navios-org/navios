@@ -32,21 +32,12 @@ vi.mock('amqp-connection-manager', () => ({
   connect: (...args: unknown[]) => connectMock(...args),
 }))
 
-const rabbit = (url: string) =>
-  ({
-    type: 'rabbitmq',
-    url,
-    vhost: '/',
-    heartbeatIntervalInSeconds: 5,
-    prefetch: 10,
-  }) as const
-
 class TestConfigService implements QueueConfigService {
   getConfig(): QueueConfig {
     return {
-      default: rabbit('amqp://default:5672'),
-      audit: rabbit('amqp://audit:5672'),
-    } as QueueConfig
+      default: { type: 'rabbitmq', url: 'amqp://default:5672' },
+      audit: { type: 'rabbitmq', url: 'amqp://audit:5672' },
+    }
   }
 }
 
@@ -95,7 +86,7 @@ describe('queues with @navios/di', () => {
 
   describe('QueueClientToken', () => {
     it('should create and connect the default client once', async () => {
-      const init = vi.spyOn(RabbitMQClient.prototype, 'onServiceInit')
+      const init = vi.spyOn(RabbitMQClient.prototype, 'connect')
 
       const first = await container.get(QueueClientToken)
       const second = await container.get(QueueClientToken)
@@ -127,10 +118,47 @@ describe('queues with @navios/di', () => {
       await expect(container.get(QueueClientToken, { name: 'missing' })).rejects.toThrow(
         'Queue missing not found in config',
       )
+      await expect(container.get(QueueClientToken, { name: 'toString' })).rejects.toThrow(
+        'Queue toString not found in config',
+      )
+    })
+
+    it('should connect with the defaults of the broker schema', async () => {
+      await container.get(QueueClientToken)
+
+      expect(connectMock.mock.calls[0][1]).toEqual({
+        heartbeatIntervalInSeconds: 5,
+        reconnectTimeInSeconds: undefined,
+        connectionOptions: {
+          timeout: 30000,
+          keepAlive: true,
+          keepAliveDelay: 10000,
+          noDelay: false,
+        },
+      })
+    })
+
+    it('should reject an invalid entry when its client is resolved', async () => {
+      class BrokenConfigService implements QueueConfigService {
+        getConfig(): QueueConfig {
+          return { default: { type: 'rabbitmq', url: 'amqp://default:5672', prefetch: 0 } }
+        }
+      }
+      const local = new Container({
+        providers: [provide(QueueConfigServiceToken, BrokenConfigService)],
+      })
+      try {
+        await expect(local.get(QueueClientToken)).rejects.toThrow(
+          /Invalid configuration of queue default:[\s\S]*prefetch/,
+        )
+        expect(connectMock).not.toHaveBeenCalled()
+      } finally {
+        await local.dispose()
+      }
     })
 
     it('should disconnect the client once when the container is disposed', async () => {
-      const destroy = vi.spyOn(RabbitMQClient.prototype, 'onServiceDestroy')
+      const destroy = vi.spyOn(RabbitMQClient.prototype, 'disconnect')
       const local = new Container({
         providers: [provide(QueueConfigServiceToken, TestConfigService)],
       })
@@ -234,6 +262,34 @@ describe('queues with @navios/di', () => {
       await expect(
         container.get(QueuePublisherToken, { messageDef: sendEmail as never }),
       ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+    })
+
+    it('should reject a declaration with an empty topic or queue', async () => {
+      const payloadSchema = z.object({})
+      const responseSchema = z.object({})
+
+      await expect(
+        container.get(QueuePublisherToken, {
+          messageDef: builder.declarePubSub({ topic: '', payloadSchema }),
+        }),
+      ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+      await expect(
+        container.get(QueueSenderToken, {
+          messageDef: builder.declarePointToPoint({ queue: '', payloadSchema }),
+        }),
+      ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+      await expect(
+        container.get(QueueRequesterToken, {
+          messageDef: builder.declareRequestReply({ topic: '', payloadSchema, responseSchema }),
+        }),
+      ).rejects.toMatchObject({ code: DIErrorCode.TokenValidationError })
+    })
+
+    it('should reject an invalid response', async () => {
+      client.request.mockResolvedValueOnce({ name: 1 })
+      const requester = await container.get(QueueRequesterToken, { messageDef: getUser })
+
+      await expect(requester.request({ id: '1' })).rejects.toThrow()
     })
 
     it('should resolve a bound publisher token', async () => {

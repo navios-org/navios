@@ -26,7 +26,9 @@ export {
   useService,
   useSuspenseService,
 } from './service/index.mjs'
-export type { UseOptionalServiceResult, UseServiceResult } from './service/index.mjs'
-
-// Type helpers
-export type { Join, UnionToArray } from './union-to-array.mjs'
+export type {
+  ServiceHook,
+  ServiceHookResults,
+  UseOptionalServiceResult,
+  UseServiceResult,
+} from './service/index.mjs'

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RabbitMQClient } from '../brokers/rabbitmq/rabbitmq-client.mjs'
-
-import type { RabbitmqConfig } from '../brokers/rabbitmq/rabbitmq-config.mjs'
+import { rabbitmqConfigSchema } from '../brokers/rabbitmq/rabbitmq-config.mjs'
 
 interface FakeMessage {
   content: Buffer
@@ -10,6 +9,12 @@ interface FakeMessage {
 }
 
 type ConsumeCallback = (msg: FakeMessage | null) => unknown
+
+interface PublishOptions {
+  headers?: Record<string, unknown>
+  correlationId?: string
+  replyTo?: string
+}
 
 const consumers = new Map<string, ConsumeCallback>()
 
@@ -43,12 +48,15 @@ function installConnectionManager() {
     addSetup: vi.fn(async (fn: (ch: unknown) => Promise<void>) => {
       await fn(fakeChannel)
     }),
-    publish: vi.fn(async () => true),
+    publish: vi.fn(
+      async (_exchange: string, _routingKey: string, _message: unknown, _opts?: PublishOptions) =>
+        true,
+    ),
     // ChannelWrapper serialises (json: true) and the broker routes to the consumer.
-    sendToQueue: vi.fn(async (queue: string, message: unknown, _opts?: unknown) => {
+    sendToQueue: vi.fn(async (queue: string, message: unknown, opts?: PublishOptions) => {
       await consumers.get(queue)?.({
         content: Buffer.from(JSON.stringify(message)),
-        properties: { headers: {} },
+        properties: { headers: opts?.headers ?? {} },
       })
       return true
     }),
@@ -66,13 +74,11 @@ function installConnectionManager() {
   return { connection, wrapper }
 }
 
-const config = {
+const config = rabbitmqConfigSchema.parse({
   type: 'rabbitmq',
   url: 'amqp://localhost:5672',
-  vhost: '/',
-  heartbeatIntervalInSeconds: 5,
   prefetch: 7,
-} as RabbitmqConfig
+})
 
 describe('RabbitMQClient with amqplib 2.x channel API', () => {
   beforeEach(() => {
@@ -83,7 +89,7 @@ describe('RabbitMQClient with amqplib 2.x channel API', () => {
   it('round-trips a message: send -> consume -> ack', async () => {
     const { connection, wrapper } = installConnectionManager()
     const client = new RabbitMQClient(config)
-    await client.onServiceInit()
+    await client.connect()
 
     expect(connectMock).toHaveBeenCalledTimes(1)
     expect(connectMock.mock.calls[0]![0]).toEqual(['amqp://localhost:5672'])
@@ -125,7 +131,7 @@ describe('RabbitMQClient with amqplib 2.x channel API', () => {
   it('publishes to an exchange and binds a subscriber queue', async () => {
     const { wrapper } = installConnectionManager()
     const client = new RabbitMQClient(config)
-    await client.onServiceInit()
+    await client.connect()
 
     await client.subscribe('events', async () => {})
     await client.publish('events', { hello: 'world' })
@@ -152,5 +158,97 @@ describe('RabbitMQClient with amqplib 2.x channel API', () => {
     )
 
     await client.disconnect()
+  })
+
+  it('nacks a failed message and sends it again until retry.maxRetries', async () => {
+    const { wrapper } = installConnectionManager()
+    const client = new RabbitMQClient(config)
+    await client.connect()
+    const handler = vi.fn(async () => {
+      throw new Error('handler failed')
+    })
+
+    await client.receive('jobs', handler)
+    await client.send('jobs', { id: 1 })
+
+    // The first delivery and three retries, counted in the x-retry-count header
+    expect(handler).toHaveBeenCalledTimes(4)
+    expect(fakeChannel.nack).toHaveBeenCalledTimes(4)
+    expect(fakeChannel.ack).not.toHaveBeenCalled()
+    expect(wrapper.sendToQueue.mock.calls.map(([, , opts]) => opts?.headers)).toEqual([
+      undefined,
+      { 'x-retry-count': 1 },
+      { 'x-retry-count': 2 },
+      { 'x-retry-count': 3 },
+    ])
+
+    await client.disconnect()
+  })
+
+  it('publishes a pub/sub retry to the exchange of its topic', async () => {
+    const { wrapper } = installConnectionManager()
+    const client = new RabbitMQClient(config)
+    await client.connect()
+    await client.subscribe('events', async () => {
+      throw new Error('handler failed')
+    })
+    const queue = [...consumers.keys()].find((name) => name.startsWith('queue.events.'))!
+
+    await consumers.get(queue)!({ content: Buffer.from('{"id":1}'), properties: {} })
+
+    expect(fakeChannel.nack).toHaveBeenCalledTimes(1)
+    expect(wrapper.publish).toHaveBeenCalledWith(
+      'exchange.events',
+      'events',
+      { id: 1 },
+      { persistent: true, contentType: 'application/json', headers: { 'x-retry-count': 1 } },
+    )
+
+    await client.disconnect()
+  })
+
+  it('resolves a request with the reply of the same correlation id', async () => {
+    const { wrapper } = installConnectionManager()
+    const client = new RabbitMQClient(config)
+    await client.connect()
+
+    const response = client.request('users', { id: 1 })
+    await vi.waitFor(() => expect(wrapper.publish).toHaveBeenCalled())
+    const [exchange, routingKey, message, opts] = wrapper.publish.mock.calls[0]!
+    expect([exchange, routingKey, message]).toEqual(['exchange.users', 'users.request', { id: 1 }])
+
+    const replies = consumers.get(opts!.replyTo!)!
+    const reply = { content: Buffer.from('{"name":"Ada"}'), properties: {} }
+    await replies({ ...reply, properties: { correlationId: 'another' } })
+    await replies({ ...reply, properties: { correlationId: opts!.correlationId } })
+
+    await expect(response).resolves.toEqual({ name: 'Ada' })
+    expect(fakeChannel.ack).toHaveBeenCalledTimes(2)
+
+    await client.disconnect()
+  })
+
+  it('rejects a request whose publish fails', async () => {
+    const { wrapper } = installConnectionManager()
+    const client = new RabbitMQClient(config)
+    await client.connect()
+    const failure = new Error('channel closed')
+    wrapper.publish.mockRejectedValueOnce(failure)
+
+    await expect(client.request('users', { id: 1 })).rejects.toBe(failure)
+
+    await client.disconnect()
+  })
+
+  it('rejects the waiting requests on disconnect', async () => {
+    const { wrapper } = installConnectionManager()
+    const client = new RabbitMQClient(config)
+    await client.connect()
+
+    const response = client.request('users', { id: 1 })
+    await vi.waitFor(() => expect(wrapper.publish).toHaveBeenCalled())
+    await client.disconnect()
+
+    await expect(response).rejects.toThrow('Connection closed')
   })
 })

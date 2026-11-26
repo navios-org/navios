@@ -3,11 +3,11 @@ import { fieldDecoder } from '../decoding/field-decoder.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
 import { compileRoutePath } from '../routing/route-path.mjs'
 
+import type { RouteInput } from '../adapter/route-input.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
 import type { ValidationSource } from '../errors/validation-error.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { RouteEndpointConfig, SchemaLike } from '../routing/endpoint-config.mjs'
-import type { RouteInput } from '../routing/route-input.mjs'
 import type { RoutePath } from '../routing/route-path.mjs'
 
 import { validateSchema } from './validate-schema.mjs'
@@ -20,6 +20,23 @@ type ParamStep = (
   ctx: RequestContext,
 ) => void | Promise<void>
 
+/** Validates `value` and puts what the schema makes of it into `target[key]`. */
+function store(
+  target: Record<string, unknown>,
+  key: string,
+  schema: SchemaLike,
+  value: unknown,
+  source: ValidationSource,
+): void | Promise<void> {
+  const result = validateSchema(schema, value, source)
+  if (isPromise(result)) {
+    return result.then((settled) => {
+      target[key] = settled
+    })
+  }
+  target[key] = result
+}
+
 function validated(
   key: string,
   schema: SchemaLike,
@@ -28,24 +45,9 @@ function validated(
 ): ParamStep {
   return (target, input, ctx) => {
     const raw = adopt(read(input, ctx))
-    if (isPromise(raw)) {
-      return raw.then((value) => {
-        const result = validateSchema(schema, value, source)
-        if (isPromise(result)) {
-          return result.then((settled) => {
-            target[key] = settled
-          })
-        }
-        target[key] = result
-      })
-    }
-    const result = validateSchema(schema, raw, source)
-    if (isPromise(result)) {
-      return result.then((settled) => {
-        target[key] = settled
-      })
-    }
-    target[key] = result
+    return isPromise(raw)
+      ? raw.then((value) => store(target, key, schema, value, source))
+      : store(target, key, schema, raw, source)
   }
 }
 
@@ -104,8 +106,9 @@ function urlParamsStep(
 }
 
 /**
- * Builds the function that produces a handler's first argument. URL params,
- * query, headers and cookies are validated before the body is read.
+ * Builds the function that produces a handler's first argument. Cookies, URL
+ * params, query and headers are validated, in that order, before the body is
+ * read.
  *
  * `path` is that of the whole route: a module or global prefix may have params
  * of its own.
@@ -149,14 +152,10 @@ export function compileParams(
   return (input, ctx) => {
     const target: Record<string, unknown> = {}
     if (cookiesSchema) {
-      const result = validateSchema(cookiesSchema, ctx.cookies.all(), 'cookies')
-      if (isPromise(result)) {
-        return result.then((cookies) => {
-          target.cookies = cookies
-          return runSteps(steps, 0, target, input, ctx)
-        })
+      const pending = store(target, 'cookies', cookiesSchema, ctx.cookies.all(), 'cookies')
+      if (pending !== undefined) {
+        return pending.then(() => runSteps(steps, 0, target, input, ctx))
       }
-      target.cookies = result
     }
     return runSteps(steps, 0, target, input, ctx)
   }

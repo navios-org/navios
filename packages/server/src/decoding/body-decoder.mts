@@ -2,10 +2,10 @@ import { HttpException } from '../errors/http-exception.mjs'
 import { ValidationError } from '../errors/validation-error.mjs'
 import { isPromise } from '../internal/promises.mjs'
 
+import type { BodyPart, BodySource } from '../adapter/route-input.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { RouteEndpointConfig, SchemaLike } from '../routing/endpoint-config.mjs'
-import type { BodyPart, BodySource } from '../routing/route-input.mjs'
 
 import { isJsonType, mediaType } from './media-type.mjs'
 import { createMultipartCollector } from './multipart-collector.mjs'

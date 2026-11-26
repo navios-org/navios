@@ -1,8 +1,7 @@
-import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
+import type { BaseEndpointOptions, InferEndpointError, InferEndpointReturn } from '@navios/builder'
 import type {
   QueryClient,
   UnusedSkipTokenOptions,
-  Updater,
   UseQueryOptions,
   UseQueryResult,
   UseSuspenseQueryOptions,
@@ -11,14 +10,10 @@ import type {
 
 import type { AnyKeyBy, KeyedArgs, SendArgs } from '../endpoint/key-by.mjs'
 import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
-import type {
-  ArgsOf,
-  EndpointData,
-  EndpointFailure,
-  PartialKeyedInputs,
-} from '../endpoint/types.mjs'
+import type { ArgsOf } from '../endpoint/types.mjs'
 
-import type { HookArgsOf, InvalidateFilters, TaggedKey } from './types.mjs'
+import type { CacheHelpers } from './cache-helpers.mjs'
+import type { HookArgsOf, TaggedKey } from './types.mjs'
 
 /**
  * Every TanStack `useQuery` option except the two this library owns.
@@ -121,12 +116,12 @@ export type QueryOptionsResult<TData, TError> = UnusedSkipTokenOptions<
  *   optionally, and the other members take only the inputs that identify the
  *   entry.
  */
-export type QueryObject<
+export interface QueryObject<
   Options extends BaseEndpointOptions,
-  TData = EndpointData<Options>,
-  TError = EndpointFailure<Options>,
+  TData = InferEndpointReturn<Options>,
+  TError = InferEndpointError<Options>,
   TKeyBy = undefined,
-> = {
+> extends CacheHelpers<Options, TData, TError, TKeyBy> {
   /**
    * Builds TanStack query options for these args. Pass the result to
    * `useQuery`, `useSuspenseQuery`, `useQueries` or `queryClient.query`.
@@ -137,15 +132,6 @@ export type QueryObject<
   (
     ...args: ArgsOf<KeyedArgs<Options, TKeyBy>, [options?: QueryHookOptions<TData, TError>]>
   ): QueryOptionsResult<TData, TError>
-
-  /**
-   * Cache key for the given args.
-   *
-   * - no args: prefix of every entry of this endpoint
-   * - partial args: prefix of every entry that matches them
-   * - full args: the exact key
-   */
-  key: (args?: PartialKeyedInputs<Options, TKeyBy>) => TaggedKey<TData, TError>
 
   /**
    * `useQuery` for this endpoint. Accepts every TanStack option except
@@ -192,31 +178,4 @@ export type QueryObject<
    * shared inputs other than those of the cached data.
    */
   ensure: (queryClient: QueryClient, ...args: ArgsOf<SendArgs<Options, TKeyBy>>) => Promise<TData>
-
-  /** Reads the cached data for these args. */
-  getData: (
-    queryClient: QueryClient,
-    ...args: ArgsOf<KeyedArgs<Options, TKeyBy>>
-  ) => TData | undefined
-
-  /** Writes the cached data for these args. */
-  setData: (
-    queryClient: QueryClient,
-    args: KeyedArgs<Options, TKeyBy>,
-    updater: Updater<TData | undefined, TData | undefined>,
-  ) => TData | undefined
-
-  /**
-   * Invalidates entries of this endpoint: all of them without args, the
-   * matching ones with partial args. Pass `{ exact: true }` to hit one entry.
-   * A shared entry refetches with the shared inputs sent last.
-   */
-  invalidate: (
-    queryClient: QueryClient,
-    args?: PartialKeyedInputs<Options, TKeyBy>,
-    filters?: InvalidateFilters,
-  ) => Promise<void>
-
-  /** The endpoint this query calls. */
-  endpoint: EndpointHandler<Options>
 }

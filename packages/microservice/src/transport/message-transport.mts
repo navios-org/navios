@@ -1,24 +1,18 @@
 import {
   defineTransport,
+  executeChain,
   handlerChain,
   resolveChain,
-  runChain,
-  runInContext,
+  settledWithin,
 } from '@navios/core/transport'
 import { QueueClientToken } from '@navios/queues'
 
-import type { ClassType, StandardSchemaV1 } from '@navios/core'
-import type {
-  HandlerInfo,
-  ModuleNode,
-  ResolvedChain,
-  Transport,
-  TransportHost,
-} from '@navios/core/transport'
+import type { ClassType, HandlerInfo, StandardSchemaV1, Transport } from '@navios/core'
+import type { ModuleNode, ResolvedChain, TransportHost } from '@navios/core/transport'
 import type { BaseMessageConfig, QueueClient } from '@navios/queues'
 
 import { MessageContext } from '../context/message-context.mjs'
-import { getMessageControllerMetadata } from '../controllers/message-controller.mjs'
+import { messageControllerMetadata } from '../controllers/message-controller.mjs'
 import { MessageDeniedError, MessageValidationError } from '../errors.mjs'
 import { memberMessage, messageDestination } from '../handlers/message.mjs'
 import { moduleMessageControllers } from '../module-options.mjs'
@@ -39,11 +33,9 @@ export interface MessageTransportOptions {
  * A message handler as the transport knows it.
  */
 export interface MessageHandlerInfo {
-  readonly pattern: BaseMessageConfig['pattern']
-  /** The topic or the queue. */
-  readonly destination: string
   /** `Controller.method`. */
   readonly name: string
+  /** The declaration: its pattern, topic or queue, schemas. */
   readonly message: BaseMessageConfig
   readonly handler: HandlerInfo
 }
@@ -120,16 +112,7 @@ function createMessageTransport(
     const deny = (guard: ClassType): never => {
       throw new MessageDeniedError(guard.name)
     }
-    // Finishing happens inside the context too, so that `currentContext()`
-    // still answers in `onFinish` callbacks.
-    const handle = async () => {
-      try {
-        return await runChain(ctx, handler.chain, invoke, deny)
-      } finally {
-        await ctx.finish()
-      }
-    }
-    return host.asyncContext ? runInContext(ctx, handle) : handle()
+    return executeChain(host, ctx, handler.chain, invoke, deny)
   }
 
   /** Handles one delivery and keeps it in sight until it is done. */
@@ -165,7 +148,7 @@ function createMessageTransport(
             continue
           }
           seen.add(controllerClass)
-          const metadata = getMessageControllerMetadata(controllerClass)
+          const metadata = messageControllerMetadata.get(controllerClass)
           const controller = (await host.container.get(controllerClass)) as Record<string, unknown>
 
           for (const [memberName, member] of metadata.members) {
@@ -188,28 +171,13 @@ function createMessageTransport(
             const chain = handlerChain({
               application: host.interceptors,
               node,
+              controller: controllerClass,
               owner: metadata,
+              handlerName: memberName,
               member,
             })
             compiled.set(key(message), {
-              info: {
-                pattern: message.pattern,
-                destination: messageDestination(message),
-                name,
-                message,
-                handler: {
-                  module: node.module,
-                  controller: controllerClass,
-                  handlerName: memberName,
-                  guards: chain.guards,
-                  interceptors: chain.interceptors,
-                  attributes: {
-                    handler: member.attributes,
-                    controller: metadata.attributes,
-                    module: node.attributes,
-                  },
-                },
-              },
+              info: { name, message, handler: chain.info },
               chain: await resolveChain<MessageContext>(host.container, chain),
               invoke: method.bind(controller) as CompiledHandler['invoke'],
             })
@@ -236,12 +204,13 @@ function createMessageTransport(
           name: options.clientName ?? 'default',
         })) as QueueClient)
       for (const handler of compiled.values()) {
-        const { pattern, destination } = handler.info
-        if (pattern === 'pubsub') {
+        const { message } = handler.info
+        const destination = messageDestination(message)
+        if (message.pattern === 'pubsub') {
           await client.subscribe(destination, async (payload) => {
             await consume(handler, payload)
           })
-        } else if (pattern === 'point-to-point') {
+        } else if (message.pattern === 'point-to-point') {
           await client.receive(destination, async (payload) => {
             await consume(handler, payload)
           })
@@ -256,14 +225,7 @@ function createMessageTransport(
       if (inFlight.size === 0) {
         return
       }
-      let timer: ReturnType<typeof setTimeout> | undefined
-      await Promise.race([
-        Promise.allSettled(inFlight),
-        new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, timeoutMs)
-        }),
-      ])
-      clearTimeout(timer)
+      await settledWithin(Promise.allSettled(inFlight), timeoutMs)
     },
   }
 }

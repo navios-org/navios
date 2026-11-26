@@ -10,8 +10,8 @@ import type { LoggerService } from '../logger/logger-output.mjs'
 export interface ContextHost {
   readonly container: Container
   /**
-   * Called when a token is used through a context; may throw. Does nothing for
-   * a token that `needsScope` is false for.
+   * Called when a context resolves a token that `needsScope` is true for; may
+   * throw.
    */
   onScopedUse: ((token: AnyInjectableType) => void) | null
   /** Receives what an `onFinish` callback throws; without it that is dropped. */
@@ -38,7 +38,7 @@ function plainToken(token: AnyInjectableType): PlainToken {
  * singleton is the same in all of them.
  */
 export function needsScope(container: Container, token: AnyInjectableType): boolean {
-  return container.getProvider(plainToken(token))?.scope !== InjectableScope.Singleton
+  return container.getProvider(token)?.scope !== InjectableScope.Singleton
 }
 
 /**
@@ -58,9 +58,6 @@ export function createContextHost(
     container,
     logger,
     onScopedUse: (used) => {
-      if (!needsScope(container, used)) {
-        return
-      }
       const token = plainToken(used)
       if (mode === 'forbid') {
         throw new Error(

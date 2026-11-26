@@ -92,7 +92,7 @@ app.mapError(UserNotFound, (error) => problem(404, error.message, { userId: erro
 - The most specific registered class wins: with mappers for `DomainError` and for `UserNotFound extends DomainError`, a `UserNotFound` uses its own mapper.
 - A mapper's `reply()` is sent as JSON as given. It is not checked against the endpoint's `errorSchema` and its status does not have to be declared.
 - A mapper registered for exactly `HttpException`, `GuardDeniedError` or `ValidationError`, or for a subclass of one of them, replaces the built-in handling of that class. A mapper for a parent of those classes, such as `Error`, does not: an `HttpException`, a denied guard and a request validation error keep their built-in responses.
-- When a mapper itself throws, the error it threw goes through steps 2 to 5.
+- When a mapper itself throws, the error it threw goes through steps 2 to 5. When what it returns cannot be sent, the response is a plain 500 problem, and that is logged.
 - An error that a mapper answers with a status of 500 or above is logged.
 - Mappers are not consulted for requests that match no route.
 
@@ -159,17 +159,14 @@ In code, the error is a `ValidationError` with `source` and `issues` (the Standa
 ```ts
 import { problem, ValidationError } from '@navios/server'
 
-app.mapError(ValidationError, (error) => {
-  if (error.source === 'response') {
-    throw error
-  }
-  return problem(422, 'Validation failed', {
+app.mapError(ValidationError, (error) =>
+  problem(422, 'Validation failed', {
     fields: error.issues.map((issue) => issue.message),
-  })
-})
+  }),
+)
 ```
 
-Such a mapper also receives response validation errors, which have `source: 'response'`. Rethrow those, as above, so that they stay a 500.
+A response that does not match its schema is a `ResponseValidationError`, with `issues` and no `source`: what a handler returned, the body of an `HttpException` for a status the endpoint declares, or the payload of an [`sse()`](/docs/server/guides/streams-and-sse) event. It is the server's fault, so it is not a `ValidationError`: a mapper for `ValidationError` never sees it, and it becomes a logged 500 like any other unexpected error.
 
 ## Responders
 
@@ -202,7 +199,9 @@ const app = await NaviosFactory.create(AppModule, {
 })
 ```
 
-A responder may also return `reply()` or `problem()`. One that throws or returns something else is logged, and a plain problem is sent in its place.
+The defaults are exported as `NotFoundResponder`, `ForbiddenResponder`, `ValidationErrorResponder` and `InternalServerErrorResponder`. Extend one to keep its response and change part of it, for example to add a field to the problem that `ValidationErrorResponder` builds.
+
+A responder may also return `reply()` or `problem()`. One that throws, returns something else or returns what cannot be sent is logged, and a plain problem is sent in its place.
 
 `description` is a message from the framework: the unmatched method and path for not-found, and the error's message for the internal-error responder when `exposeErrorDetails` is on. Responders are resolved once at `init()`.
 

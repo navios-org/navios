@@ -1,15 +1,14 @@
-import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
 import type {
   AmqpConnectionManager,
   AmqpConnectionManagerOptions,
   ChannelWrapper,
 } from 'amqp-connection-manager'
-import type { Channel as AmqplibChannel, ConsumeMessage } from 'amqplib'
+import type { Channel as AmqplibChannel, ConsumeMessage, Options } from 'amqplib'
 
 import { generateId } from '../generate-id.mjs'
+import { PendingRequests } from '../pending-requests.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
-import type { PendingRequest } from '../pending-request.mjs'
 
 import { loadAmqplib } from './load-amqplib.mjs'
 
@@ -20,16 +19,16 @@ import type { RabbitmqConfig } from './rabbitmq-config.mjs'
  * Implements QueueClient interface for RabbitMQ message broker.
  * Uses amqp-connection-manager for automatic reconnection.
  */
-export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDestroy {
+export class RabbitMQClient implements QueueClient {
   private connection: AmqpConnectionManager | null = null
   private channel: ChannelWrapper | null = null
   private replyQueue: string | null = null
-  private pendingRequests = new Map<string, PendingRequest>()
-  private consumerTags = new Map<string, string>()
+  private pendingRequests = new PendingRequests()
 
   constructor(private config: RabbitmqConfig) {}
 
-  async onServiceInit(): Promise<void> {
+  /** Opens the connection and its channel. `QueueClientFactory` calls it before it hands the client out. */
+  async connect(): Promise<void> {
     const amqp = await loadAmqplib()
 
     // Build TLS options if enabled
@@ -51,13 +50,13 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
 
     // Build connection options
     const connectionOptions: AmqpConnectionManagerOptions['connectionOptions'] = {
-      timeout: this.config.connectionOptions?.timeout ?? 30000,
-      keepAlive: this.config.connectionOptions?.keepAlive ?? true,
-      keepAliveDelay: this.config.connectionOptions?.keepAliveDelay ?? 10000,
-      noDelay: this.config.connectionOptions?.noDelay ?? false,
+      timeout: this.config.connectionOptions.timeout,
+      keepAlive: this.config.connectionOptions.keepAlive,
+      keepAliveDelay: this.config.connectionOptions.keepAliveDelay,
+      noDelay: this.config.connectionOptions.noDelay,
     }
 
-    if (this.config.connectionOptions?.clientProperties) {
+    if (this.config.connectionOptions.clientProperties) {
       connectionOptions.clientProperties = this.config.connectionOptions.clientProperties
     }
 
@@ -66,7 +65,7 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
     }
 
     this.connection = amqp.connect([url.toString()], {
-      heartbeatIntervalInSeconds: this.config.heartbeatIntervalInSeconds ?? 5,
+      heartbeatIntervalInSeconds: this.config.heartbeatIntervalInSeconds,
       reconnectTimeInSeconds: this.config.reconnectTimeInSeconds,
       connectionOptions,
     })
@@ -79,7 +78,7 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
       // Disconnected - will auto-reconnect
     })
 
-    const prefetch = this.config.prefetch ?? 10
+    const { prefetch } = this.config
 
     this.channel = this.connection.createChannel({
       json: true,
@@ -91,10 +90,6 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
     await this.channel.waitForConnect()
   }
 
-  async onServiceDestroy(): Promise<void> {
-    await this.disconnect()
-  }
-
   private getExchangeName(topic: string): string {
     return `exchange.${topic}`
   }
@@ -104,9 +99,7 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
       throw new Error('RabbitMQ channel not initialized')
     }
 
-    const exchangeType = this.config.exchange?.type ?? 'topic'
-    const durable = this.config.exchange?.durable ?? true
-    const autoDelete = this.config.exchange?.autoDelete ?? false
+    const { type: exchangeType, durable, autoDelete } = this.config.exchange
 
     await this.channel.addSetup(async (channel: AmqplibChannel) => {
       await channel.assertExchange(exchangeName, exchangeType, {
@@ -121,19 +114,17 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
       throw new Error('RabbitMQ channel not initialized')
     }
 
-    const durable = this.config.queue?.durable ?? true
-    const autoDelete = this.config.queue?.autoDelete ?? false
-    const exclusive = this.config.queue?.exclusive ?? false
+    const { durable, autoDelete, exclusive, messageTtl, maxLength, maxPriority } = this.config.queue
 
     const args: Record<string, unknown> = {}
-    if (this.config.queue?.messageTtl) {
-      args['x-message-ttl'] = this.config.queue.messageTtl
+    if (messageTtl) {
+      args['x-message-ttl'] = messageTtl
     }
-    if (this.config.queue?.maxLength) {
-      args['x-max-length'] = this.config.queue.maxLength
+    if (maxLength) {
+      args['x-max-length'] = maxLength
     }
-    if (this.config.queue?.maxPriority) {
-      args['x-max-priority'] = this.config.queue.maxPriority
+    if (maxPriority) {
+      args['x-max-priority'] = maxPriority
     }
     if (this.config.deadLetter?.enabled && this.config.deadLetter.exchange) {
       args['x-dead-letter-exchange'] = this.config.deadLetter.exchange
@@ -183,41 +174,9 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
       })
       await channel.bindQueue(queueName, exchangeName, topic)
 
-      const { consumerTag } = await channel.consume(
-        queueName,
-        async (msg: ConsumeMessage | null) => {
-          if (!msg) return
-
-          try {
-            const content = JSON.parse(msg.content.toString())
-            await handler(content)
-            channel.ack(msg)
-          } catch {
-            // Retry logic
-            const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
-            const maxRetries = this.config.retry?.maxRetries ?? 3
-
-            if (retryCount < maxRetries) {
-              // Requeue with incremented retry count
-              channel.nack(msg, false, false)
-              await this.channel?.publish(exchangeName, topic, JSON.parse(msg.content.toString()), {
-                persistent: true,
-                contentType: 'application/json',
-                headers: {
-                  ...msg.properties.headers,
-                  'x-retry-count': retryCount + 1,
-                },
-              })
-            } else {
-              // Send to DLQ or reject
-              channel.nack(msg, false, false)
-            }
-          }
-        },
-        { noAck: false },
+      await this.consumeWithRetry(channel, queueName, handler, (content, options) =>
+        this.channel?.publish(exchangeName, topic, content, options),
       )
-
-      this.consumerTags.set(queueName, consumerTag)
     })
   }
 
@@ -242,39 +201,46 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
     await this.ensureQueue(queue)
 
     await this.channel.addSetup(async (channel: AmqplibChannel) => {
-      const { consumerTag } = await channel.consume(
-        queue,
-        async (msg: ConsumeMessage | null) => {
-          if (!msg) return
-
-          try {
-            const content = JSON.parse(msg.content.toString())
-            await handler(content)
-            channel.ack(msg)
-          } catch {
-            const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
-            const maxRetries = this.config.retry?.maxRetries ?? 3
-
-            if (retryCount < maxRetries) {
-              channel.nack(msg, false, false)
-              await this.channel?.sendToQueue(queue, JSON.parse(msg.content.toString()), {
-                persistent: true,
-                contentType: 'application/json',
-                headers: {
-                  ...msg.properties.headers,
-                  'x-retry-count': retryCount + 1,
-                },
-              })
-            } else {
-              channel.nack(msg, false, false)
-            }
-          }
-        },
-        { noAck: false },
+      await this.consumeWithRetry(channel, queue, handler, (content, options) =>
+        this.channel?.sendToQueue(queue, content, options),
       )
-
-      this.consumerTags.set(queue, consumerTag)
     })
+  }
+
+  /**
+   * Consumes `queue` with `handler`. A message the handler accepts is acked. A
+   * failed one is nacked and, until `retry.maxRetries` is reached, handed to
+   * `resend` with its `x-retry-count` header incremented.
+   */
+  private async consumeWithRetry(
+    channel: AmqplibChannel,
+    queue: string,
+    handler: (message: unknown) => Promise<void>,
+    resend: (content: unknown, options: Options.Publish) => Promise<unknown> | undefined,
+  ): Promise<void> {
+    await channel.consume(
+      queue,
+      async (msg: ConsumeMessage | null) => {
+        if (!msg) return
+
+        try {
+          await handler(JSON.parse(msg.content.toString()))
+          channel.ack(msg)
+        } catch {
+          channel.nack(msg, false, false)
+
+          const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
+          if (retryCount < this.config.retry.maxRetries) {
+            await resend(JSON.parse(msg.content.toString()), {
+              persistent: true,
+              contentType: 'application/json',
+              headers: { ...msg.properties.headers, 'x-retry-count': retryCount + 1 },
+            })
+          }
+        }
+      },
+      { noAck: false },
+    )
   }
 
   async request(topic: string, message: unknown): Promise<unknown> {
@@ -292,21 +258,18 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
 
     await this.ensureExchange(exchangeName)
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(correlationId)
-        reject(new Error(`Request timeout for topic: ${topic}`))
-      }, 30000)
+    const reply = this.pendingRequests.create(correlationId, `topic: ${topic}`)
 
-      this.pendingRequests.set(correlationId, { resolve, reject, timeout })
-
-      this.channel!.publish(exchangeName, `${topic}.request`, message, {
+    this.channel
+      .publish(exchangeName, `${topic}.request`, message, {
         persistent: true,
         contentType: 'application/json',
         correlationId,
         replyTo: this.replyQueue!,
       })
-    })
+      .catch((error: unknown) => this.pendingRequests.fail(correlationId, error))
+
+    return reply
   }
 
   private async setupReplyQueue(): Promise<void> {
@@ -328,23 +291,9 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
         (msg: ConsumeMessage | null) => {
           if (!msg) return
 
-          const correlationId = msg.properties.correlationId
-          if (!correlationId) {
-            channel.ack(msg)
-            return
-          }
-          const pending = this.pendingRequests.get(correlationId)
-
-          if (pending) {
-            clearTimeout(pending.timeout)
-            this.pendingRequests.delete(correlationId)
-
-            try {
-              const content = JSON.parse(msg.content.toString())
-              pending.resolve(content)
-            } catch (err) {
-              pending.reject(err)
-            }
+          const { correlationId } = msg.properties
+          if (correlationId) {
+            this.pendingRequests.settle(correlationId, msg.content.toString())
           }
 
           channel.ack(msg)
@@ -371,7 +320,7 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
       })
       await channel.bindQueue(queueName, exchangeName, `${topic}.request`)
 
-      const { consumerTag } = await channel.consume(
+      await channel.consume(
         queueName,
         async (msg: ConsumeMessage | null) => {
           if (!msg) return
@@ -394,18 +343,11 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
         },
         { noAck: false },
       )
-
-      this.consumerTags.set(queueName, consumerTag)
     })
   }
 
   async disconnect(): Promise<void> {
-    // Clear pending requests
-    for (const [, pending] of this.pendingRequests) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error('Connection closed'))
-    }
-    this.pendingRequests.clear()
+    this.pendingRequests.rejectAll()
 
     // Close channel
     if (this.channel) {
@@ -420,6 +362,5 @@ export class RabbitMQClient implements QueueClient, OnServiceInit, OnServiceDest
     }
 
     this.replyQueue = null
-    this.consumerTags.clear()
   }
 }

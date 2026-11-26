@@ -2,30 +2,28 @@ import { runInContext } from '@navios/core/transport'
 
 import type { ContextHost } from '@navios/core/transport'
 
-import { LiveRequests } from '../context/live-requests.mjs'
 import { RequestContext } from '../context/request-context.mjs'
 import { problem } from '../errors/problem.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
-import { isLazyBody, ManagedBody } from '../responses/managed-body.mjs'
-import { isEventStream } from '../responses/response-headers.mjs'
+import { ManagedBody } from '../responses/managed-body.mjs'
 import { compileRequestPath } from '../routing/route-path.mjs'
 
-import type { LiveRequestSet } from '../context/live-requests.mjs'
+import type { RouteExecutor } from '../adapter/compiled-route.mjs'
+import type { RouteInput } from '../adapter/route-input.mjs'
+import type { RouteResponse } from '../adapter/route-response.mjs'
+import type { LiveRequests } from '../context/live-requests.mjs'
 import type { RequestHost } from '../context/request-host.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
-import type { RouteExecutor } from '../routing/compiled-route.mjs'
-import type { HttpGuard as Guard } from '../routing/http-contracts.mjs'
-import type { HttpInterceptor as Interceptor } from '../routing/http-contracts.mjs'
+import type { Guard } from '../routing/http-contracts.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
-import type { RouteInput } from '../routing/route-input.mjs'
 import type { RoutePath } from '../routing/route-path.mjs'
-import type { RouteResponse } from '../routing/route-response.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
-import { compileFinalizer, PrimedGenerator } from './compile-finalizer.mjs'
+import { compileFinalizer } from './compile-finalizer.mjs'
 import { compileParams } from './compile-params.mjs'
-import { encodeResponse } from './encode-result.mjs'
+import { encodeResponse, ownResult } from './encode-result.mjs'
 import { runGuards } from './run-guards.mjs'
 import { toRouteResult } from './to-route-result.mjs'
 
@@ -59,25 +57,17 @@ export interface CompileOptions {
   /** Run each request inside the async context, for `currentContext()`. */
   asyncContext?: boolean
   /** Receives the requests that hold something, and loses them once it is released. */
-  live?: LiveRequestSet
+  live: LiveRequests
 }
 
 type Stage = (ctx: RequestContext, input: RouteInput) => MaybePromise<RouteResult>
-
-/** Makes the request the owner of a lazy body, whatever becomes of the result. */
-function own(result: RouteResult, ctx: RequestContext): RouteResult {
-  if (result.kind !== 'json' && isLazyBody(result.body)) {
-    ctx.ownBody(result.body)
-  }
-  return result
-}
 
 /**
  * Compiles one route into a function from an adapter's `RouteInput` to the
  * `RouteResponse` to write.
  *
  * Stage order: outer interceptors enter, guards, inner interceptors enter,
- * request validation (URL params, query, headers, cookies, then the body),
+ * request validation (cookies, URL params, query, headers, then the body),
  * handler, response validation, interceptors exit, encoding. Anything thrown
  * is mapped to a response at the end.
  *
@@ -98,7 +88,7 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     onScopedUse,
     logger,
     asyncContext: options.asyncContext ?? false,
-    live: options.live ?? new LiveRequests(),
+    live: options.live,
     path: compileRequestPath(definition.path),
     report: (error, ctx) => errors.report(error, ctx),
   }
@@ -122,40 +112,27 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     pipeline = intercepted(pipeline, outer[i], errors)
   }
 
-  // The error pipeline calls user code: mappers, responders and the logger.
-  // If that throws as well, the adapter must still get a response, with the
-  // release of whatever the request holds.
-  const fallback = (ctx: RequestContext): RouteResponse => {
-    ctx.responseHeaders = null
-    ctx.responseCookies = null
-    return encodeResponse(problem(500), ctx)
-  }
-
+  // What error mapping answers with may not be sendable either: the result of
+  // a mapper or a responder. The adapter still gets a response, a plain 500
+  // without what was set through `ctx.reply`, with the release of whatever
+  // the request holds.
   const respondToFailure = (result: RouteResult, ctx: RequestContext): RouteResponse => {
     try {
       return encodeResponse(result, ctx)
     } catch (defect) {
-      try {
-        return encodeResponse(errors.defect(defect, ctx), ctx)
-      } catch {
-        return fallback(ctx)
-      }
+      errors.report(defect, ctx)
+      ctx.responseHeaders = null
+      ctx.responseCookies = null
+      return encodeResponse(problem(500), ctx)
     }
   }
 
+  // The error pipeline answers every error, and guards the code it calls.
   const fail = (error: unknown, ctx: RequestContext): MaybePromise<RouteResponse> => {
     ctx.dropSuccessHeaders()
-    let mapped: MaybePromise<RouteResult>
-    try {
-      mapped = errors.toResult(error, ctx, config)
-    } catch {
-      return fallback(ctx)
-    }
+    const mapped = errors.toResult(error, ctx, config)
     return isPromise(mapped)
-      ? mapped.then(
-          (result) => respondToFailure(result, ctx),
-          () => fallback(ctx),
-        )
+      ? mapped.then((result) => respondToFailure(result, ctx))
       : respondToFailure(mapped, ctx)
   }
 
@@ -168,23 +145,14 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     }
     // A stream that cannot start, for example a file that is not there, is an
     // error like any other. Not so an event stream, whose headers must not
-    // wait for its first event.
-    const { body, headers } = response
+    // wait for its first event. A generator's has been waited for already.
+    const { body } = response
     if (
       !(body instanceof ManagedBody) ||
-      result.kind === 'sse' ||
-      isEventStream(headers) ||
+      body.isStarted ||
+      body.opening !== null ||
       ctx.method === 'HEAD'
     ) {
-      return response
-    }
-    const first = result.body instanceof PrimedGenerator ? result.body.take() : null
-    if (first !== null) {
-      try {
-        body.accept(first)
-      } catch (error) {
-        return fail(error, ctx)
-      }
       return response
     }
     return body
@@ -255,11 +223,12 @@ function encoded(inner: Stage, encoders: ReadonlyMap<string, ResponseEncoder>): 
       if (encoder === undefined) {
         return result
       }
-      const accept = (value: unknown) =>
-        own(
-          toRouteResult(value, () => `The encoder of "${result.kind}" responses`),
-          ctx,
-        )
+      const accept = (value: unknown) => {
+        const encoded = toRouteResult(value, () => `The encoder of "${result.kind}" responses`)
+        // Whatever becomes of it, the request closes its body.
+        ownResult(encoded, ctx)
+        return encoded
+      }
       const answer = adopt<unknown>(encoder(result, ctx))
       return isPromise(answer) ? answer.then(accept) : accept(answer)
     }
@@ -291,7 +260,10 @@ function intercepted(inner: Stage, interceptor: Interceptor, errors: ErrorPipeli
     }
     const accept = (value: unknown): RouteResult => {
       settled = true
-      return own(toRouteResult(value, name, INTERCEPTOR_ADVICE), ctx)
+      const result = toRouteResult(value, name, INTERCEPTOR_ADVICE)
+      // A result that an outer interceptor drops is closed with the request.
+      ownResult(result, ctx)
+      return result
     }
     const refuse = (error: unknown): never => {
       settled = true

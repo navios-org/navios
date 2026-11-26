@@ -15,7 +15,7 @@ npm install @opentelemetry/exporter-trace-otlp-http
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-`@navios/core`, `@navios/di` and `@opentelemetry/api` are peer dependencies, and `@navios/server` is an optional one, needed for HTTP request spans; the OpenTelemetry SDK packages are installed with the plugin. The OTLP exporters are optional and loaded only when `exporter` is `'otlp'`. The example also uses `@navios/adapter-fastify`.
+`@navios/core` and `@opentelemetry/api` are peer dependencies, and `@navios/server` is an optional one, needed for HTTP request spans; the OpenTelemetry SDK packages are installed with the plugin. The OTLP exporters are optional and loaded only when `exporter` is `'otlp'`. The example also uses `@navios/adapter-fastify`.
 
 ## Example
 
@@ -67,7 +67,7 @@ Each request that matches a route gets one `SERVER` span named after the route p
 | Trace only some methods of a service          | `@Traceable` on the class, `@Traced` on methods             | [Tracing selected methods](https://navios.tech/docs/server/opentelemetry/tracing#tracing-selected-methods)    |
 | Trace an object you create yourself           | `TracedProxyFactory`, `traceInstance()`                     | [How instrumentation works](https://navios.tech/docs/server/opentelemetry/tracing#how-instrumentation-works)  |
 | Start spans by hand                           | `inject(TracerToken)`                                       | [Custom spans](https://navios.tech/docs/server/opentelemetry/tracing#custom-spans)                            |
-| Pass the trace to another service             | `TraceContextService.injectIntoHeaders()`                   | [Calling another service](https://navios.tech/docs/server/opentelemetry/tracing#calling-another-service)      |
+| Pass the trace to another service             | `injectTraceContext(headers)`                               | [Calling another service](https://navios.tech/docs/server/opentelemetry/tracing#calling-another-service)      |
 | Assert on spans in tests                      | `exporter: 'none'` with an in-memory span processor         | [Testing](https://navios.tech/docs/server/opentelemetry/tracing#testing)                                      |
 
 A traced class must be imported before `app.init()`, which importing the root module normally does. Projects that keep `experimentalDecorators` on import `Traced` and `Traceable` from `@navios/otel/legacy-compat`; see [Legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators).

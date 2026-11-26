@@ -64,8 +64,9 @@ export function provideJwtService(
   class JwtServiceFactory {
     create(ctx: FactoryContext): JwtService | Promise<JwtService> {
       const options = typeof config === 'function' ? config(ctx) : config
+      // `then` of a thenable that is not a promise may return nothing.
       return isPromiseLike(options)
-        ? options.then((resolved) => new JwtService(resolved))
+        ? Promise.resolve(options).then((resolved) => new JwtService(resolved))
         : new JwtService(options)
     }
   }

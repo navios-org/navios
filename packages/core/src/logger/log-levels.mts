@@ -20,10 +20,7 @@ export const LOG_LEVELS = [
  */
 export type LogLevel = (typeof LOG_LEVELS)[number]
 
-/**
- * @publicApi
- */
-export function isLogLevel(maybeLogLevel: any): maybeLogLevel is LogLevel {
+function isLogLevel(maybeLogLevel: any): maybeLogLevel is LogLevel {
   return LOG_LEVELS.includes(maybeLogLevel)
 }
 

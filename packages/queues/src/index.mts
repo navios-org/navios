@@ -33,7 +33,6 @@ export {
   DefaultQueueConfigService,
   QueueConfigServiceToken,
   abstractQueueConfigSchema,
-  queueConfigSchema,
 } from './config/index.mjs'
 export type { AbstractQueueConfig, QueueConfig, QueueConfigService } from './config/index.mjs'
 
@@ -45,8 +44,6 @@ export {
   QueueRequesterToken,
   QueueSender,
   QueueSenderToken,
-  abstractMessageConfigSchema,
-  abstractMessageDefinitionSchema,
   messageBuilder,
   pointToPointMessageConfigSchema,
   pointToPointMessageDefinitionSchema,
@@ -59,8 +56,6 @@ export {
   requestReplyMessageDefinitionSchema,
 } from './messaging/index.mjs'
 export type {
-  AbstractMessageConfig,
-  AbstractMessageDefinition,
   BaseMessageConfig,
   MessageDefinition,
   MessagePattern,

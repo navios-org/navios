@@ -5,6 +5,7 @@ import { schemaFromGuard } from '../internal/schema-from-guard.mjs'
 import { LoggerOutput } from './logger-output.mjs'
 import { pendingOutput } from './pending-output.mjs'
 
+import type { LogLevel } from './log-levels.mjs'
 import type { LoggerService } from './logger-output.mjs'
 
 /**
@@ -12,7 +13,7 @@ import type { LoggerService } from './logger-output.mjs'
  */
 export type LoggerOptions = { context?: string } | undefined
 
-export const loggerOptionsSchema = schemaFromGuard<LoggerOptions>(
+const loggerOptionsSchema = schemaFromGuard<LoggerOptions>(
   (value): value is LoggerOptions =>
     value === undefined ||
     (typeof value === 'object' &&
@@ -72,11 +73,11 @@ export class LoggerInstance implements LoggerService {
   error(message: any, stack?: string, context?: string): void
   error(message: any, ...optionalParams: [...any, string?, string?]): void
   error(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context
-      ? (optionalParams.length ? optionalParams : [undefined]).concat(this.context)
-      : optionalParams
-
-    this.localInstance?.error(message, ...optionalParams)
+    if (this.context && optionalParams.length === 0) {
+      // The context of an error comes after its stack.
+      optionalParams.push(undefined)
+    }
+    this.forward('error', message, optionalParams)
   }
 
   /**
@@ -85,8 +86,7 @@ export class LoggerInstance implements LoggerService {
   log(message: any, context?: string): void
   log(message: any, ...optionalParams: [...any, string?]): void
   log(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
-    this.localInstance?.log(message, ...optionalParams)
+    this.forward('log', message, optionalParams)
   }
 
   /**
@@ -95,8 +95,7 @@ export class LoggerInstance implements LoggerService {
   warn(message: any, context?: string): void
   warn(message: any, ...optionalParams: [...any, string?]): void
   warn(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
-    this.localInstance?.warn(message, ...optionalParams)
+    this.forward('warn', message, optionalParams)
   }
 
   /**
@@ -105,8 +104,7 @@ export class LoggerInstance implements LoggerService {
   debug(message: any, context?: string): void
   debug(message: any, ...optionalParams: [...any, string?]): void
   debug(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
-    this.localInstance?.debug?.(message, ...optionalParams)
+    this.forward('debug', message, optionalParams)
   }
 
   /**
@@ -115,8 +113,7 @@ export class LoggerInstance implements LoggerService {
   verbose(message: any, context?: string): void
   verbose(message: any, ...optionalParams: [...any, string?]): void
   verbose(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
-    this.localInstance?.verbose?.(message, ...optionalParams)
+    this.forward('verbose', message, optionalParams)
   }
 
   /**
@@ -125,8 +122,15 @@ export class LoggerInstance implements LoggerService {
   fatal(message: any, context?: string): void
   fatal(message: any, ...optionalParams: [...any, string?]): void
   fatal(message: any, ...optionalParams: any[]) {
-    optionalParams = this.context ? optionalParams.concat(this.context) : optionalParams
-    this.localInstance?.fatal?.(message, ...optionalParams)
+    this.forward('fatal', message, optionalParams)
+  }
+
+  /** Writes to the output, the context last. `params` is the caller's own array. */
+  private forward(level: LogLevel, message: any, params: any[]): void {
+    if (this.context) {
+      params.push(this.context)
+    }
+    this.localInstance[level]?.(message, ...params)
   }
 }
 

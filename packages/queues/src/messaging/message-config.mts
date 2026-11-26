@@ -17,40 +17,29 @@ export interface BaseMessageConfig<
   responseSchema?: ResponseSchema // For request/reply
 }
 
+const zodSchema = (name: string) =>
+  z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
+    message: `${name} schema must be a Zod type`,
+  })
+
 export const pubsubMessageConfigSchema = z.object({
   pattern: z.literal('pubsub'),
-  topic: z.string(),
-  payloadSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
-    message: 'Payload schema must be a Zod type',
-  }),
+  topic: z.string().min(1),
+  payloadSchema: zodSchema('Payload'),
 })
 
 export const pointToPointMessageConfigSchema = z.object({
   pattern: z.literal('point-to-point'),
-  queue: z.string(),
-  payloadSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
-    message: 'Payload schema must be a Zod type',
-  }),
+  queue: z.string().min(1),
+  payloadSchema: zodSchema('Payload'),
 })
 
 export const requestReplyMessageConfigSchema = z.object({
   pattern: z.literal('request-reply'),
-  topic: z.string(),
-  payloadSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
-    message: 'Payload schema must be a Zod type',
-  }),
-  responseSchema: z.custom<ZodType>().refine((schema) => schema instanceof ZodType, {
-    message: 'Response schema must be a Zod type',
-  }),
+  topic: z.string().min(1),
+  payloadSchema: zodSchema('Payload'),
+  responseSchema: zodSchema('Response'),
 })
-
-export const abstractMessageConfigSchema = z.discriminatedUnion('pattern', [
-  pubsubMessageConfigSchema,
-  pointToPointMessageConfigSchema,
-  requestReplyMessageConfigSchema,
-])
-
-export type AbstractMessageConfig = z.infer<typeof abstractMessageConfigSchema>
 
 /**
  * Message definition returned by message builder helper functions.
@@ -99,13 +88,3 @@ export const pointToPointMessageDefinitionSchema = z.object({
 export const requestReplyMessageDefinitionSchema = z.object({
   config: requestReplyMessageConfigSchema,
 })
-
-// The discriminator (`pattern`) is nested under `config`, so this is a plain
-// union: `z.discriminatedUnion('pattern', ...)` throws when the module loads.
-export const abstractMessageDefinitionSchema = z.union([
-  pubsubMessageDefinitionSchema,
-  pointToPointMessageDefinitionSchema,
-  requestReplyMessageDefinitionSchema,
-])
-
-export type AbstractMessageDefinition = z.infer<typeof abstractMessageDefinitionSchema>

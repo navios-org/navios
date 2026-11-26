@@ -6,7 +6,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 
-import type { BaseEndpointOptions, EndpointHandler } from '@navios/builder'
+import type { BaseEndpointOptions, EndpointHandler, InferEndpointError } from '@navios/builder'
 import type { QueryClient, QueryFunctionContext } from '@tanstack/react-query'
 
 import { createKeyBuilder } from '../endpoint/cache-key.mjs'
@@ -14,10 +14,10 @@ import { createCaller } from '../endpoint/create-caller.mjs'
 import { callOptionsFor } from '../endpoint/http-client.mjs'
 import { sharedInputsOf, withSharedInputs } from '../endpoint/key-by.mjs'
 
-import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { SurfaceData } from '../endpoint/create-caller.mjs'
 import type { AnyKeyBy, KeyBy, SharedInputs } from '../endpoint/key-by.mjs'
-import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 
+import { attachCacheHelpers, prefetchFrom, skippedOptions } from './cache-helpers.mjs'
 import {
   entryOf,
   holdsSentInputs,
@@ -26,12 +26,8 @@ import {
   useSendSharedInputs,
 } from './shared-inputs.mjs'
 
+import type { LooseArgs, LooseOptions } from './cache-helpers.mjs'
 import type { QueryObject, QuerySettings } from './query-object.mjs'
-
-function noop() {}
-
-type LooseArgs = Record<string, unknown> | undefined
-type LooseOptions = Record<string, unknown> | undefined
 
 /**
  * Creates a {@link QueryObject} for an endpoint.
@@ -58,17 +54,12 @@ export function makeQuery<
 >(
   endpoint: EndpointHandler<Options>,
   options: QuerySettings<
-    MaybeWithResponse<EndpointData<Options>, WithResponse>,
-    EndpointFailure<Options>,
+    SurfaceData<Options, WithResponse>,
+    InferEndpointError<Options>,
     WithResponse,
     TKeyBy
   > = {},
-): QueryObject<
-  Options,
-  MaybeWithResponse<EndpointData<Options>, WithResponse>,
-  EndpointFailure<Options>,
-  TKeyBy
-> {
+): QueryObject<Options, SurfaceData<Options, WithResponse>, InferEndpointError<Options>, TKeyBy> {
   const { keyPrefix, keySuffix, withResponse, keyBy, ...declared } = options
   // The declaration's TanStack options, under whatever a call site passes
   const defaults = declared as LooseOptions
@@ -126,16 +117,13 @@ export function makeQuery<
     return holdsSentInputs(entry) ? data : queryClient.query({ ...options, staleTime: 0 })
   }
 
-  const skipped = (overrides?: LooseOptions) => ({
-    ...defaults,
-    ...overrides,
-    queryKey: keys.skipped(),
-    queryFn: skipToken,
-  })
+  const skipped = (overrides?: LooseOptions) => skippedOptions(keys, defaults, overrides)
+
+  const fetchData = (queryClient: QueryClient, args?: LooseArgs) => run(queryClient, args)
 
   const query = build as unknown as Record<string, unknown>
 
-  query.key = (args?: LooseArgs) => keys.key(args)
+  attachCacheHelpers(query, keys, endpoint)
 
   query.use = rule
     ? (args?: LooseArgs | typeof skipToken, overrides?: LooseOptions) => {
@@ -161,23 +149,11 @@ export function makeQuery<
     : (args?: LooseArgs, overrides?: LooseOptions) =>
         useSuspenseQuery(build(args, overrides) as never)
 
-  query.fetch = (queryClient: QueryClient, args?: LooseArgs) => run(queryClient, args)
+  query.fetch = fetchData
 
-  query.prefetch = (queryClient: QueryClient, args?: LooseArgs) =>
-    run(queryClient, args).then(noop, noop)
+  query.prefetch = prefetchFrom(fetchData)
 
   query.ensure = (queryClient: QueryClient, args?: LooseArgs) => run(queryClient, args, 'static')
-
-  query.getData = (queryClient: QueryClient, args?: LooseArgs) =>
-    queryClient.getQueryData(keys.key(args))
-
-  query.setData = (queryClient: QueryClient, args: LooseArgs, updater: unknown) =>
-    queryClient.setQueryData(keys.key(args), updater as never)
-
-  query.invalidate = (queryClient: QueryClient, args?: LooseArgs, filters?: LooseOptions) =>
-    queryClient.invalidateQueries({ ...filters, queryKey: keys.key(args) })
-
-  query.endpoint = endpoint
 
   return query as never
 }

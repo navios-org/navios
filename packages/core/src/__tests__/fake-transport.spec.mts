@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { createApplication } from '../application/application.mjs'
 import { AttributeFactory, currentContext, Injectable, UseGuards } from '../index.mjs'
-import { UseInterceptors } from '../interceptors/index.mjs'
+import { UseInterceptors } from '../interceptors/use-interceptors.mjs'
 import { AttributeFactory as LegacyAttributes } from '../legacy-compat/attribute-factory.mjs'
 import { UseGuards as LegacyUseGuards } from '../legacy-compat/use-guards.mjs'
-import { registerModule } from '../modules/index.mjs'
+import { registerModule } from '../modules/module.mjs'
 import { fakeTransport } from '../testing/index.mjs'
 
 import type { Application } from '../application/application.mjs'

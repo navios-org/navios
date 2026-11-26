@@ -1,7 +1,7 @@
 import { bindUrlParams, getUrlParamNames } from '../shared/bind-url-params.mjs'
 import { callErrorHook } from '../shared/call-error-hook.mjs'
 import { NaviosError } from '../shared/navios-error.mjs'
-import { validate } from '../shared/validate.mjs'
+import { validate, validateOptional } from '../shared/validate.mjs'
 
 import type { Schema } from '../shared/schema.mjs'
 import type { ValidationOutcome } from '../shared/validate.mjs'
@@ -14,30 +14,15 @@ import { classifyTransportFailure } from './transport-failure.mjs'
 import type { BuilderContext } from './builder-config.mjs'
 import type { AbstractRequestConfig, AbstractResponse, Client } from './client.mjs'
 import type { EndpointErrorInit, RequestPart } from './endpoint-error.mjs'
+import type { EndpointCallOptions } from './endpoint-handler.mjs'
 import type { BaseEndpointOptions } from './endpoint-options.mjs'
+import type { CallArgs } from './request-args.mjs'
 import type { SafeResult } from './safe-result.mjs'
-
-/**
- * Loosely-typed call arguments, as the runtime sees them.
- */
-export interface HandlerRequest {
-  urlParams?: Record<string, unknown>
-  params?: Record<string, unknown>
-  data?: unknown
-  signal?: AbortSignal | null
-  headers?: Record<string, string>
-  timeout?: number
-}
 
 /** What one call has got to, for the context of the `onError` hook. */
 interface Attempt {
   /** The request config, once one was built. */
   request: AbstractRequestConfig | null
-}
-
-/** Loosely-typed per-call options, as the runtime sees them. */
-export interface HandlerCallOptions {
-  client?: Client
 }
 
 function getResponse(error: unknown): AbstractResponse<unknown> | null {
@@ -68,20 +53,30 @@ function serializationError(data: unknown, failure: unknown): Error | undefined 
   return undefined
 }
 
-/** The problems of all invalid parts, or `null` when every part is valid. */
-function invalidParts(
+/** The values of the parts when every one is valid, or the problems of all invalid ones. */
+function checkParts(
   parts: Record<RequestPart, ValidationOutcome>,
-): Pick<EndpointErrorInit, 'issues' | 'cause'> | null {
-  const invalid = (Object.keys(parts) as RequestPart[]).flatMap((part) => {
+):
+  | { ok: true; values: Record<RequestPart, unknown> }
+  | { ok: false; invalid: Pick<EndpointErrorInit, 'issues' | 'cause'> } {
+  const values = {} as Record<RequestPart, unknown>
+  const invalid: (Extract<ValidationOutcome, { ok: false }> & { part: RequestPart })[] = []
+  for (const part of Object.keys(parts) as RequestPart[]) {
     const outcome = parts[part]
-    return outcome.ok ? [] : [{ part, ...outcome }]
-  })
-  if (invalid.length === 0) return null
+    if (outcome.ok) values[part] = outcome.value
+    else invalid.push({ part, ...outcome })
+  }
+  if (invalid.length === 0) {
+    return { ok: true, values }
+  }
   return {
-    issues: invalid.flatMap(({ part, issues }) =>
-      issues.map(({ message, path }) => ({ message, path, part })),
-    ),
-    cause: invalid[0]!.cause,
+    ok: false,
+    invalid: {
+      issues: invalid.flatMap(({ part, issues }) =>
+        issues.map(({ message, path }) => ({ message, path, part })),
+      ),
+      cause: invalid[0]!.cause,
+    },
   }
 }
 
@@ -153,7 +148,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     init: Omit<EndpointErrorInit, 'endpoint'>,
   ): SafeResult<never, EndpointError> {
     const error = new EndpointError({ ...init, endpoint })
-    callErrorHook(context.config.onError, error, 'Navios-API', { request: attempt.request })
+    callErrorHook(context.config.onError, 'Navios-API', error, { request: attempt.request })
     return { ok: false, data: null, error, response: error.response }
   }
 
@@ -195,26 +190,10 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
   }
 
   /**
-   * Validates the body or the query. Either may be left out when its schema
-   * accepts `undefined` or has no required fields (the call signature makes it
-   * optional in both cases), so one that was is also tried as an empty object.
-   * `input` is the value that was accepted; `asEmpty` why an empty object was not.
-   */
-  async function validateOptional(
-    schema: Schema | undefined,
-    value: unknown,
-  ): Promise<{ outcome: ValidationOutcome; input: unknown; asEmpty?: ValidationOutcome }> {
-    const outcome = await validateInput(schema, value)
-    if (outcome.ok || value !== undefined || !schema) return { outcome, input: value }
-    const asEmpty = await validate(schema, {})
-    return asEmpty.ok ? { outcome: asEmpty, input: {} } : { outcome, input: value, asEmpty }
-  }
-
-  /**
    * The URL params to send. One that was left out has no input to send, and a
    * URL has to have it, so it is what the schema produced: its default.
    */
-  function fillUrlParams(input: HandlerRequest['urlParams'], output: unknown) {
+  function fillUrlParams(input: CallArgs['urlParams'], output: unknown) {
     const leftOut = urlParamNames.filter((name) => (input?.[name] ?? null) === null)
     if (leftOut.length === 0) return input
     const defaults = (output ?? {}) as Record<string, unknown>
@@ -234,8 +213,8 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
    * throws) into a failed result as well.
    */
   async function run(
-    request?: HandlerRequest | null,
-    callOptions?: HandlerCallOptions | null,
+    request?: CallArgs | null,
+    callOptions?: EndpointCallOptions | null,
   ): Promise<SafeResult<unknown, EndpointError>> {
     const attempt: Attempt = { request: null }
     try {
@@ -251,8 +230,8 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
 
   async function execute(
     attempt: Attempt,
-    request: HandlerRequest,
-    callOptions: HandlerCallOptions,
+    request: CallArgs,
+    callOptions: EndpointCallOptions,
   ): Promise<SafeResult<unknown, EndpointError>> {
     // 1. Resolve the client.
     let client: Client
@@ -267,18 +246,19 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     }
 
     // 2. Validate input and build the request. Nothing is sent on failure.
-    const body = await validateOptional(options.requestSchema, request.data)
-    const query = await validateOptional(options.querySchema, request.params ?? undefined)
+    const body = await validateOptional(options.requestSchema, request.data, validate)
+    const query = await validateOptional(options.querySchema, request.params ?? undefined, validate)
     const parts = {
       urlParams: await validateInput(options.urlParamsSchema, request.urlParams),
       // A query is an object, so the fields it lacks say more than that it is missing
       params: query.asEmpty ?? query.outcome,
       data: body.outcome,
     }
-    const invalid = invalidParts(parts)
-    if (invalid) {
-      return fail(attempt, { kind: 'request-validation', ...invalid })
+    const checked = checkParts(parts)
+    if (!checked.ok) {
+      return fail(attempt, { kind: 'request-validation', ...checked.invalid })
     }
+    const { values } = checked
 
     let config: AbstractRequestConfig
     try {
@@ -286,20 +266,13 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
       // server parses it as such: sending their output would apply transforms
       // twice.
       const sent = sendOutput
-        ? {
-            urlParams: (parts.urlParams as { value: unknown }).value,
-            params: (parts.params as { value: unknown }).value,
-            data: (parts.data as { value: unknown }).value,
-          }
+        ? values
         : {
-            urlParams: fillUrlParams(
-              request.urlParams,
-              (parts.urlParams as { value: unknown }).value,
-            ),
+            urlParams: fillUrlParams(request.urlParams, values.urlParams),
             params: request.params,
             data: body.input,
           }
-      const validated = { ...request, ...sent } as HandlerRequest
+      const validated = { ...request, ...sent } as CallArgs
       config = makeConfig(validated, options, bindUrlParams(url, validated))
       attempt.request = config
     } catch (cause) {
@@ -400,7 +373,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     })
   }
 
-  const handler = async (request?: HandlerRequest, callOptions?: HandlerCallOptions) => {
+  const handler = async (request?: CallArgs, callOptions?: EndpointCallOptions) => {
     const result = await run(request, callOptions)
     if (!result.ok) {
       throw result.error

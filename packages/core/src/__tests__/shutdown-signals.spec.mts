@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApplication } from '../application/application.mjs'
-import { registerModule } from '../modules/index.mjs'
-import { defineTransport } from '../transports/index.mjs'
+import { registerModule } from '../modules/module.mjs'
+import { defineTransport } from '../transports/transport.mjs'
 
 import type { Application } from '../application/application.mjs'
 

@@ -1,9 +1,7 @@
-import type { OnServiceDestroy, OnServiceInit } from '@navios/di'
-
 import { generateId } from '../generate-id.mjs'
+import { PendingRequests } from '../pending-requests.mjs'
 
 import type { QueueClient } from '../../client/queue-client.mjs'
-import type { PendingRequest } from '../pending-request.mjs'
 
 import { buildSaslConfig, getCompressionType } from './kafkajs-options.mjs'
 import { loadKafkaJS } from './load-kafkajs.mjs'
@@ -20,19 +18,20 @@ type EachMessagePayload = import('kafkajs').EachMessagePayload
  * Implements QueueClient interface for Apache Kafka.
  * Uses kafkajs for connection management.
  */
-export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy {
+export class KafkaClient implements QueueClient {
   private kafka: KafkaInstance | null = null
   private producer: Producer | null = null
   private consumer: Consumer | null = null
   private replyConsumer: Consumer | null = null
   private replyTopic: string | null = null
-  private pendingRequests = new Map<string, PendingRequest>()
+  private pendingRequests = new PendingRequests()
   private subscriptions = new Map<string, (message: unknown) => Promise<void>>()
   private isConsumerRunning = false
 
   constructor(private config: KafkaConfig) {}
 
-  async onServiceInit(): Promise<void> {
+  /** Connects the producer. `QueueClientFactory` calls it before it hands the client out. */
+  async connect(): Promise<void> {
     const kafkajs = await loadKafkaJS()
 
     const ssl =
@@ -40,7 +39,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
         ? true
         : this.config.ssl
           ? {
-              rejectUnauthorized: this.config.ssl.rejectUnauthorized ?? true,
+              rejectUnauthorized: this.config.ssl.rejectUnauthorized,
               ca: this.config.ssl.ca ? [this.config.ssl.ca] : undefined,
               cert: this.config.ssl.cert,
               key: this.config.ssl.key,
@@ -50,21 +49,13 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     const sasl = this.config.sasl ? buildSaslConfig(this.config.sasl) : undefined
 
     this.kafka = new kafkajs.Kafka({
-      clientId: this.config.clientId ?? 'navios-queue-client',
+      clientId: this.config.clientId,
       brokers: this.config.brokers,
-      connectionTimeout: this.config.connectionTimeout ?? 30000,
-      requestTimeout: this.config.requestTimeout ?? 30000,
+      connectionTimeout: this.config.connectionTimeout,
+      requestTimeout: this.config.requestTimeout,
       ssl,
       sasl,
-      retry: this.config.retry
-        ? {
-            maxRetryTime: this.config.retry.maxRetryTime ?? 30000,
-            initialRetryTime: this.config.retry.initialRetryTime ?? 300,
-            factor: this.config.retry.factor ?? 0.2,
-            multiplier: this.config.retry.multiplier ?? 2,
-            retries: this.config.retry.retries ?? 5,
-          }
-        : undefined,
+      retry: this.config.retry,
     })
 
     // Initialize producer
@@ -72,19 +63,15 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
       this.config.producer
         ? {
             allowAutoTopicCreation: true,
-            transactionTimeout: this.config.producer.timeout ?? 30000,
-            idempotent: this.config.producer.idempotent ?? false,
+            transactionTimeout: this.config.producer.timeout,
+            idempotent: this.config.producer.idempotent,
             transactionalId: this.config.producer.transactionalId,
-            maxInFlightRequests: this.config.producer.maxInFlightRequests ?? 5,
+            maxInFlightRequests: this.config.producer.maxInFlightRequests,
           }
         : undefined,
     )
 
     await this.producer.connect()
-  }
-
-  async onServiceDestroy(): Promise<void> {
-    await this.disconnect()
   }
 
   private async ensureConsumer(): Promise<Consumer> {
@@ -93,19 +80,14 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     }
 
     if (!this.consumer) {
-      const groupId = this.config.consumer?.groupId ?? `navios-consumer-${generateId()}`
+      // `fromBeginning` is an option of subscribe(). Without a `consumer` entry
+      // kafkajs applies the same defaults as kafkaConfigSchema.
+      const { fromBeginning: _, ...options } = this.config.consumer ?? {
+        groupId: `navios-consumer-${generateId()}`,
+        fromBeginning: false,
+      }
 
-      this.consumer = this.kafka.consumer({
-        groupId,
-        sessionTimeout: this.config.consumer?.sessionTimeout ?? 30000,
-        rebalanceTimeout: this.config.consumer?.rebalanceTimeout ?? 60000,
-        heartbeatInterval: this.config.consumer?.heartbeatInterval ?? 3000,
-        maxBytesPerPartition: this.config.consumer?.maxBytesPerPartition ?? 1048576,
-        minBytes: this.config.consumer?.minBytes ?? 1,
-        maxBytes: this.config.consumer?.maxBytes ?? 10485760,
-        maxWaitTimeInMs: this.config.consumer?.maxWaitTimeInMs ?? 5000,
-        allowAutoTopicCreation: this.config.consumer?.allowAutoTopicCreation ?? true,
-      })
+      this.consumer = this.kafka.consumer(options)
 
       await this.consumer.connect()
     }
@@ -157,7 +139,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
 
     await consumer.subscribe({
       topic,
-      fromBeginning: this.config.consumer?.fromBeginning ?? false,
+      fromBeginning: this.config.consumer?.fromBeginning,
     })
 
     this.subscriptions.set(topic, handler)
@@ -188,15 +170,10 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     const correlationId = generateId()
     const requestTopic = `${topic}.request`
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(correlationId)
-        reject(new Error(`Request timeout for topic: ${topic}`))
-      }, 30000)
+    const reply = this.pendingRequests.create(correlationId, `topic: ${topic}`)
 
-      this.pendingRequests.set(correlationId, { resolve, reject, timeout })
-
-      this.producer!.send({
+    this.producer
+      .send({
         topic: requestTopic,
         messages: [
           {
@@ -208,12 +185,10 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
             timestamp: Date.now().toString(),
           },
         ],
-      }).catch((error: unknown) => {
-        clearTimeout(timeout)
-        this.pendingRequests.delete(correlationId)
-        reject(error)
       })
-    })
+      .catch((error: unknown) => this.pendingRequests.fail(correlationId, error))
+
+    return reply
   }
 
   private async setupReplyConsumer(): Promise<void> {
@@ -237,19 +212,8 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
     await this.replyConsumer.run({
       eachMessage: async ({ message }: EachMessagePayload) => {
         const correlationId = message.headers?.correlationId?.toString()
-        if (!correlationId) return
-
-        const pending = this.pendingRequests.get(correlationId)
-        if (pending && message.value) {
-          clearTimeout(pending.timeout)
-          this.pendingRequests.delete(correlationId)
-
-          try {
-            const content = JSON.parse(message.value.toString())
-            pending.resolve(content)
-          } catch (err) {
-            pending.reject(err)
-          }
+        if (correlationId && message.value) {
+          this.pendingRequests.settle(correlationId, message.value.toString())
         }
       },
     })
@@ -306,12 +270,7 @@ export class KafkaClient implements QueueClient, OnServiceInit, OnServiceDestroy
   }
 
   async disconnect(): Promise<void> {
-    // Clear pending requests
-    for (const [, pending] of this.pendingRequests) {
-      clearTimeout(pending.timeout)
-      pending.reject(new Error('Connection closed'))
-    }
-    this.pendingRequests.clear()
+    this.pendingRequests.rejectAll()
 
     // Disconnect reply consumer
     if (this.replyConsumer) {

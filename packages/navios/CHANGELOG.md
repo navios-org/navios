@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Changed
+
+- **Breaking: the seven per-method config types are two.** `NaviosBodyConfig<Data, Params>` is the config of `post`, `put`, `patch` and `delete` (it was `NaviosPostConfig`, `NaviosPutConfig`, `NaviosPatchConfig`, and `NaviosDeleteConfig<Params>` is `NaviosBodyConfig<unknown, Params>`); `NaviosNoBodyConfig<Params>` is the config of `get`, `head` and `options` (`NaviosGetConfig`, `NaviosHeadConfig`, `NaviosOptionsConfig`).
+
+### Removed
+
+- **Breaking: the `FormData` option of `create()`.** A `FormData` body of any implementation (undici, a polyfill) is recognised by its tag and sent as it is, so the option changed nothing.
+- **Breaking: the type `NaviosPromise<T>`**, which no signature used. Write `Promise<NaviosResponse<T>>`.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 ### Added

@@ -13,9 +13,19 @@ export interface ConformanceRunner {
   afterAll: (fn: () => Promise<void> | void) => void
 }
 
+/**
+ * Decides about the origin of a request, in the form that the CORS options of
+ * adapters share: it calls the callback with an error, or with whether the
+ * origin is allowed.
+ */
+export type ConformanceOriginFunction = (
+  origin: string | undefined,
+  callback: (error: Error | null, allow: boolean) => void,
+) => void
+
 /** CORS for a list of origins, under the names that the options of adapters share. */
 export interface ConformanceCors {
-  origin: string[]
+  origin: string[] | ConformanceOriginFunction
   methods: string[]
   credentials: boolean
 }

@@ -2,13 +2,16 @@
 export type DecoratorMetadata = Record<PropertyKey, unknown>
 
 /**
- * Returns a value stored in decorator metadata under `key`, creating it for
- * this class if it only exists on a parent. Decorator metadata objects
- * inherit from the parent class's, so writing through an inherited value
- * would change the parent.
- * @internal
+ * The value stored in decorator metadata under `key`, created for this class
+ * from what a parent class has, if anything. The metadata object of a class
+ * inherits from that of its parent, so writing to an inherited value would
+ * change the parent.
  */
-export function own<T>(metadata: DecoratorMetadata, key: symbol, create: (inherited?: T) => T): T {
+export function ownMetadata<T>(
+  metadata: DecoratorMetadata,
+  key: symbol,
+  create: (inherited?: T) => T,
+): T {
   if (!Object.hasOwn(metadata, key)) {
     metadata[key] = create(metadata[key] as T | undefined)
   }

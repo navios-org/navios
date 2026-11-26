@@ -28,16 +28,7 @@ export async function validate(schema: Schema, value: unknown): Promise<Validati
  */
 export function parseSync(schema: Schema | undefined, value: unknown): unknown {
   if (!schema) return value
-  const outcome = validateEager(schema, value)
-  if (isPendingOutcome(outcome)) {
-    throw new NaviosError('[Navios]: asynchronous schemas are not supported here')
-  }
-  if (outcome.ok) return outcome.value
-  if (outcome.cause instanceof Error) throw outcome.cause
-  throw new NaviosError(
-    `[Navios]: validation failed: ${outcome.issues.map((issue) => issue.message).join('; ')}`,
-    { cause: outcome.cause },
-  )
+  return unwrap(settled(validateEager(schema, value)))
 }
 
 /**
@@ -49,13 +40,64 @@ export function parseQuery(
   query: Record<string, unknown> | undefined,
 ): Record<string, unknown> | undefined {
   if (!schema) return undefined
-  if (query === undefined) {
-    const outcome = validateEager(schema, undefined)
-    if (!isPendingOutcome(outcome) && outcome.ok) {
-      return outcome.value as Record<string, unknown> | undefined
-    }
+  const { outcome, asEmpty } = settled(validateOptional(schema, query))
+  return unwrap(asEmpty ?? outcome) as Record<string, unknown> | undefined
+}
+
+/** What validating a value that may be left out found. */
+export interface OptionalOutcome {
+  outcome: ValidationOutcome
+  /** The value that was accepted: the one passed, or `{}` for one left out. */
+  input: unknown
+  /** Why `{}` was refused as well, for a value that was left out. */
+  asEmpty?: ValidationOutcome
+}
+
+/**
+ * Validates the body or the query of a call. Either may be left out when its
+ * schema accepts `undefined` or has no required fields (the call signature
+ * makes it optional in both cases), so one that was is also tried as an empty
+ * object.
+ *
+ * Synchronous whenever `check` is, as {@link validateEager} (the default) is
+ * for a synchronous schema. HTTP calls pass {@link validate} and await it;
+ * `declareWebSocket` and `declareEventSource` need the synchronous result.
+ */
+export function validateOptional(
+  schema: Schema | undefined,
+  value: unknown,
+  check: (schema: Schema, value: unknown) => MaybePromise<ValidationOutcome> = validateEager,
+): MaybePromise<OptionalOutcome> {
+  if (!schema) return { outcome: { ok: true, value }, input: value }
+  return andThen(check(schema, value), (outcome) => {
+    if (outcome.ok || value !== undefined) return { outcome, input: value }
+    return andThen(check(schema, {}), (asEmpty) =>
+      asEmpty.ok ? { outcome: asEmpty, input: {} } : { outcome, input: value, asEmpty },
+    )
+  })
+}
+
+/** Applies `next` to a value that may be a promise. */
+function andThen<T, R>(value: MaybePromise<T>, next: (value: T) => MaybePromise<R>) {
+  return isPendingOutcome(value) ? value.then(next) : next(value)
+}
+
+/** A synchronous result, or the error of a schema that validates asynchronously. */
+function settled<T>(result: MaybePromise<T>): T {
+  if (isPendingOutcome(result)) {
+    throw new NaviosError('[Navios]: asynchronous schemas are not supported here')
   }
-  return parseSync(schema, query ?? {}) as Record<string, unknown>
+  return result
+}
+
+/** The value of a valid outcome; throws the failure of an invalid one. */
+function unwrap(outcome: ValidationOutcome): unknown {
+  if (outcome.ok) return outcome.value
+  if (outcome.cause instanceof Error) throw outcome.cause
+  throw new NaviosError(
+    `[Navios]: validation failed: ${outcome.issues.map((issue) => issue.message).join('; ')}`,
+    { cause: outcome.cause },
+  )
 }
 
 function thrownOutcome(cause: unknown): ValidationOutcome {
@@ -161,8 +203,6 @@ export function validateEager(schema: Schema, value: unknown): MaybePromise<Vali
 }
 
 /** True when {@link validateEager} returned a promise (an asynchronous schema). */
-export function isPendingOutcome(
-  outcome: ValidationOutcome | Promise<ValidationOutcome>,
-): outcome is Promise<ValidationOutcome> {
+export function isPendingOutcome<T>(outcome: MaybePromise<T>): outcome is Promise<T> {
   return outcome instanceof Promise
 }

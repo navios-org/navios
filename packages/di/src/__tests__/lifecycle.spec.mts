@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { asyncInject, Container, inject, Injectable, InjectableScope } from '../index.mjs'
+import {
+  asyncInject,
+  Container,
+  inject,
+  Injectable,
+  InjectableScope,
+  InjectionToken,
+} from '../index.mjs'
 
 import type { OnServiceDestroy } from '../index.mjs'
 
@@ -208,6 +215,25 @@ describe('lifecycle', () => {
     void container.get(Slow)
     await container.ready()
     expect(done).toBe(true)
+  })
+
+  it('waits in ready() for the cleanup of a build that failed', async () => {
+    let released = false
+    const TOKEN = InjectionToken.create<object>('failing')
+    container.provide(TOKEN, {
+      factory: (ctx) => {
+        ctx.addDestroyListener(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          released = true
+        })
+        throw new Error('boom')
+      },
+    })
+
+    await expect(container.get(TOKEN)).rejects.toThrow('boom')
+    expect(released).toBe(false)
+    await container.ready()
+    expect(released).toBe(true)
   })
 
   it('keeps going when a destroy hook throws', async () => {

@@ -16,26 +16,32 @@ export type InstanceDecorator = (
 export type ErrorReporter = (error: unknown, description: string) => void
 
 /**
- * What the engine needs from a container. `Container` and `ScopedContainer`
- * have this shape; their published types do not show it.
+ * What the engine needs from a container: a root container or a scope.
+ * `Container` and `ScopedContainer` have this shape; their published types do
+ * not show it.
  */
-export interface Host {
+export type Host = RootHost | ScopeHost
+
+interface HostBase extends IContainer {
   readonly root: RootHost
   readonly store: Store
   readonly isScope: boolean
-  /** The public container, handed to factories. */
-  readonly facade: IContainer
   /** Set when disposal starts; nothing may be built here afterwards. */
   readonly disposed: boolean
-  /** Transients nobody else destroys: those a scope handed out by `get`. */
-  looseTransients: Entry[] | null
   /** Work nobody awaits, which the disposal has to wait for. */
   background: Set<Promise<unknown>> | null
   /** Transients in the making. No store lists them. */
   building: Set<Entry> | null
 }
 
-export interface RootHost extends Host {
+export interface ScopeHost extends HostBase {
+  readonly isScope: true
+  /** Transients nobody else destroys: those the scope handed out by `get`. */
+  looseTransients: Entry[] | null
+}
+
+export interface RootHost extends HostBase {
+  readonly isScope: false
   readonly overrides: Map<InjectionToken<any, any>, ProviderRecord>
   /**
    * When `true`, only providers given to this container are used; the

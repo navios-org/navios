@@ -2,6 +2,7 @@ import { registerFactory } from '../provider/registration.mjs'
 
 import type { InjectableScope } from '../injectable-scope.mjs'
 import type { Factorable, FactorableWithArgs } from '../provider/factorable.mjs'
+import type { RegisterFactoryOptions } from '../provider/registration.mjs'
 import type { StandardSchemaV1 } from '../schema/standard-schema.mjs'
 import type { ClassTypeWithInstance } from '../token/class-type.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
@@ -9,10 +10,8 @@ import type { PublicPart } from '../token/public-part.mjs'
 
 import { assertClassDecorator } from './assert-class-decorator.mjs'
 
-export interface FactoryOptions {
-  scope?: InjectableScope
-  token?: InjectionToken<any, any>
-}
+/** The options of `@Factory`, the same as those of `registerFactory()`. */
+export type FactoryOptions = RegisterFactoryOptions
 
 export function Factory<R>(options?: {
   scope?: InjectableScope

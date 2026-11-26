@@ -90,6 +90,21 @@ describe('defineTag', () => {
       const node = selfClosing({})
       expect(node.children).toEqual([])
     })
+
+    it('should keep a 0 child when called directly', async () => {
+      const count = defineTag('count')
+
+      const node = count({ children: 0 })
+      expect(node.children).toEqual([0])
+      expect(await renderToXml(node, { declaration: false })).toBe('<count>0</count>')
+    })
+
+    it('should flatten nested children and drop empty ones, as JSX does', () => {
+      const container = defineTag('container')
+
+      const node = container({ children: ['a', null, ['b', [undefined, false, 'c']]] })
+      expect(node.children).toEqual(['a', 'b', 'c'])
+    })
   })
 
   describe('Zod schema validation', () => {

@@ -1,7 +1,8 @@
 import type { InferInput, InferOutput, StandardSchemaV1 } from '@navios/di'
 
+import { validateNow } from '../internal/validate-now.mjs'
 import { classAttributes } from '../metadata/class-metadata.mjs'
-import { memberMetadata } from '../metadata/member-metadata.mjs'
+import { classOrMemberDecorator } from '../metadata/member-metadata.mjs'
 
 import type { HandlerInfo } from '../execution/execution-context.mjs'
 
@@ -35,19 +36,15 @@ export interface ClassSchemaAttribute<Schema extends StandardSchemaV1> {
 }
 
 function apply(token: symbol, value: unknown): AttributeApplication {
-  const decorator = (target: any, context: AttributeContext) => {
-    if (context.kind === 'class') {
+  const decorator = classOrMemberDecorator(
+    `Attribute ${String(token)}`,
+    (context) => {
       classAttributes(context).set(token, value)
-    } else if (context.kind === 'method' || context.kind === 'field') {
-      if (typeof context.name !== 'string') {
-        throw new Error('[Navios] Attributes cannot be applied to symbol-named members')
-      }
-      memberMetadata(context, context.name).attributes.set(token, value)
-    } else {
-      throw new Error('[Navios] Attributes can only be applied to classes, methods and fields')
-    }
-    return context.kind === 'field' ? undefined : target
-  }
+    },
+    (member) => {
+      member.attributes.set(token, value)
+    },
+  )
   return Object.assign(decorator, { token, value })
 }
 
@@ -101,13 +98,11 @@ export class AttributeFactory {
       if (!schema) {
         return apply(token, true)
       }
-      const result = schema['~standard'].validate(value)
-      if (result instanceof Promise) {
-        result.catch(() => {})
-        throw new Error(
-          `[Navios] Attribute ${token.toString()} must use a schema that validates synchronously`,
-        )
-      }
+      const result = validateNow(
+        schema,
+        value,
+        `[Navios] Attribute ${token.toString()} must use a schema that validates synchronously`,
+      )
       if (result.issues) {
         throw new Error(
           `[Navios] Invalid value for attribute ${token.toString()}: ${result.issues

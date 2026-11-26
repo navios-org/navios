@@ -18,7 +18,8 @@ import {
   NotFoundResponderToken,
   provide,
 } from '../index.mjs'
-import { defineInMemoryEnvironment, InMemoryAdapter } from '../testing/index.mjs'
+import { InMemoryAdapter } from '../testing/in-memory-adapter.mjs'
+import { defineInMemoryEnvironment } from '../testing/index.mjs'
 
 import type { AdapterDefinition } from '../adapter/index.mjs'
 import type { ExecutionContext, HttpAdapterEnvironment, NaviosApplication } from '../index.mjs'
@@ -60,7 +61,6 @@ interface ListeningEnvironment extends HttpAdapterEnvironment {
 /** The in-memory adapter with a `listen` that counts its calls. */
 function defineListeningEnvironment(calls: number[]): AdapterDefinition<ListeningEnvironment> {
   return {
-    name: 'listening',
     create() {
       const adapter = new InMemoryAdapter() as any
       adapter.listen = async (options: { port: number }) => {
@@ -314,7 +314,6 @@ describe('httpTransport', () => {
     class Root {}
     const attempts: number[] = []
     const definition: AdapterDefinition<ListeningEnvironment> = {
-      name: 'busy-port',
       create() {
         const adapter = new InMemoryAdapter() as any
         adapter.listen = async (options: { port: number }) => {

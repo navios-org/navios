@@ -47,6 +47,13 @@ function classOf(target: unknown): AbstractClassType {
   return constructor as AbstractClassType
 }
 
+/** Fails when a legacy class decorator is applied to anything but a class. */
+export function assertLegacyClass(name: string, target: unknown): void {
+  if (typeof target !== 'function') {
+    throw misuse(`@${name} decorator can only be used on classes.`)
+  }
+}
+
 function addInitializer() {
   // Legacy decorators don't support initializers
 }

@@ -1,7 +1,5 @@
+import { MAX_DELAY_MS } from '@navios/core/transport'
 import { CronTime } from 'cron'
-
-/** The longest delay `setTimeout` takes; a longer one fires at once. */
-export const MAX_DELAY_MS = 2 ** 31 - 1
 
 /**
  * Calls back at the times of a cron expression.

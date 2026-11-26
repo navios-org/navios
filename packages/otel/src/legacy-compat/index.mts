@@ -1,13 +1,11 @@
 /**
- * Legacy-compatible decorators for projects that cannot use Stage 3 decorators.
- *
- * These decorators use the TypeScript experimental decorator API and convert
- * the arguments to Stage 3 format internally.
+ * The decorators for projects that keep `experimentalDecorators: true`.
+ * Everything else comes from `@navios/otel`, and works with both.
  *
  * @example
  * ```typescript
  * import { Traced } from '@navios/otel/legacy-compat'
- * import { Injectable } from '@navios/di/legacy-compat'
+ * import { Injectable } from '@navios/core/legacy-compat'
  *
  * @Injectable()
  * @Traced({ name: 'user-service' })
@@ -18,24 +16,29 @@
  * }
  * ```
  */
+import { legacy } from '@navios/core/legacy-compat'
 
-// Re-export types from main module
-export type { TracedOptions } from '../traced/traced-options.mjs'
-export type {
-  TracedMetadata,
-  ClassTracedMetadata,
-  MethodTracedMetadata,
-} from '../traced/traced-metadata.mjs'
+import type { ClassType } from '@navios/core'
+import type { LegacyAnyDecorator } from '@navios/core/legacy-compat'
 
-// Re-export metadata utilities from main module (they work the same for both APIs)
-export {
-  extractTracedMetadata,
-  getTracedMetadata,
-  hasTracedMetadata,
-  TracedMetadataKey,
-} from '../traced/traced-metadata.mjs'
-export { getTraceableServices } from '../traced/traceable-services.mjs'
+import { Traceable as StandardTraceable, Traced as StandardTraced } from '../traced/traced.mjs'
 
-// Export legacy-compatible decorators
-export { Traceable } from './traceable.mjs'
-export { Traced } from './traced.mjs'
+import type { TracedOptions } from '../traced/traced-metadata.mjs'
+
+export type { TracedOptions }
+
+/**
+ * `@Traced` for legacy decorators: on a class it traces every method, on a
+ * method only that method.
+ */
+export function Traced(options: TracedOptions = {}): LegacyAnyDecorator {
+  return legacy(StandardTraced(options))
+}
+
+/**
+ * `@Traceable` for legacy decorators: marks a class whose `@Traced` methods
+ * are traced.
+ */
+export function Traceable(options: TracedOptions = {}) {
+  return legacy(StandardTraceable(options)) as <T extends ClassType>(target: T) => T
+}

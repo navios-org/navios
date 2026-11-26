@@ -1,15 +1,14 @@
-import { initializationError } from '../errors/create.mjs'
-import { DIError } from '../errors/di-error.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { createRecord } from '../provider/provider-record.mjs'
 
+import type { DIError } from '../errors/di-error.mjs'
 import type { FactoryInjectionToken } from '../token/injection-token.mjs'
 
-import { discard } from './destruction.mjs'
-import { createEntry, EntryStatus, markReady } from './entry.mjs'
+import { createEntry, markReady } from './entry.mjs'
 import { outside } from './frame.mjs'
-import { createFactoryContext } from './inject-impl.mjs'
-import { assertLive, cleanUpFailed } from './resolution.mjs'
+import { assertLive } from './liveness.mjs'
+import { failEntry, settleEntry } from './outcome.mjs'
+import { createFactoryContext } from './resolution.mjs'
 import { isThenable, noop } from './thenable.mjs'
 
 import type { Entry } from './entry.mjs'
@@ -29,14 +28,7 @@ export function factoryValue(root: RootHost, raw: FactoryInjectionToken<any, any
   }
   assertLive(root)
   const entry = createEntry(
-    createRecord(
-      raw.token,
-      'function',
-      InjectableScope.Singleton,
-      undefined,
-      raw.factory,
-      undefined,
-    ),
+    createRecord('function', InjectableScope.Singleton, undefined, raw.factory, undefined),
     raw.token,
     null,
     undefined,
@@ -48,11 +40,7 @@ export function factoryValue(root: RootHost, raw: FactoryInjectionToken<any, any
 
   const fail = (error: unknown): DIError => {
     root.factoryValues.delete(raw)
-    entry.status = EntryStatus.Failed
-    entry.promise = null
-    entry.waitingFor = null
-    cleanUpFailed(entry, null)
-    return error instanceof DIError ? error : initializationError(raw.toString(), error)
+    return failEntry(entry, error, null)
   }
   let result: unknown
   try {
@@ -62,14 +50,7 @@ export function factoryValue(root: RootHost, raw: FactoryInjectionToken<any, any
   }
   if (isThenable(result)) {
     entry.promise = Promise.resolve(result).then(
-      (value) => {
-        entry.promise = null
-        entry.waitingFor = null
-        markReady(entry, value)
-        if (entry.stale) {
-          discard(entry)
-        }
-      },
+      (value) => settleEntry(entry, value),
       (error) => {
         throw fail(error)
       },

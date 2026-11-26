@@ -4,13 +4,14 @@ import { Readable } from 'node:stream'
 import { Injectable, InjectableScope } from '@navios/di'
 import { describe, expect, it, vi } from 'vitest'
 
+import { LiveRequests } from '../context/live-requests.mjs'
 import { HttpException } from '../errors/index.mjs'
 import { result } from '../responses/index.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
 import type { ManagedBody } from '../responses/managed-body.mjs'
-import type { HttpInterceptor as Interceptor } from '../routing/index.mjs'
+import type { Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteResult } from '../routing/index.mjs'
 import type { SseMessage } from '../sse/index.mjs'
 
@@ -379,9 +380,15 @@ describe('the first chunk of a lazy body', () => {
     expect((events.sent as ManagedBody).opening).toBe(':\n\n')
     expect(await drain(events)).toEqual(['data: x\n\n'])
     await events.release!()
-    const other = await setup(stream, async function* (_params: unknown, ctx: RequestContext) {
+    // Also for a stream that says itself that it is an event stream.
+    const own = await setup(stream, async function* (_params: unknown, ctx: RequestContext) {
       ctx.reply.header('content-type', 'text/event-stream')
       yield 'data: x\n\n'
+    }).execute(input())
+    expect((own.sent as ManagedBody).opening).toBe(':\n\n')
+    await own.release!()
+    const other = await setup(stream, async function* () {
+      yield 'x'
     }).execute(input())
     expect((other.sent as ManagedBody).opening).toBeNull()
     await other.release!()
@@ -462,7 +469,7 @@ describe('the release of a request with a lazy body', () => {
 
   it('closes a generator that waits for its first chunk once', async () => {
     const controller = new AbortController()
-    const live = new Set<RequestContext>()
+    const live = new LiveRequests()
     const { execute } = setup(
       stream,
       async function* () {

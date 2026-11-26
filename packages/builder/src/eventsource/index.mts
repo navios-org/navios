@@ -8,7 +8,6 @@ export type { EventOptions, EventSourceBuilderConfig } from './eventsource-optio
 export type { EventHandler, EventUnsubscribe, InferEventPayload } from './eventsource-handlers.mjs'
 
 // Client contract
-export { isEventSourceClient } from './eventsource-client.mjs'
 export type { EventSourceClient } from './eventsource-client.mjs'
 
 // Errors

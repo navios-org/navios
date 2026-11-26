@@ -7,25 +7,23 @@
  */
 import './internal/this-copy.mjs'
 
-// The contract, and what its types mention.
+// The contract. The types it shares with application code, such as
+// `Transport`, `HandlerInfo` and `Guard`, are exported by `@navios/core`.
 export { defineTransport } from './transports/transport.mjs'
-export type {
-  Transport,
-  TransportDefinition,
-  TransportFactory,
-  TransportHost,
-  TransportInstance,
-} from './transports/transport.mjs'
-export type { ClassType } from '@navios/di'
-export type { LoggerService } from './logger/logger-output.mjs'
+export type { TransportDefinition, TransportHost } from './transports/transport.mjs'
 
 // The container: every object it has built, dependencies before dependents.
+// Re-exported so that a transport reads the copy of @navios/di that core
+// uses, without depending on di itself.
 export { constructedInstances } from '@navios/di/internal'
 
+// Waiting, but not for ever.
+export { MAX_DELAY_MS, settledWithin } from './transports/settled-within.mjs'
+
 // Modules.
-export { buildModuleGraph } from './modules/module-graph.mjs'
+export { buildModuleGraph, moduleClasses } from './modules/module-graph.mjs'
 export type { ModuleNode } from './modules/module-graph.mjs'
-export { getModuleMetadata, hasModuleMetadata } from './modules/module-metadata.mjs'
+export { getModuleMetadata } from './modules/module-metadata.mjs'
 export type { ModuleMetadata } from './modules/module-metadata.mjs'
 
 // Handlers: what decorators attached to them, and what runs around them.
@@ -33,13 +31,14 @@ export { describeHandlerClass } from './metadata/handler-class.mjs'
 export type { HandlerClassMetadata, HandlerClassOptions } from './metadata/handler-class.mjs'
 export { memberMetadata } from './metadata/member-metadata.mjs'
 export type { HandlerExtras, MethodHandlerMetadata } from './metadata/member-metadata.mjs'
+export { ownMetadata, requireMetadata } from './metadata/decorator-metadata.mjs'
 export type { DecoratorMetadata } from './metadata/decorator-metadata.mjs'
+export { classMetadata } from './metadata/class-store.mjs'
+export type { ClassMetadata } from './metadata/class-store.mjs'
 export { handlerChain } from './metadata/handler-chain.mjs'
 export type { HandlerChain, HandlerChainInput } from './metadata/handler-chain.mjs'
-export { resolveChain, runChain } from './metadata/run-chain.mjs'
+export { executeChain, resolveChain, runChain } from './metadata/run-chain.mjs'
 export type { ResolvedChain } from './metadata/run-chain.mjs'
-export type { Guard, GuardClass } from './guards/guard.mjs'
-export type { Interceptor, InterceptorClass } from './interceptors/interceptor.mjs'
 
 // Execution contexts.
 export { BasicExecutionContext } from './execution/basic-execution-context.mjs'
@@ -47,4 +46,3 @@ export type { BasicExecutionContextInit } from './execution/basic-execution-cont
 export { runInContext } from './execution/async-context.mjs'
 export { needsScope } from './execution/context-host.mjs'
 export type { ContextHost } from './execution/context-host.mjs'
-export type { AttributeMap, ExecutionContext, HandlerInfo } from './execution/execution-context.mjs'

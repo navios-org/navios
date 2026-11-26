@@ -2,7 +2,7 @@ import { registerModule } from '@navios/core'
 
 import { NaviosFactory } from '../application/navios-factory.mjs'
 import { registerController } from '../controllers/controller.mjs'
-import { ConflictException } from '../errors/http-exception.mjs'
+import { ConflictException, ForbiddenException } from '../errors/http-exception.mjs'
 import { handler } from '../handlers/handler.mjs'
 import { sseStream } from '../sse/sse-stream.mjs'
 
@@ -11,6 +11,7 @@ import type { RequestContext } from '../context/request-context.mjs'
 import { s } from './schema.mjs'
 import { endpoint } from './suite.mjs'
 
+import type { ConformanceCors } from './conformance-options.mjs'
 import type { ConformanceSuite } from './suite.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,9 +81,10 @@ export function defineCorsTopic(suite: ConformanceSuite) {
   /** Runs `test` with a function that calls an application with CORS. */
   const withApp = async (
     test: (call: (path: string, init?: RequestInit) => Promise<Response>) => Promise<void>,
+    origin: ConformanceCors['origin'] = ORIGINS,
   ) => {
     const app = await NaviosFactory.create(CorsModule, {
-      adapter: suite.options.cors!({ origin: ORIGINS, methods: METHODS, credentials: true }),
+      adapter: suite.options.cors!({ origin, methods: METHODS, credentials: true }),
       logger: false,
     })
     try {
@@ -182,6 +184,30 @@ export function defineCorsTopic(suite: ConformanceSuite) {
             }
           }
         })
+      })
+
+      it('answers an HttpException that an origin function fails with as it is', async () => {
+        await withApp(
+          async (call) => {
+            for (const init of [{}, preflight('https://banned.test', 'PUT')]) {
+              const headers = { ...(init as RequestInit).headers, origin: 'https://banned.test' }
+              const response = await call('/json', { ...init, headers })
+              expect(response.status).toBe(403)
+              expect(response.headers.get('content-type')).toContain('application/problem+json')
+              expect((await response.json()).detail).toBe('banned')
+            }
+            const allowed = await call('/json', { headers: { origin: 'https://a.test' } })
+            expect(allowed.status).toBe(200)
+            expect(allowed.headers.get('access-control-allow-origin')).toBe('https://a.test')
+          },
+          (origin, callback) => {
+            if (origin === 'https://banned.test') {
+              callback(new ForbiddenException('banned'), false)
+            } else {
+              callback(null, origin !== undefined && ORIGINS.includes(origin))
+            }
+          },
+        )
       })
 
       it('keeps what a handler says the response varies by', async () => {

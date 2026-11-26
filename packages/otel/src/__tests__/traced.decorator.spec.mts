@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  extractTracedMetadata,
-  getTraceableServices,
-  hasTracedMetadata,
-  Traceable,
-  Traced,
-  TracedMetadataKey,
-} from '../traced/index.mjs'
+import type { ClassType } from '@navios/core'
+
+import { tracedClasses } from '../traced/traced-metadata.mjs'
+import { Traceable, Traced } from '../traced/traced.mjs'
+
+const metadataOf = (target: ClassType) => tracedClasses.get(target)!
 
 describe('@Traced decorator', () => {
   describe('class decorator', () => {
@@ -19,9 +17,9 @@ describe('@Traced decorator', () => {
         }
       }
 
-      expect(hasTracedMetadata(TestService)).toBe(true)
+      expect(tracedClasses.has(TestService)).toBe(true)
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata).toBeDefined()
       expect(metadata.name).toBe('test-service')
       expect(metadata.enabled).toBe(true)
@@ -35,9 +33,9 @@ describe('@Traced decorator', () => {
         }
       }
 
-      expect(hasTracedMetadata(TestService)).toBe(true)
+      expect(tracedClasses.has(TestService)).toBe(true)
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata).toBeDefined()
       expect(metadata.name).toBeUndefined()
       expect(metadata.enabled).toBe(true)
@@ -54,16 +52,15 @@ describe('@Traced decorator', () => {
         }
       }
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata.attributes).toEqual({ 'custom.key': 'custom-value' })
     })
 
-    it('should add class to traceableServices set', () => {
+    it('should record the class', () => {
       @Traced({ name: 'tracked-service' })
       class TrackedService {}
 
-      const services = getTraceableServices()
-      expect(services.has(TrackedService)).toBe(true)
+      expect(tracedClasses.has(TrackedService)).toBe(true)
     })
   })
 
@@ -82,7 +79,7 @@ describe('@Traced decorator', () => {
       }
 
       // Check class metadata was created
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata).toBeDefined()
 
       // The class itself isn't fully traced (enabled: false)
@@ -113,7 +110,7 @@ describe('@Traced decorator', () => {
         }
       }
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata.methods.size).toBe(2)
       expect(metadata.methods.has('methodOne')).toBe(true)
       expect(metadata.methods.has('methodTwo')).toBe(true)
@@ -132,7 +129,7 @@ describe('@Traced decorator', () => {
         }
       }
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       const methodMeta = metadata.methods.get('tracedMethod')
       expect(methodMeta?.attributes).toEqual({ 'method.key': 'method-value' })
     })
@@ -152,7 +149,7 @@ describe('@Traced decorator', () => {
         }
       }
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata.name).toBe('parent-service')
       expect(metadata.enabled).toBe(true)
 
@@ -176,20 +173,11 @@ describe('@Traced decorator', () => {
         }
       }
 
-      const metadata = extractTracedMetadata(TestService)
+      const metadata = metadataOf(TestService)
       expect(metadata.attributes).toEqual({ 'class.key': 'class-value' })
 
       const methodMeta = metadata.methods.get('tracedMethod')
       expect(methodMeta?.attributes).toEqual({ 'method.key': 'method-value' })
-    })
-  })
-
-  describe('metadata key', () => {
-    it('should use correct symbol key', () => {
-      @Traced()
-      class TestService {}
-
-      expect((TestService as any)[TracedMetadataKey]).toBeDefined()
     })
   })
 })
@@ -203,19 +191,18 @@ describe('@Traceable decorator', () => {
       }
     }
 
-    expect(hasTracedMetadata(TraceableService)).toBe(true)
+    expect(tracedClasses.has(TraceableService)).toBe(true)
 
-    const metadata = extractTracedMetadata(TraceableService)
+    const metadata = metadataOf(TraceableService)
     expect(metadata.name).toBe('traceable-service')
     expect(metadata.enabled).toBe(false)
   })
 
-  it('should add class to traceableServices set', () => {
+  it('should record the class', () => {
     @Traceable()
     class AnotherTraceableService {}
 
-    const services = getTraceableServices()
-    expect(services.has(AnotherTraceableService)).toBe(true)
+    expect(tracedClasses.has(AnotherTraceableService)).toBe(true)
   })
 
   it('should work with method-level @Traced', () => {
@@ -231,7 +218,7 @@ describe('@Traceable decorator', () => {
       }
     }
 
-    const metadata = extractTracedMetadata(OrderService)
+    const metadata = metadataOf(OrderService)
     expect(metadata.name).toBe('order-service')
     expect(metadata.enabled).toBe(false)
     expect(metadata.methods.has('processOrder')).toBe(true)
@@ -245,48 +232,29 @@ describe('@Traceable decorator', () => {
     })
     class DatabaseService {}
 
-    const metadata = extractTracedMetadata(DatabaseService)
+    const metadata = metadataOf(DatabaseService)
     expect(metadata.attributes).toEqual({ 'service.type': 'database' })
   })
 })
 
-describe('getTraceableServices', () => {
-  it('should return readonly set', () => {
-    const services = getTraceableServices()
-    // TypeScript would prevent .add() but we verify it's a ReadonlySet
-    expect(typeof services.has).toBe('function')
-    expect(typeof services.size).toBe('number')
-  })
-})
-
-describe('extractTracedMetadata', () => {
-  it('should throw if class has no traced metadata', () => {
+describe('tracedClasses', () => {
+  it('should not have an undecorated class', () => {
     class UndecoratedService {}
 
-    expect(() => extractTracedMetadata(UndecoratedService)).toThrow(
-      '[Navios] Traced metadata not found',
-    )
-  })
-})
-
-describe('hasTracedMetadata', () => {
-  it('should return false for undecorated class', () => {
-    class UndecoratedService {}
-
-    expect(hasTracedMetadata(UndecoratedService)).toBe(false)
+    expect(tracedClasses.has(UndecoratedService)).toBe(false)
   })
 
-  it('should return true for @Traced class', () => {
+  it('should have a @Traced class', () => {
     @Traced()
     class TracedService {}
 
-    expect(hasTracedMetadata(TracedService)).toBe(true)
+    expect(tracedClasses.has(TracedService)).toBe(true)
   })
 
-  it('should return true for @Traceable class', () => {
+  it('should have a @Traceable class', () => {
     @Traceable()
     class TraceableService {}
 
-    expect(hasTracedMetadata(TraceableService)).toBe(true)
+    expect(tracedClasses.has(TraceableService)).toBe(true)
   })
 })

@@ -5,7 +5,6 @@ import type { StandardSchemaV1 } from '@navios/server'
 
 import {
   describeMultipartFields,
-  extractUrlParamNames,
   isBinarySchema,
   SchemaConverter,
   toOpenApiPath,
@@ -296,17 +295,5 @@ describe('path helpers', () => {
   it('handles a param at the end and the root path', () => {
     expect(toOpenApiPath('/items/$id')).toBe('/items/{id}')
     expect(toOpenApiPath('')).toBe('/')
-  })
-
-  it('extracts a single param name', () => {
-    expect(extractUrlParamNames('/users/$userId')).toEqual(['userId'])
-  })
-
-  it('extracts several param names', () => {
-    expect(extractUrlParamNames('/users/$userId/posts/$postId')).toEqual(['userId', 'postId'])
-  })
-
-  it('returns no names for a path without params', () => {
-    expect(extractUrlParamNames('/users')).toEqual([])
   })
 })

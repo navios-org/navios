@@ -4,6 +4,7 @@ import { isJsonType, mediaType } from '../decoding/media-type.mjs'
 import { compileRequestPath, compileRoutePath } from '../routing/route-path.mjs'
 
 import type { TestResponse } from '../adapter/test-request.mjs'
+import type { NaviosApplication } from '../application/navios-application.mjs'
 import type { EndpointDeclaration } from '../handlers/endpoint-declaration.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -13,15 +14,6 @@ export interface TestClientOptions {
   headers?: Record<string, string>
   /** Path prefix, when the application has a global prefix. */
   prefix?: string
-}
-
-export interface Injectable_ {
-  inject(request: {
-    method: string
-    url: string
-    headers?: Record<string, string>
-    body?: unknown
-  }): Promise<TestResponse>
 }
 
 type CallArgs<Config extends BaseEndpointOptions> = ClientRequestArgs<Config> & {
@@ -115,7 +107,10 @@ function requestPath(
  * expect(response.status).toBe(200)
  * ```
  */
-export function createTestClient(app: Injectable_, options: TestClientOptions = {}): TestClient {
+export function createTestClient(
+  app: Pick<NaviosApplication<any>, 'inject'>,
+  options: TestClientOptions = {},
+): TestClient {
   return ((endpoint: EndpointDeclaration, args: any = {}) => {
     const { config } = endpoint
     let path = config.url === '' ? '' : requestPath(config, args.urlParams)

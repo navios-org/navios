@@ -2,7 +2,9 @@ import { isDeepStrictEqual } from 'node:util'
 
 import type { ClassType, Provider } from '@navios/di'
 
-import { assertImportsDefined, getModuleMetadata } from './module-metadata.mjs'
+import { addMissing } from '../metadata/class-metadata.mjs'
+
+import { getModuleMetadata } from './module-metadata.mjs'
 
 import type { ModuleMetadata } from './module-metadata.mjs'
 
@@ -30,6 +32,30 @@ export interface ModuleNode {
   isRoot: boolean
 }
 
+/**
+ * The classes a module lists under one of the options of a transport, once
+ * each. Throws for an entry that is not a class: what an import cycle between
+ * the files of two classes leaves behind.
+ */
+export function moduleClasses(
+  node: Pick<ModuleNode, 'module' | 'entries'>,
+  entry: string,
+): ClassType[] {
+  const listed = node.entries.get(entry) as Iterable<unknown> | null | undefined
+  if (!listed) {
+    return []
+  }
+  const classes = Array.from(new Set(listed))
+  const index = classes.findIndex((listedClass) => typeof listedClass !== 'function')
+  if (index !== -1) {
+    throw new Error(
+      `[Navios] Module ${node.module.name} lists ${String(classes[index])} in ${entry}. When it ` +
+        `should be a class, the files of the two usually import each other.`,
+    )
+  }
+  return classes as ClassType[]
+}
+
 /** Two import paths that give a module different values of one attribute. */
 interface Disagreement {
   one: ClassType[]
@@ -47,14 +73,6 @@ interface Draft {
   /** Whether the walk is at what it imports. */
   open: boolean
   ranked: boolean
-}
-
-function addAll<T>(target: T[], source: Iterable<T>): void {
-  for (const item of source) {
-    if (!target.includes(item)) {
-      target.push(item)
-    }
-  }
 }
 
 function names(path: readonly ClassType[]): string {
@@ -160,8 +178,6 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
       return
     }
     const metadata = getModuleMetadata(module)
-    const imports = metadata.imports
-    assertImportsDefined(module, imports)
     const node: ModuleNode = {
       module,
       providers: metadata.providers,
@@ -182,7 +198,7 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
     }
     drafts.set(module, draft)
     path.push(module)
-    for (const imported of imports) {
+    for (const imported of metadata.imports) {
       visit(imported, node)
     }
     path.pop()
@@ -218,8 +234,8 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
   // imports it came before; it then hands what it has to its imports.
   for (const draft of outermostFirst) {
     const { node, metadata } = draft
-    addAll(node.guards, metadata.guards)
-    addAll(node.interceptors, metadata.interceptors)
+    addMissing(node.guards, metadata.guards)
+    addMissing(node.interceptors, metadata.interceptors)
     inheritAttributes(
       draft,
       node.importers.map((importer) => drafts.get(importer.module)!),
@@ -229,8 +245,8 @@ export function buildModuleGraph(roots: ClassType[]): ModuleNode[] {
     }
     for (const imported of metadata.imports) {
       const child = drafts.get(imported)!
-      addAll(child.node.guards, node.guards)
-      addAll(child.node.interceptors, node.interceptors)
+      addMissing(child.node.guards, node.guards)
+      addMissing(child.node.interceptors, node.interceptors)
     }
   }
   return order

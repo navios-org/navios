@@ -1,23 +1,23 @@
 import { Container } from '@navios/di'
 
+import { LiveRequests } from '../context/live-requests.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'
 import {
   ForbiddenResponder,
   InternalServerErrorResponder,
   NotFoundResponder,
   ValidationErrorResponder,
-} from '../errors/index.mjs'
+} from '../errors/error-responders.mjs'
 import { compileRoute } from '../pipeline/compile-route.mjs'
 import { compileRoutePath } from '../routing/route-path.mjs'
 
-import type { LiveRequestSet } from '../context/live-requests.mjs'
+import type { BodySource, RouteInput } from '../adapter/route-input.mjs'
+import type { RouteBody, RouteResponse } from '../adapter/route-response.mjs'
 import type { ErrorPipelineOptions } from '../errors/error-pipeline.mjs'
 import type { CompileOptions, RouteDefinition } from '../pipeline/compile-route.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
-import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
+import type { Guard, Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteEndpointConfig, RouteInfo } from '../routing/index.mjs'
-import type { BodySource, RouteInput } from '../routing/route-input.mjs'
-import type { RouteBody, RouteResponse } from '../routing/route-response.mjs'
 
 /** A body with the given bytes or, with a function, what that returns as it is. */
 export function body(
@@ -74,7 +74,7 @@ export interface SetupOptions {
   encoders?: Record<string, ResponseEncoder>
   logger?: CompileOptions['host']['logger']
   asyncContext?: boolean
-  live?: LiveRequestSet
+  live?: LiveRequests
 }
 
 /** A response with its JSON body parsed. */
@@ -113,11 +113,13 @@ export function setup(
     ...extra.responders,
   })
   const endpoint: RouteEndpointConfig = { method: 'GET', url: '/test', ...config }
+  const path = compileRoutePath(extra.path ?? endpoint.url)
   const info: RouteInfo = {
     method: endpoint.method,
     path: extra.path ?? endpoint.url,
+    params: path.params,
     endpoint,
-    module: null,
+    module: class TestModule {},
     controller: class TestController {},
     handlerName: 'handle',
     guards: [],
@@ -127,7 +129,7 @@ export function setup(
   const compiled = compileRoute(
     {
       info,
-      path: compileRoutePath(info.path),
+      path,
       invoke,
       guards: extra.guards ?? [],
       outer: extra.outer ?? [],
@@ -139,7 +141,7 @@ export function setup(
       validateResponses: extra.validateResponses ?? true,
       encoders: new Map(Object.entries(extra.encoders ?? {})),
       asyncContext: extra.asyncContext,
-      live: extra.live,
+      live: extra.live ?? new LiveRequests(),
     },
   )
   const execute = (request: RouteInput): Answer | Promise<Answer> => {

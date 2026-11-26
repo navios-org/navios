@@ -1,4 +1,4 @@
-import { describeHandlerClass } from '@navios/core/transport'
+import { classMetadata, describeHandlerClass } from '@navios/core/transport'
 
 import type {
   DecoratorMetadata,
@@ -7,12 +7,14 @@ import type {
 } from '@navios/core/transport'
 import type { ClassType } from '@navios/di'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /** The members are method-form handlers, and extras for field-form handlers. */
 export type ControllerMetadata = HandlerClassMetadata
 
-const ControllerMetadataKey = Symbol.for('navios.server.controller')
+const controllerMetadata = classMetadata<ControllerMetadata>(
+  Symbol.for('navios.server.controller'),
+  'a controller',
+  'Controller',
+)
 
 /** @internal */
 export function defineControllerMetadata(
@@ -20,21 +22,9 @@ export function defineControllerMetadata(
   context: { metadata?: DecoratorMetadata },
   options: HandlerClassOptions,
 ): void {
-  Object.defineProperty(target, ControllerMetadataKey, {
-    value: describeHandlerClass(context, options),
-    configurable: true,
-    enumerable: false,
-  })
+  controllerMetadata.define(target, describeHandlerClass(context, options))
 }
 
 export function getControllerMetadata(target: ClassType): ControllerMetadata {
-  const metadata = Object.hasOwn(target, ControllerMetadataKey)
-    ? ((target as any)[ControllerMetadataKey] as ControllerMetadata)
-    : undefined
-  if (!metadata) {
-    throw new Error(
-      `[Navios] ${target.name} is not a controller. Make sure it is decorated with @Controller.`,
-    )
-  }
-  return metadata
+  return controllerMetadata.get(target)
 }

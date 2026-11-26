@@ -1,4 +1,6 @@
-import type { InferInput, StandardSchemaV1 } from '@navios/server'
+import type { InferInput, StandardSchemaIssue, StandardSchemaV1 } from '@navios/server'
+
+import { flattenChildren } from '../jsx/create-element.mjs'
 
 import type { XmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 
@@ -56,25 +58,25 @@ export function defineTag(name: string, propsSchema?: StandardSchemaV1): TagComp
         )
       }
       if (result.issues) {
-        const details = result.issues
-          .map((issue) => {
-            const path = (issue.path ?? [])
-              .map((segment) => String(typeof segment === 'object' ? segment.key : segment))
-              .join('.')
-            return path ? `${path}: ${issue.message}` : issue.message
-          })
-          .join('; ')
-        throw new Error(`[@navios/adapter-xml] Invalid props for <${name}>: ${details}`)
+        throw new Error(
+          `[@navios/adapter-xml] Invalid props for <${name}>: ${formatIssues(result.issues)}`,
+        )
       }
     }
 
-    return {
-      type: name,
-      props: rest,
-      children: Array.isArray(children) ? children : children ? [children] : [],
-    }
+    return { type: name, props: rest, children: flattenChildren(children) }
   }
 
   component.tagName = name
   return component
+}
+
+/** `path.to.prop: message` for each issue, joined with `; `. */
+function formatIssues(issues: ReadonlyArray<StandardSchemaIssue>): string {
+  return issues
+    .map(({ path = [], message }) => {
+      const at = path.map((key) => String(typeof key === 'object' ? key.key : key)).join('.')
+      return at ? `${at}: ${message}` : message
+    })
+    .join('; ')
 }

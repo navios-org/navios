@@ -1,5 +1,5 @@
 import { InjectableScope } from '../injectable-scope.mjs'
-import { requireToken } from '../internal/normalize.mjs'
+import { requireToken } from '../internal/lookup.mjs'
 import { findInjectableToken } from '../token/injectable-token.mjs'
 
 import type { ClassType, ClassTypeWithInstance } from '../token/class-type.mjs'
@@ -89,12 +89,12 @@ function recordFor(token: InjectionToken<any, any>, impl: ProviderInput<any>): P
   }
   const scope = tokenScope(token) ?? InjectableScope.Singleton
   if ('value' in impl) {
-    return createRecord(token, 'value', scope, undefined, undefined, impl.value)
+    return createRecord('value', scope, undefined, undefined, impl.value)
   }
   if ('existing' in impl) {
-    return createRecord(token, 'existing', scope, undefined, undefined, impl.existing)
+    return createRecord('existing', scope, undefined, undefined, impl.existing)
   }
-  return createRecord(token, 'function', impl.scope ?? scope, undefined, impl.factory, undefined)
+  return createRecord('function', impl.scope ?? scope, undefined, impl.factory, undefined)
 }
 
 function tokenScope(token: InjectionToken<any, any>): InjectableScope | undefined {
@@ -109,7 +109,6 @@ function classRecord(
   const own = findInjectableToken(target)?.provider
   const kind: ProviderKind = own?.target === target && own.kind === 'factory' ? 'factory' : 'class'
   return createRecord(
-    token,
     kind,
     scope ??
       tokenScope(token) ??

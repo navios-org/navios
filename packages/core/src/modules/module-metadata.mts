@@ -7,12 +7,11 @@ import {
   prepend,
   unique,
 } from '../metadata/class-metadata.mjs'
+import { classMetadata } from '../metadata/class-store.mjs'
 
 import type { DecoratorMetadata } from '../metadata/decorator-metadata.mjs'
 
 import type { ModuleOptions } from './module-options.mjs'
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface ModuleMetadata {
   imports: ClassType[]
@@ -29,6 +28,8 @@ export interface ModuleMetadata {
 
 const ModuleMetadataKey = Symbol.for('navios.core.module')
 
+const moduleMetadata = classMetadata<ModuleMetadata>(ModuleMetadataKey, 'a module', 'Module')
+
 const ownOptions = new Set(['imports', 'guards', 'interceptors', 'providers', 'attributes'])
 
 export function defineModuleMetadata(
@@ -36,7 +37,7 @@ export function defineModuleMetadata(
   context: { metadata?: DecoratorMetadata },
   options: ModuleOptions,
 ): ModuleMetadata {
-  if (hasModuleMetadata(target)) {
+  if (moduleMetadata.has(target)) {
     throw new Error(
       `[Navios] ${target.name} is already a module. One @Module takes all of its options.`,
     )
@@ -70,20 +71,15 @@ export function defineModuleMetadata(
       module.attributes.set(key, value)
     }
   }
-  Object.defineProperty(target, ModuleMetadataKey, {
-    value: module,
-    configurable: true,
-    enumerable: false,
-  })
+  moduleMetadata.define(target, module)
   return module
 }
 
 /**
  * An import that is `undefined` is what an import cycle between files leaves
  * behind: the importing file ran before the imported one defined its class.
- * @internal
  */
-export function assertImportsDefined(target: ClassType, imports: readonly unknown[]): void {
+function assertImportsDefined(target: ClassType, imports: readonly unknown[]): void {
   const index = imports.findIndex((imported) => imported === undefined || imported === null)
   if (index !== -1) {
     throw new Error(
@@ -117,17 +113,5 @@ export function assertProviders(owner: string, providers: readonly unknown[]): v
 }
 
 export function getModuleMetadata(target: ClassType): ModuleMetadata {
-  const metadata = Object.hasOwn(target, ModuleMetadataKey)
-    ? ((target as any)[ModuleMetadataKey] as ModuleMetadata)
-    : undefined
-  if (!metadata) {
-    throw new Error(
-      `[Navios] ${target.name} is not a module. Make sure it is decorated with @Module.`,
-    )
-  }
-  return metadata
-}
-
-export function hasModuleMetadata(target: ClassType): boolean {
-  return Object.hasOwn(target, ModuleMetadataKey)
+  return moduleMetadata.get(target)
 }

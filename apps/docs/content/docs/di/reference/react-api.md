@@ -35,7 +35,7 @@ Creates one `ScopedContainer` from the root container on mount and calls its `di
 
 ## Service hooks
 
-All three hooks share one set of overloads. `Result` stands for the hook's return type.
+All three hooks share one set of overloads, the interface `ServiceHook<K>`: `useService` is a `ServiceHook<'service'>`, `useOptionalService` a `ServiceHook<'optional'>` and `useSuspenseService` a `ServiceHook<'suspense'>`. `Result` stands for the hook's return type, `ServiceHookResults<T>[K]`.
 
 ```ts
 // A class registered with @Injectable or @Factory
@@ -69,14 +69,14 @@ interface UseServiceResult<T> {
 }
 ```
 
-| Field       | Description                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| `data`      | The instance, once resolved                                                                      |
-| `error`     | What `container.get()` rejected with, normally a `DIError`                                       |
-| `isLoading` | A resolution is in progress. `false` on the first render, before it starts                       |
-| `isSuccess` | `data` is set. `true` on the first render when the container already holds the instance          |
-| `isError`   | `error` is set                                                                                   |
-| `refetch`   | Calls `container.get()` again. Returns the existing instance when there is one                   |
+| Field       | Description                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| `data`      | The instance, once resolved                                                                             |
+| `error`     | What `container.get()` rejected with, normally a `DIError`                                              |
+| `isLoading` | A resolution is in progress. `true` on the first render unless the container already holds the instance |
+| `isSuccess` | `data` is set. `true` on the first render when the container already holds the instance                 |
+| `isError`   | `error` is set                                                                                          |
+| `refetch`   | Calls `container.get()` again. Returns the existing instance when there is one                          |
 
 `args` is compared by its JSON form; a new object with the same content does not restart the resolution. See [Using services in components](/docs/di/react/using-services#useservice).
 
@@ -86,7 +86,7 @@ interface UseServiceResult<T> {
 function useSuspenseService(token, args?): T
 ```
 
-Returns the instance. Throws a promise while it is being resolved and the error when resolution fails, so it needs a `Suspense` boundary and an error boundary above it. Results are cached per container, token and `JSON.stringify(args)`; a failure stays cached. See [Suspense](/docs/di/react/using-services#suspense).
+Returns the instance. Throws a promise while it is being resolved and the error when resolution fails, so it needs a `Suspense` boundary and an error boundary above it. Results are cached per container, token and the JSON form of `args`. A failure is not kept: once it has reached the error boundary, the next render, such as the one after a reset of the boundary, resolves again. See [Suspense](/docs/di/react/using-services#suspense).
 
 ### useOptionalService
 
@@ -144,10 +144,11 @@ The two contexts behind the providers and hooks. They are exported for code that
 
 ## Types
 
-| Export                                  | Description                                                |
-| --------------------------------------- | ---------------------------------------------------------- |
-| `ContainerProviderProps`                | Props of [`ContainerProvider`](#containerprovider)         |
-| `ScopeProviderProps`                    | Props of [`ScopeProvider`](#scopeprovider)                 |
-| `UseServiceResult<T>`                   | Return type of [`useService`](#useservice)                 |
-| `UseOptionalServiceResult<T>`           | Return type of [`useOptionalService`](#useoptionalservice) |
-| `UnionToArray<T>`, `Join<T, Delimiter>` | Type-level helpers. No hook signature uses them            |
+| Export                        | Description                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ContainerProviderProps`      | Props of [`ContainerProvider`](#containerprovider)                                                     |
+| `ScopeProviderProps`          | Props of [`ScopeProvider`](#scopeprovider)                                                             |
+| `UseServiceResult<T>`         | Return type of [`useService`](#useservice)                                                             |
+| `UseOptionalServiceResult<T>` | Return type of [`useOptionalService`](#useoptionalservice)                                             |
+| `ServiceHook<K>`              | The overloads of the [service hooks](#service-hooks); `K` is `'service'`, `'optional'` or `'suspense'` |
+| `ServiceHookResults<T>`       | What each service hook returns for an instance of type `T`, by `K`                                     |

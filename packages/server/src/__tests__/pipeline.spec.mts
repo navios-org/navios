@@ -8,6 +8,7 @@ import {
   GuardDeniedError,
   HttpException,
   NotFoundException,
+  ResponseValidationError,
   ValidationError,
 } from '../errors/index.mjs'
 import { validateSchema } from '../pipeline/validate-schema.mjs'
@@ -16,7 +17,7 @@ import { ManagedBody } from '../responses/managed-body.mjs'
 import { sseStream } from '../sse/index.mjs'
 
 import type { RequestContext } from '../context/index.mjs'
-import type { HttpGuard as Guard, HttpInterceptor as Interceptor } from '../routing/index.mjs'
+import type { Guard, Interceptor } from '../routing/http-contracts.mjs'
 import type { RouteEndpointConfig, RouteResult } from '../routing/index.mjs'
 
 import { drain, input, JSON_TYPE, setup } from './pipeline-setup.mjs'
@@ -228,7 +229,7 @@ describe('compileRoute', () => {
     const config = { responseSchema: z.object({ ok: z.boolean() }) }
     const strict = setup(config, () => ({ ok: 'no' }))
     expect((strict.execute(input()) as Answer).status).toBe(500)
-    expect(strict.unhandled[0]).toBeInstanceOf(ValidationError)
+    expect(strict.unhandled[0]).toBeInstanceOf(ResponseValidationError)
 
     const loose = setup(config, () => ({ ok: 'no' }), { validateResponses: false })
     expect(loose.execute(input())).toEqual({
@@ -1194,6 +1195,17 @@ describe('ErrorPipeline: built-in mappings and user mappers', () => {
     const denied = setup({}, () => ({}), { guards: [{ canActivate: () => false }] })
     denied.errors.add(GuardDeniedError, catchAll)
     expect((denied.execute(input()) as Answer).status).toBe(418)
+  })
+
+  it('does not give a response that does not match to a mapper for ValidationError', () => {
+    const invalid = setup({ responseSchema: z.object({ ok: z.boolean() }) }, () => ({ ok: 1 }))
+    invalid.errors.add(ValidationError, catchAll)
+    expect((invalid.execute(input()) as Answer).status).toBe(500)
+    expect(invalid.unhandled[0]).toBeInstanceOf(ResponseValidationError)
+
+    const mapped = setup({ responseSchema: z.object({ ok: z.boolean() }) }, () => ({ ok: 1 }))
+    mapped.errors.add(ResponseValidationError, catchAll)
+    expect((mapped.execute(input()) as Answer).status).toBe(418)
   })
 })
 

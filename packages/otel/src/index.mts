@@ -1,5 +1,5 @@
 // Configuration
-export { OtelConfigToken, resolveOtelConfig } from './config/index.mjs'
+export { OtelConfigToken } from './otel-config.mjs'
 export type {
   AutoInstrumentConfig,
   MetricsConfig,
@@ -7,58 +7,34 @@ export type {
   OtlpExporterOptions,
   ResolvedOtelConfig,
   SamplingConfig,
-} from './config/index.mjs'
+} from './otel-config.mjs'
 
 // SDK setup
-export { MeterToken, OtelSetupService, TracerToken } from './sdk/index.mjs'
-export type { OtelSetupLogger } from './sdk/index.mjs'
+export { MeterToken } from './sdk/meter-token.mjs'
+export { OtelSetupService } from './sdk/otel-setup-service.mjs'
+export type { OtelSetupLogger } from './sdk/otel-setup-service.mjs'
+export { TracerToken } from './sdk/tracer-token.mjs'
 
 // Tracing: spans, the active span and trace context propagation
 export {
-  createHttpRequestAttributes,
-  createNaviosAttributes,
   extractTraceContext,
   getCurrentSpan,
-  getCurrentSpanContext,
-  HttpAttributes,
-  NaviosAttributes,
+  injectTraceContext,
   parentContext,
-  parseUrlAttributes,
-  recordSpanError,
   RequestSpan,
-  runWithSpanContext,
-  SpanFactoryService,
-  TraceContextService,
-} from './tracing/index.mjs'
-export type {
-  ChildSpanOptions,
-  HeaderCarrier,
-  HttpSpanOptions,
-  SpanContext,
-} from './tracing/index.mjs'
+} from './tracing/context.mjs'
+export type { HeaderCarrier } from './tracing/context.mjs'
+export { recordSpanError } from './tracing/span.mjs'
 
 // @Traced / @Traceable
-export {
-  extractTracedMetadata,
-  getTraceableServices,
-  getTracedMetadata,
-  hasTracedMetadata,
-  Traceable,
-  Traced,
-  TracedMetadataKey,
-  TracedProxyFactory,
-  traceInstance,
-} from './traced/index.mjs'
-export type {
-  ClassTracedMetadata,
-  MethodTracedMetadata,
-  TracedMetadata,
-  TracedOptions,
-} from './traced/index.mjs'
+export { traceInstance } from './traced/trace-instance.mjs'
+export { Traceable, Traced } from './traced/traced.mjs'
+export type { TracedOptions } from './traced/traced-metadata.mjs'
+export { TracedProxyFactory } from './traced/traced-proxy-factory.mjs'
 
 // Handlers of transports other than HTTP. The HTTP request span is in
 // `@navios/otel/http`.
-export { OtelHandlerInterceptor } from './handlers/index.mjs'
+export { OtelHandlerInterceptor } from './otel-handler-interceptor.mjs'
 
 // Plugin
 export { otelPlugin } from './otel-plugin.mjs'

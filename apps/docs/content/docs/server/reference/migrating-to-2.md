@@ -164,7 +164,8 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | a call without a key, or with a wrong verify option, threw a `JsonWebTokenError` | a plain `Error`, which is not answered as a wrong token |
 | an option that is `undefined` switched off the configured one | it is not given. An empty `audience` or `issuer` is an error |
 | `secretOrKeyProvider` won over a key passed to the call, and the `secret` of the service over a passed key pair | a key passed to the call always wins; one that is `undefined` or empty is an error |
-| `Secret`, `SignOptions`, `VerifyOptions`, `RequestType`, `GetSecretKeyResult`, `allowInvalidAsymmetricKeyTypes` | removed. `JwtPrivateKey` and `JwtKey` are the key types |
+| `Secret`, `RequestType`, `GetSecretKeyResult`, `allowInvalidAsymmetricKeyTypes` | removed. `JwtPrivateKey` and `JwtKey` are the key types |
+| `SignOptions`, `VerifyOptions` | plain types of `signOptions` and `verifyOptions`. The options of one call are `JwtSignOptions` and `JwtVerifyOptions` |
 | `zod` as a peer dependency                                                                                     | not required                                                                                                                             |
 
 ### @navios/schedule
@@ -209,12 +210,18 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | `app.usePlugin(defineOtelTracingPlugin({}))`                                                       | not needed; `otelPlugin` traces `@Traced` services                                         |
 | `request.otelSpan` (Fastify)                                                                       | `ctx.find(RequestSpan)`                                                                    |
 | `autoInstrument.handlers` / `guards`, `propagateContext`, `metrics.requestDuration` / `errorCount` | removed. One server span covers guards, validation and the handler.                        |
-| `OtelHttpInterceptor`, `compileIgnoreRoutes` from `@navios/otel`                                   | from `@navios/otel/http`. The main entry no longer needs `@navios/server`.                 |
+| `OtelHttpInterceptor` from `@navios/otel`                                                          | from `@navios/otel/http`. The main entry no longer needs `@navios/server`.                 |
+| `compileIgnoreRoutes`                                                                              | not exported; `ignoreRoutes` takes the patterns                                            |
 | a span for a request that matched no route (Fastify), `guard:<name>` child spans (Bun)             | removed                                                                                    |
-| the `http.url` span attribute                                                                      | holds the request path, without the query string                                           |
+| the span attributes `http.method`, `http.url`, `http.user_agent`, `http.status_code`              | `http.request.method`, `url.path` (the path, without the query string), `user_agent.original`, `http.response.status_code` |
+| the span attributes `code.function`, `code.namespace` of a traced method                           | `code.function.name`, `<Class>.<method>`                                                   |
+| the resource attribute `deployment.environment`                                                    | `deployment.environment.name`                                                              |
 | `getSpanContextStore()`                                                                            | removed; the active span lives in the OpenTelemetry context                                |
 | `createTracedWrapperFactory()`                                                                     | removed; use `traceInstance()`                                                             |
-| `TRACED_METADATA_KEY`                                                                              | `TracedMetadataKey`                                                                        |
+| metadata helpers such as `extractTracedMetadata`, `getTraceableServices`, `TRACED_METADATA_KEY`    | not exported                                                                               |
+| `SpanFactoryService`, `HttpAttributes`, `NaviosAttributes`                                         | removed; start spans with the tracer of `TracerToken`                                      |
+| `TraceContextService`, `runWithSpanContext()`, `getCurrentSpanContext()`                           | removed; `injectTraceContext(headers)`, `extractTraceContext(headers)`, `getCurrentSpan()` |
+| `exporterOptions.useHttp`                                                                          | removed; the OTLP exporters send over HTTP                                                 |
 | `container.get(OtelSetupService)` then `initialize()` / `shutdown()`                               | done by the plugin                                                                         |
 
 ### @navios/adapter-xml

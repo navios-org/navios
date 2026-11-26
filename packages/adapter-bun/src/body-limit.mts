@@ -1,17 +1,15 @@
-import { HttpException } from '@navios/server'
+import { bodyTooLarge } from '@navios/server/adapter'
 
 /** The default of `Bun.serve`. */
 export const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
 
-export const BODY_TOO_LARGE = 'Request body is too large'
-
 const READERS = ['text', 'json', 'bytes', 'arrayBuffer', 'blob', 'formData', 'clone'] as const
 
 /**
- * Limits the body of `request`, which has no declared length (chunked transfer
- * encoding, or `inject()`). Reading it fails with a 413 as soon as more than
- * `limit` bytes have arrived, whoever reads it: the pipeline, or a handler
- * through `ctx.raw.request`.
+ * Limits the body of `request`, which has no declared length: it is sent with
+ * chunked transfer encoding (one of `inject()` always has a length). Reading
+ * it fails with a 413 as soon as more than `limit` bytes have arrived, whoever
+ * reads it: the pipeline, or a handler through `ctx.raw.request`.
  *
  * The request stays the one that Bun knows, with its `params` and `cookies`
  * and for `server.requestIP()`; what reads its body is replaced.
@@ -37,7 +35,7 @@ export function limitBody(request: Request, limit: number): void {
         size += value.byteLength
         if (size > limit) {
           void reader.cancel().catch(() => {})
-          controller.error(new HttpException(413, BODY_TOO_LARGE))
+          controller.error(bodyTooLarge())
           return
         }
         controller.enqueue(value)

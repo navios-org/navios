@@ -1,8 +1,8 @@
-import { problem } from '@navios/server'
 import {
+  bodyTooLarge,
   canonicalPath,
   encodeResult,
-  isEventStream,
+  malformedPath,
   ManagedBody,
   RouteTable,
 } from '@navios/server/adapter'
@@ -19,7 +19,7 @@ import type {
 } from '@navios/server/adapter'
 import type { BunRequest } from 'bun'
 
-import { BODY_TOO_LARGE, DEFAULT_BODY_LIMIT, limitBody } from './body-limit.mjs'
+import { DEFAULT_BODY_LIMIT, limitBody } from './body-limit.mjs'
 import { Cors } from './cors.mjs'
 import { injectRequest } from './inject.mjs'
 import { BunRouteInput } from './request-input.mjs'
@@ -51,6 +51,9 @@ const DEFAULT_IDLE_TIMEOUT = 10
 
 /** How often `close()` looks whether a request is still in flight. */
 const POLL_MS = 20
+
+/** The answer to a request that matched no route, before the server has set its own. */
+const NOT_FOUND: RouteExecutor = () => encodeResult({ status: 404, body: undefined, kind: 'empty' })
 
 export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
   BunEnvironment<WebSocketData>
@@ -86,19 +89,34 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
     return this.bunServer
   }
 
+  /**
+   * Asks CORS about the origin of the request, once, and then has it handled.
+   * A preflight request of an allowed origin is answered here.
+   */
   private run(
     execute: RouteExecutor,
     request: Request,
     params: Record<string, string>,
     test?: TestRequest,
+    isPreflight = false,
   ): MaybePromise<Response> {
+    const { cors } = this
+    if (cors === null) {
+      return this.handle(execute, request, params, test, null)
+    }
     // Asked first: if it fails, the handler must not have run.
-    const allowed = this.cors === null ? null : this.cors.check(request)
-    return allowed instanceof Promise
-      ? allowed.then(
-          (origin) => this.handle(execute, request, params, test, origin),
-          (error) => this.failure(error, request),
-        )
+    const allowed = cors.check(request)
+    if (allowed instanceof Promise) {
+      return allowed.then(
+        (origin) =>
+          isPreflight && origin !== null
+            ? cors.preflight(request, origin)
+            : this.handle(execute, request, params, test, origin),
+        (error) => this.failure(error, request),
+      )
+    }
+    return isPreflight && allowed !== null
+      ? cors.preflight(request, allowed)
       : this.handle(execute, request, params, test, allowed)
   }
 
@@ -120,11 +138,11 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
       if (Number(declared) > this.bodyLimit) {
         // Answered here, as Bun and Fastify do: before guards, and whether or
         // not the route reads a body. Bun discards the body without buffering.
-        return send(encodeResult(problem(413, BODY_TOO_LARGE)))
+        return send(this.context.errors.unexpected(bodyTooLarge()))
       }
     } else if (request.body !== null) {
-      // A body of unknown length (chunked transfer encoding, or `inject()`)
-      // is counted while it is read.
+      // A body of unknown length, sent with chunked transfer encoding, is
+      // counted while it is read. One of `inject()` has a declared length.
       limitBody(request, this.bodyLimit)
     } else {
       isEmpty = true
@@ -137,7 +155,9 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
     }
     const respond = (response: RouteResponse): Response => {
       const { release } = response
-      if (upgraded?.has(request)) {
+      // A handler that fails after the upgrade leaves `takenOver` unset, so
+      // the set of upgraded requests is asked as well.
+      if (response.takenOver || upgraded?.has(request)) {
         // Bun has answered, and takes no other response.
         void release?.()
         return new Response(null)
@@ -166,9 +186,9 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
    * has been sent for `idleTimeout`.
    */
   private keepOpen(response: RouteResponse, request: Request): RouteResponse {
-    const { body, headers, release } = response
+    const { body, release } = response
     const server = this.bunServer
-    if (server === null || !(body instanceof ManagedBody) || !isEventStream(headers)) {
+    if (server === null || !(body instanceof ManagedBody) || body.opening === null) {
       return response
     }
     const { idleTimeout = DEFAULT_IDLE_TIMEOUT } = (this.options.serve ?? {}) as {
@@ -201,12 +221,11 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
           `${METHODS.join(', ')}.`,
       )
     }
-    let handle: Handle = (request, params, test) => this.run(execute, request, params, test)
-    if (method === 'OPTIONS' && this.cors !== null) {
-      const inner = handle
-      handle = async (request, params, test) =>
-        (await this.preflight(request)) ?? inner(request, params, test)
-    }
+    const handle: Handle =
+      method === 'OPTIONS' && this.cors !== null
+        ? (request, params, test) =>
+            this.run(execute, request, params, test, Cors.isPreflight(request))
+        : (request, params, test) => this.run(execute, request, params, test)
     const sent = toSentPath(path)
     this.table.add(method, sent, handle)
     ;(this.routes[toBunPath(sent)] ??= {})[method] = this.matched(sent, handle)
@@ -252,34 +271,14 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
    * url param would hold what nobody sent.
    */
   private malformed(request: Request): MaybePromise<Response> {
-    const detail = `'${canonicalPath(request.url)}' is not a valid url component`
-    return this.run(() => encodeResult(problem(400, detail)), request, {})
+    const path = canonicalPath(request.url)
+    return this.run(() => encodeResult(malformedPath(path)), request, {})
   }
 
-  /** The response to a CORS preflight request, or `null` for any other request. */
-  private async preflight(request: Request): Promise<Response | null> {
-    const { cors } = this
-    if (cors === null || !Cors.isPreflight(request)) {
-      return null
-    }
-    try {
-      const allowed = await cors.check(request)
-      return allowed === null ? null : cors.preflight(request, allowed)
-    } catch (error) {
-      return this.failure(error, request)
-    }
-  }
-
-  /** Handles a request that matched no route: CORS preflight, then 404. */
+  /** Handles a request that matched no route: a CORS preflight, or 404. */
   private fallback(request: Request, test?: TestRequest): MaybePromise<Response> {
-    const { notFound } = this
-    const answer = () =>
-      notFound === null
-        ? new Response(null, { status: 404 })
-        : this.run(notFound, request, {}, test)
-    return this.cors === null
-      ? answer()
-      : this.preflight(request).then((response) => response ?? answer())
+    const isPreflight = this.cors !== null && Cors.isPreflight(request)
+    return this.run(this.notFound ?? NOT_FOUND, request, {}, test, isPreflight)
   }
 
   async listen(options: BunListenOptions = {}): Promise<string> {

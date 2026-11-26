@@ -1,10 +1,26 @@
-import type { ClassType } from '@navios/di'
+import { ownMetadata, requireMetadata } from '@navios/core/transport'
+
+import type { ClassType } from '@navios/core'
 import type { AttributeValue } from '@opentelemetry/api'
 
+// Where the decorators of a class keep their metadata in context.metadata.
+const TracedMetadataKey = Symbol('navios:traced:metadata')
+
 /**
- * Symbol used to store traced metadata on classes and in context.metadata.
+ * Options for the @Traced decorator.
  */
-export const TracedMetadataKey = Symbol('navios:traced:metadata')
+export interface TracedOptions {
+  /**
+   * Custom span name.
+   * If not provided, defaults to class.method name.
+   */
+  name?: string
+
+  /**
+   * Additional attributes to add to spans.
+   */
+  attributes?: Record<string, AttributeValue>
+}
 
 /**
  * Metadata stored by the @Traced decorator.
@@ -46,75 +62,60 @@ export interface ClassTracedMetadata extends TracedMetadata {
   methods: Map<string, MethodTracedMetadata>
 }
 
+const classes = new Map<ClassType, ClassTracedMetadata>()
+
+/**
+ * The classes decorated with `@Traced` or `@Traceable`, with their metadata,
+ * filled when they are decorated. Only a class decorated itself is in it: a
+ * subclass without a decorator is not what the decorator made of its parent.
+ */
+export const tracedClasses: ReadonlyMap<ClassType, ClassTracedMetadata> = classes
+
 /**
  * Gets or creates traced metadata during decoration.
- * Used inside decorators with access to context.metadata.
- *
- * For class decorators, also stores on target for runtime extraction.
- * For method decorators, only uses context.metadata (shared with class decorator).
+ * Used inside decorators with access to context.metadata, which the method
+ * decorators of a class share with its class decorator.
  *
  * @param context - The decorator context
- * @param target - The class being decorated (only for class decorators)
  * @returns The class traced metadata
  */
 export function getTracedMetadata(
   context: ClassDecoratorContext | ClassMethodDecoratorContext,
-  target?: ClassType,
 ): ClassTracedMetadata {
-  if (!context.metadata) {
-    throw new Error('[Navios] Wrong environment.')
-  }
-
   // A subclass starts from a copy: the metadata object of its base class is the
   // prototype of its own, and other subclasses share it.
-  if (!Object.hasOwn(context.metadata, TracedMetadataKey)) {
-    const inherited = context.metadata[TracedMetadataKey] as ClassTracedMetadata | undefined
-    context.metadata[TracedMetadataKey] = {
-      name: undefined,
-      attributes: undefined,
-      enabled: false,
-      ...inherited,
+  return ownMetadata<ClassTracedMetadata>(
+    requireMetadata(context),
+    TracedMetadataKey,
+    (inherited) => ({
+      name: inherited?.name,
+      attributes: inherited?.attributes,
+      enabled: inherited?.enabled ?? false,
       methods: new Map(inherited?.methods),
-    } satisfies ClassTracedMetadata
-  }
-  const metadata = context.metadata[TracedMetadataKey] as ClassTracedMetadata
-
-  // For class decorators, also store on target for runtime extraction. Method
-  // decorators, which run first, may have created the metadata.
-  if (target) {
-    // @ts-expect-error Store on target for extraction later
-    target[TracedMetadataKey] = metadata
-  }
-
-  return metadata
+    }),
+  )
 }
 
 /**
- * Extracts traced metadata from an already-decorated class.
- * Used at runtime when context is not available.
- *
- * @param target - The decorated class
- * @returns The class traced metadata
- * @throws Error if metadata not found
+ * What `@Traced` (`enabled`) and `@Traceable` do to a class. The options are
+ * added to what the class inherits: a name replaces the inherited one, and
+ * attributes are merged into the inherited ones.
  */
-export function extractTracedMetadata(target: ClassType): ClassTracedMetadata {
-  // @ts-expect-error We store metadata directly on target
-  const metadata = target[TracedMetadataKey] as ClassTracedMetadata | undefined
-  if (!metadata) {
+export function markClass(
+  target: ClassType,
+  context: ClassDecoratorContext,
+  options: TracedOptions,
+  enabled: boolean,
+): void {
+  if (context.kind !== 'class') {
     throw new Error(
-      '[Navios] Traced metadata not found. Make sure to use @Traceable or @Traced decorator.',
+      `[Navios] @${enabled ? 'Traced' : 'Traceable'} cannot be applied to a ${context.kind as string}.`,
     )
   }
-  return metadata
-}
-
-/**
- * Checks if a class has traced metadata.
- *
- * @param target - The class to check
- * @returns True if the class has traced metadata
- */
-export function hasTracedMetadata(target: ClassType): boolean {
-  // @ts-expect-error We store metadata directly on target
-  return !!target[TracedMetadataKey]
+  // Method decorators, which run first, may have created the metadata.
+  const metadata = getTracedMetadata(context)
+  metadata.name = options.name ?? metadata.name
+  metadata.attributes = { ...metadata.attributes, ...options.attributes }
+  metadata.enabled = enabled
+  classes.set(target, metadata)
 }

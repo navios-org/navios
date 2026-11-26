@@ -1,25 +1,20 @@
-import { Container } from '@navios/di'
-import {
-  context as otelContext,
-  propagation,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-} from '@opentelemetry/api'
+import { Container } from '@navios/core'
+import { context as otelContext, propagation, trace } from '@opentelemetry/api'
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from '@opentelemetry/sdk-trace'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  extractTraceContext,
+  getCurrentSpan,
+  injectTraceContext,
   OtelConfigToken,
   OtelSetupService,
-  resolveOtelConfig,
-  SpanFactoryService,
-  TraceContextService,
   Traced,
   TracedProxyFactory,
   TracerToken,
 } from '../index.mjs'
-import { registerTracerProvider } from '../sdk/register-tracer-provider.mjs'
+import { resolveOtelConfig } from '../otel-config.mjs'
+import { registerTracerProvider } from '../sdk/providers.mjs'
 
 describe('services', () => {
   let container: Container
@@ -49,91 +44,40 @@ describe('services', () => {
     propagation.disable()
   })
 
-  describe('TraceContextService', () => {
-    it('makes a span active for the duration of a function, across awaits', async () => {
-      const service = await container.get(TraceContextService)
+  describe('trace context', () => {
+    it('reports the active span, across awaits', async () => {
       const span = provider.getTracer('test').startSpan('outer')
 
-      expect(service.getCurrentSpan()).toBeUndefined()
-      const seen = await service.runWithSpan(span, async () => {
+      expect(getCurrentSpan()).toBeUndefined()
+      const seen = await otelContext.with(trace.setSpan(otelContext.active(), span), async () => {
         await new Promise((resolve) => setTimeout(resolve, 1))
-        return service.getCurrentSpan()
+        return getCurrentSpan()
       })
 
       expect(seen).toBe(span)
-      expect(service.getCurrentSpan()).toBeUndefined()
+      expect(getCurrentSpan()).toBeUndefined()
     })
 
-    it('injects the active span into headers and extracts it again', async () => {
-      const service = await container.get(TraceContextService)
+    it('injects the active span into headers and extracts it again', () => {
       const span = provider.getTracer('test').startSpan('client-call')
-      const headers: Record<string, string> = {}
 
-      service.runWithSpan(span, () => service.injectIntoHeaders(headers))
+      const headers = otelContext.with(trace.setSpan(otelContext.active(), span), () =>
+        injectTraceContext({ accept: '*/*' }),
+      )
 
       const { traceId, spanId } = span.spanContext()
-      expect(headers.traceparent).toBe(`00-${traceId}-${spanId}-01`)
-
+      expect(headers).toEqual({ accept: '*/*', traceparent: `00-${traceId}-${spanId}-01` })
       for (const carrier of [headers, new Headers(headers)]) {
-        const extracted = trace.getSpanContext(service.extractFromHeaders(carrier))
+        const extracted = trace.getSpanContext(extractTraceContext(carrier))
         expect(extracted).toMatchObject({ traceId, spanId, isRemote: true })
       }
     })
 
-    it('extracts nothing from headers without trace context', async () => {
-      const service = await container.get(TraceContextService)
+    it('injects nothing without an active span, and extracts nothing from such headers', () => {
+      const headers = injectTraceContext({ accept: '*/*' })
 
-      expect(trace.getSpanContext(service.extractFromHeaders({ accept: '*/*' }))).toBeUndefined()
-    })
-  })
-
-  describe('SpanFactoryService', () => {
-    it('creates a server span with HTTP and navios attributes', async () => {
-      const spans = await container.get(SpanFactoryService)
-
-      const span = spans.createHttpSpan({
-        method: 'GET',
-        url: '/users/1',
-        route: '/users/$id',
-        controller: 'UsersController',
-        handler: 'getUser',
-      })
-      spans.setHttpResponse(span, 404)
-      span.end()
-
-      const [finished] = exporter.getFinishedSpans()
-      expect(finished.name).toBe('HTTP GET /users/$id')
-      expect(finished.kind).toBe(SpanKind.SERVER)
-      expect(finished.attributes).toMatchObject({
-        'http.method': 'GET',
-        'http.url': '/users/1',
-        'http.route': '/users/$id',
-        'http.status_code': 404,
-        'navios.controller': 'UsersController',
-        'navios.handler': 'getUser',
-      })
-      expect(finished.status).toEqual({ code: SpanStatusCode.ERROR, message: 'HTTP 404' })
-    })
-
-    it('creates child spans under the active span and records errors', async () => {
-      const spans = await container.get(SpanFactoryService)
-      const context = await container.get(TraceContextService)
-      const parent = spans.createHttpSpan({ method: 'GET', url: '/' })
-
-      context.runWithSpan(parent, () => {
-        const child = spans.createChildSpan({ name: 'work', attributes: { step: 1 } })
-        spans.recordError(child, new Error('failed'))
-        child.end()
-      })
-      parent.end()
-
-      const [child] = exporter.getFinishedSpans()
-      expect(child.name).toBe('work')
-      expect(child.kind).toBe(SpanKind.INTERNAL)
-      expect(child.attributes.step).toBe(1)
-      expect(child.parentSpanContext?.spanId).toBe(parent.spanContext().spanId)
-      expect(child.status).toEqual({ code: SpanStatusCode.ERROR, message: 'failed' })
-      expect(child.events[0].name).toBe('exception')
+      expect(headers).toEqual({ accept: '*/*' })
+      expect(trace.getSpanContext(extractTraceContext(headers))).toBeUndefined()
     })
   })
 

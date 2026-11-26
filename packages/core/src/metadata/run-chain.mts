@@ -1,10 +1,10 @@
 import type { ClassType, Container } from '@navios/di'
 
-import type { ExecutionContext } from '../execution/execution-context.mjs'
+import { runInContext } from '../execution/async-context.mjs'
+
+import type { ExecutionContext, HandlerInfo } from '../execution/execution-context.mjs'
 import type { Guard } from '../guards/guard.mjs'
 import type { Interceptor } from '../interceptors/interceptor.mjs'
-
-import type { HandlerChain } from './handler-chain.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -29,15 +29,19 @@ async function resolve(
 }
 
 /**
- * Resolves the classes of a chain. A transport does this once per handler,
- * while it is set up.
+ * Resolves the classes of a chain that `handlerChain` returned. A transport
+ * does this once per handler, while it is set up.
  */
 export async function resolveChain<
   Ctx extends ExecutionContext = ExecutionContext,
   Result = unknown,
 >(
   container: Pick<Container, 'get'>,
-  chain: Pick<HandlerChain, 'outer' | 'guards' | 'inner'>,
+  chain: {
+    readonly info: Pick<HandlerInfo, 'guards'>
+    readonly outer: readonly ClassType[]
+    readonly inner: readonly ClassType[]
+  },
 ): Promise<ResolvedChain<Ctx, Result>> {
   const outer: Interceptor<Ctx, Result>[] = []
   const guards: Array<{ type: ClassType; guard: Guard<Ctx> }> = []
@@ -45,7 +49,7 @@ export async function resolveChain<
   for (const type of chain.outer) {
     outer.push(await resolve(container, type, 'Interceptor', 'intercept'))
   }
-  for (const type of chain.guards) {
+  for (const type of chain.info.guards) {
     guards.push({ type, guard: await resolve(container, type, 'Guard', 'canActivate') })
   }
   for (const type of chain.inner) {
@@ -89,4 +93,27 @@ export function runChain<Ctx extends ExecutionContext, Result>(
     return intercepted(ctx, chain.inner, handler)()
   }
   return intercepted(ctx, chain.outer, guarded)()
+}
+
+/**
+ * Runs a handler with what applies to it, as `runChain`, in the async context
+ * when the application keeps one, and then finishes its context, whatever the
+ * outcome. The context is finished inside the async context, so that
+ * `currentContext()` still answers in `onFinish` callbacks.
+ */
+export function executeChain<Ctx extends ExecutionContext & { finish(): Promise<void> }, Result>(
+  host: { readonly asyncContext: boolean },
+  ctx: Ctx,
+  chain: ResolvedChain<Ctx, Result>,
+  handler: () => Result | Promise<Result>,
+  onDenied: (guard: ClassType) => Result | Promise<Result>,
+): Promise<Result> {
+  const execute = async (): Promise<Result> => {
+    try {
+      return await runChain(ctx, chain, handler, onDenied)
+    } finally {
+      await ctx.finish()
+    }
+  }
+  return host.asyncContext ? runInContext(ctx, execute) : execute()
 }

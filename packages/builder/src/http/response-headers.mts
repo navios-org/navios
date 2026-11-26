@@ -1,5 +1,6 @@
 import type { ResponseMeta } from './response-meta.mjs'
 
+/** Reads one response header. `null` when the header is absent or nothing came back. */
 export function getHeader(meta: ResponseMeta | null, name: string): string | null {
   return meta ? meta.headers.get(name) : null
 }

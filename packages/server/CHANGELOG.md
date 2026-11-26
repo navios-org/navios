@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Breaking
+
+- **A response that does not match its schema is a `ResponseValidationError`**, no longer a `ValidationError` with `source: 'response'`: what a handler returned, the body of an `HttpException` for a declared status, and the payload of `sse()`. `ValidationSource` has no `'response'`. A mapper for `ValidationError` no longer sees response errors, which stay a 500 without rethrowing them; one for `ResponseValidationError` does.
+- **The adapter contract is smaller.** `AdapterContext` has `logger` and `errors`; `container` and `globalPrefix`, which no adapter read, are removed (route paths include the prefix). `AdapterDefinition` has no `name`. `@navios/server/adapter` no longer exports `compileRoutePath` or `ErrorPipelineOptions`, and exports `ErrorPipeline` as a type: an adapter is given the pipeline and does not create one.
+- **`HttpGuard` and `HttpInterceptor` are no longer exported.** They were `Guard` and `Interceptor` of `@navios/server` under a second name. The guard and interceptor classes that `@UseGuards`, `@UseInterceptors`, `guards` and `intercept()` take are core's `GuardClass` and `InterceptorClass`.
+- **Exports that only the package's own tests used are removed.** `InMemoryAdapter` of `@navios/server/testing`: `defineInMemoryEnvironment()` creates it. The type `Injectable_`: `createTestClient()` takes `Pick<NaviosApplication, 'inject'>`.
+
+### Added
+
+- **`ResponseValidationError`**, with the `issues` of the schema.
+- **`ConformanceCors.origin` may be a function** `(origin, callback)`, `ConformanceOriginFunction`, and the conformance suite checks that an `HttpException` it fails with keeps its status.
+- **Request helpers in `@navios/server/adapter`** that adapters wrote each for themselves: `parseQuery(search)`, the query as `RouteInput.query()` gives it; `bodyTooLarge()` and `incompleteBody(cause?)`, the 413 and 400 of a body; `malformedPath(path)`, the 400 of a path that is not valid percent-encoding; and `settledWithin(work, ms)` of `@navios/core/transport`, for an adapter that peers on the server only.
+- **`RouteInfo.params`**, the names of the url params of a route's path, prefixes included, in order: what the server takes the path apart into, so that a plugin does not parse it again.
+- **`toTestResponse()` takes web `Headers`** as well as a record, for an adapter whose server answers with a web `Response`.
+- **`ManagedBody.throw(error)`**, for a reader that delegates to the body, as `yield*` does: it closes what produces the body and throws the error.
+
+### Changed
+
+- **A result of error mapping that cannot be sent is answered with a plain 500 problem**, and reported. It went to the internal-error responder first, whose result could fail as well.
+- **`ErrorPipeline.unexpected()` maps an error as a route does without error mappers**: an `HttpException` keeps its status, and anything else is reported and a 500. It answered every error with a 500 and an error log, so an adapter answered an `HttpException` outside a route differently from another.
+- **`RouteResponse.release` may be called again**, the contract says now: a later call returns the promise of the first and does nothing else, as it always has. An adapter can make it the listener of every event that ends a response.
+- **What an async generator handler returns is a `ManagedBody` by the time interceptors see the result**, run up to its first chunk, which the first reader gets. It was an iterator of its own that held the chunk for the pipeline. Its chunks are checked as they are read, an `ArrayBuffer` becoming a `Uint8Array`, and `throw(error)` closes the generator and throws the error, which the generator no longer gets to catch.
+
+### Fixed
+
+- **An error that throws when it is looked at**, such as a `Proxy` whose traps throw, is reported and answered with a 500 in every place an error is mapped, also when an error mapper fails with one, when an interceptor leaves the handler behind, and outside a route. Some of those answered without a report, or threw.
+- **A stream whose handler sets `content-type: text/event-stream` itself is an event stream like one of `sseStream()`**: `ManagedBody.opening` is the opening comment for it as well, decided where the response is encoded, so that an adapter that sends headers with the first bytes does not hold them back until the first event. The conformance suite checks it.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 This package is new: it is the HTTP framework that `@navios/core` was in 1.x, and the entries below are the changes from `@navios/core` 1.x. `@navios/core` itself is now the part that does not depend on HTTP, and this package re-exports it.

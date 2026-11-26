@@ -1,16 +1,15 @@
 import { definePlugin, Logger } from '@navios/core'
-import { getInjectableToken } from '@navios/di'
+import { getInjectableToken } from '@navios/core'
 
-import { OtelConfigToken } from './config/otel-config-token.mjs'
-import { OtelHandlerInterceptor } from './handlers/otel-handler-interceptor.mjs'
+import { OtelConfigToken } from './otel-config.mjs'
+import { OtelHandlerInterceptor } from './otel-handler-interceptor.mjs'
 import { MeterToken } from './sdk/meter-token.mjs'
 import { OtelSetupService } from './sdk/otel-setup-service.mjs'
 import { TracerToken } from './sdk/tracer-token.mjs'
 import { traceInstance } from './traced/trace-instance.mjs'
-import { getTraceableServices } from './traced/traceable-services.mjs'
-import { extractTracedMetadata, hasTracedMetadata } from './traced/traced-metadata.mjs'
+import { tracedClasses } from './traced/traced-metadata.mjs'
 
-import type { OtelConfig } from './config/otel-config.mjs'
+import type { OtelConfig } from './otel-config.mjs'
 
 /**
  * Options of `otelPlugin`.
@@ -28,7 +27,7 @@ export type OtelPluginOptions = OtelConfig
  * - Flushes and shuts the SDK down when the application closes.
  *
  * Classes marked with `@Traced` / `@Traceable` are collected in a
- * module-level set when they are decorated, and the plugin reads that set
+ * module-level map when they are decorated, and the plugin reads that map
  * once, during `init()`. A class that is first imported after `init()` is
  * not traced.
  *
@@ -65,11 +64,7 @@ export const otelPlugin = definePlugin({
     api.provide(TracerToken, { value: tracer })
     api.provide(MeterToken, { value: sdk.getMeter() })
 
-    for (const serviceClass of getTraceableServices()) {
-      if (!hasTracedMetadata(serviceClass)) {
-        continue
-      }
-      const metadata = extractTracedMetadata(serviceClass)
+    for (const [serviceClass, metadata] of tracedClasses) {
       if (!metadata.enabled && metadata.methods.size === 0) {
         continue
       }
@@ -84,25 +79,11 @@ export const otelPlugin = definePlugin({
     }
 
     const { http: traceHttp, transports: traceHandlers } = config.autoInstrument
-
-    // The HTTP part is loaded only here, so that this package works where
-    // `@navios/server` is not installed.
-    let http: typeof import('./http/index.mjs') | null = null
+    let servesHttp = false
     if (traceHttp || traceHandlers === 'auto') {
-      try {
-        http = await import('./http/index.mjs')
-      } catch (error) {
-        if (!isMissingServerPackage(error)) {
-          throw error
-        }
-      }
-    }
-    const servesHttp = http?.hasHttpTransport(api) ?? false
-
-    if (traceHttp) {
-      if (servesHttp) {
-        http!.instrumentHttp(api)
-      } else {
+      const http = await importHttp()
+      servesHttp = http?.instrumentHttp(api, traceHttp) ?? false
+      if (traceHttp && !servesHttp) {
         logger.debug(
           http === null
             ? 'HTTP requests are not traced: @navios/server is not installed'
@@ -117,6 +98,21 @@ export const otelPlugin = definePlugin({
     api.onShutdown(() => sdk.shutdown())
   },
 })
+
+/**
+ * The HTTP part, or `null` when `@navios/server` is not installed. It is
+ * loaded only here, so that this package works without it.
+ */
+async function importHttp(): Promise<typeof import('./http/instrument-http.mjs') | null> {
+  try {
+    return await import('./http/instrument-http.mjs')
+  } catch (error) {
+    if (isMissingServerPackage(error)) {
+      return null
+    }
+    throw error
+  }
+}
 
 function isMissingServerPackage(error: unknown): boolean {
   const { code, message } = error as { code?: string; message?: string }

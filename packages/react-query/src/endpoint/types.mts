@@ -1,17 +1,9 @@
-import type {
-  BaseEndpointOptions,
-  ClientRequestArgs,
-  InferEndpointError,
-  InferEndpointReturn,
-} from '@navios/builder'
+import type { BaseEndpointOptions, ClientRequestArgs } from '@navios/builder'
 
 import type { InputPart, KeyedArgs } from './key-by.mjs'
 
 /** Keys of `T` that must be provided. */
 export type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never : K }[keyof T]
-
-/** The full call arguments of an endpoint. */
-export type EndpointArgs<Options extends BaseEndpointOptions> = ClientRequestArgs<Options>
 
 /** `[args, ...Rest]`, with `args` optional when `Args` requires nothing. */
 export type ArgsOf<Args, Rest extends unknown[] = []> = [RequiredKeys<Args>] extends [never]
@@ -19,20 +11,12 @@ export type ArgsOf<Args, Rest extends unknown[] = []> = [RequiredKeys<Args>] ext
   : [args: Args, ...rest: Rest]
 
 /**
- * `[args, ...Rest]`, with `args` optional when the endpoint requires nothing.
- */
-export type ArgsWith<Options extends BaseEndpointOptions, Rest extends unknown[] = []> = ArgsOf<
-  EndpointArgs<Options>,
-  Rest
->
-
-/**
  * The part of the call arguments that identifies a request and therefore
  * goes into the cache key: `urlParams`, `params` and `data`.
  */
 export type EndpointInputs<Options extends BaseEndpointOptions> = Pick<
-  EndpointArgs<Options>,
-  Extract<keyof EndpointArgs<Options>, 'urlParams' | 'params' | 'data'>
+  ClientRequestArgs<Options>,
+  Extract<keyof ClientRequestArgs<Options>, 'urlParams' | 'params' | 'data'>
 >
 
 /**
@@ -56,9 +40,3 @@ export type PartialKeyedInputs<Options extends BaseEndpointOptions, TKeyBy> = [T
         NonNullable<KeyedArgs<Options, TKeyBy>[K]>
       >
     }
-
-/** Data an endpoint resolves to. */
-export type EndpointData<Options extends BaseEndpointOptions> = InferEndpointReturn<Options>
-
-/** The typed `EndpointError` an endpoint fails with. */
-export type EndpointFailure<Options extends BaseEndpointOptions> = InferEndpointError<Options>

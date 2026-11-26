@@ -10,13 +10,13 @@ import {
   provide,
   registerInjectable,
 } from '../index.mjs'
-import { registerModule } from '../modules/index.mjs'
-import { definePlugin } from '../plugins/index.mjs'
-import { defineTransport } from '../transports/index.mjs'
+import { registerModule } from '../modules/module.mjs'
+import { definePlugin } from '../plugins/plugin.mjs'
+import { defineTransport } from '../transports/transport.mjs'
 
 import type { ApplicationOptions } from '../application/application-options.mjs'
 import type { Application } from '../application/application.mjs'
-import type { Transport } from '../transports/index.mjs'
+import type { Transport } from '../transports/transport.mjs'
 
 import { settleWithin } from './settle-within.mjs'
 

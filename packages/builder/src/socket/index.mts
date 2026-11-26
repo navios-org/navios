@@ -22,7 +22,6 @@ export type {
 } from './socket-handlers.mjs'
 
 // Client contract
-export { isSocketClient } from './socket-client.mjs'
 export type { SocketClient } from './socket-client.mjs'
 
 // Errors

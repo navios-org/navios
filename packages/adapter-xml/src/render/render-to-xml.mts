@@ -2,10 +2,8 @@ import type { Container, RequestContext, ScopedContainer } from '@navios/server'
 
 import { CDataSymbol } from '../nodes/cdata.mjs'
 import { RawXmlSymbol } from '../nodes/raw-xml.mjs'
-import { Fragment } from '../nodes/xml-node.mjs'
+import { Fragment, isNodeOfType } from '../nodes/xml-node.mjs'
 
-import type { CDataNode } from '../nodes/cdata.mjs'
-import type { RawXmlNode } from '../nodes/raw-xml.mjs'
 import type { AnyXmlNode, XmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 
 import { escapeAttr, escapeXml, renderCData } from './escape.mjs'
@@ -105,12 +103,12 @@ async function renderNode(
   if (typeof node === 'number') return String(node)
 
   // Handle CDATA nodes
-  if (isCDataNode(node)) {
+  if (isNodeOfType(node, CDataSymbol)) {
     return renderCData(node.content)
   }
 
   // Handle Raw XML nodes - no escaping
-  if (isRawXmlNode(node)) {
+  if (isNodeOfType(node, RawXmlSymbol)) {
     return node.content
   }
 
@@ -152,20 +150,12 @@ async function renderNode(
       c == null ||
       typeof c === 'string' ||
       typeof c === 'number' ||
-      isCDataNode(c) ||
-      isRawXmlNode(c),
+      isNodeOfType(c, CDataSymbol) ||
+      isNodeOfType(c, RawXmlSymbol),
   )
   if (hasOnlySimpleContent) {
     return `${prefix}<${type}${attrs}>${childContent}</${type}>${newline}`
   }
 
   return `${prefix}<${type}${attrs}>${newline}${childContent}${prefix}</${type}>${newline}`
-}
-
-function isCDataNode(node: any): node is CDataNode {
-  return node && typeof node === 'object' && node.type === CDataSymbol
-}
-
-function isRawXmlNode(node: any): node is RawXmlNode {
-  return node && typeof node === 'object' && node.type === RawXmlSymbol
 }

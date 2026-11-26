@@ -55,7 +55,7 @@ After the response has been sent, or the client has gone away, what produces a s
 
 **Interceptors see the validated body, not bytes.** On the way out, a JSON result is still an object. Serialisation comes last.
 
-**A failed response validation is the server's fault.** It becomes a 500, not a 400, and is logged in full.
+**A failed response validation is the server's fault.** It is a `ResponseValidationError`, not a `ValidationError`, so it becomes a 500, not a 400, and is logged in full.
 
 ## What is decided at start-up
 

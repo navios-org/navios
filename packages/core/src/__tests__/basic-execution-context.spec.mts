@@ -12,9 +12,10 @@ import type { ContextHost } from '../execution/context-host.mjs'
 import type { ExecutionContext, HandlerInfo } from '../execution/execution-context.mjs'
 
 class Owner {}
+class OwnerModule {}
 
 const handler: HandlerInfo = {
-  module: null,
+  module: OwnerModule,
   controller: Owner,
   handlerName: 'run',
   guards: [],
@@ -195,16 +196,12 @@ describe('BasicExecutionContext', () => {
     expect(log).toEqual(['finisher', 'second finish() resolved'])
   })
 
-  it('has a signal of its own unless the transport gives one', () => {
-    const controller = new AbortController()
-    const create = (signal?: AbortSignal) =>
-      new BasicExecutionContext({ kind: 'test', id: 'run', handler, host, signal })
-    const other = create()
+  it('has a signal of its own', () => {
+    const other = new BasicExecutionContext({ kind: 'test', id: 'run', handler, host })
 
     expect(ctx.signal).toBe(ctx.signal)
     expect(other.signal).not.toBe(ctx.signal)
     expect(other.signal.aborted).toBe(false)
-    expect(create(controller.signal).signal).toBe(controller.signal)
   })
 
   it('resolves a singleton without a DI scope, also after it has finished', async () => {

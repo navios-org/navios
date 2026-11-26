@@ -1,6 +1,6 @@
 import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/di'
 
-import { ValidationError } from '../errors/validation-error.mjs'
+import { ResponseValidationError, ValidationError } from '../errors/validation-error.mjs'
 import { adopt } from '../internal/promises.mjs'
 
 import type { ValidationSource } from '../errors/validation-error.mjs'
@@ -28,6 +28,19 @@ import type { ZodPayload, ZodSchema } from './zod-schema.mjs'
  */
 type Mode = 'standard' | 'either' | 'async'
 
+/** What a schema validates: a part of the request, or the response. */
+export type SchemaTarget = ValidationSource | 'response'
+
+/** The error for a value that does not match its schema. */
+function mismatch(
+  target: SchemaTarget,
+  issues: ReadonlyArray<StandardSchemaIssue>,
+): ValidationError | ResponseValidationError {
+  return target === 'response'
+    ? new ResponseValidationError(issues)
+    : new ValidationError(target, issues)
+}
+
 const modes = new WeakMap<StandardSchemaV1, Mode>()
 
 function classify(schema: StandardSchemaV1): Mode {
@@ -39,11 +52,11 @@ function classify(schema: StandardSchemaV1): Mode {
 async function validateAsync(
   schema: ZodSchema,
   value: unknown,
-  source: ValidationSource,
+  source: SchemaTarget,
 ): Promise<unknown> {
   const result = await schema.safeParseAsync(value)
   if (!result.success) {
-    throw new ValidationError(source, result.error.issues)
+    throw mismatch(source, result.error.issues)
   }
   return result.data
 }
@@ -51,7 +64,7 @@ async function validateAsync(
 function validateEither(
   schema: ZodSchema,
   value: unknown,
-  source: ValidationSource,
+  source: SchemaTarget,
 ): unknown | Promise<unknown> {
   const outcome = schema._zod.run({ value, issues: [] }, { async: true })
   if (outcome instanceof Promise) {
@@ -67,7 +80,7 @@ async function finishAsync(
   pending: Promise<ZodPayload>,
   schema: ZodSchema,
   value: unknown,
-  source: ValidationSource,
+  source: SchemaTarget,
 ): Promise<unknown> {
   const outcome = await pending
   return outcome.issues.length === 0 ? outcome.value : validateAsync(schema, value, source)
@@ -76,7 +89,7 @@ async function finishAsync(
 function validateStandard(
   schema: StandardSchemaV1,
   value: unknown,
-  source: ValidationSource,
+  source: SchemaTarget,
 ): unknown | Promise<unknown> {
   const result = adopt(schema['~standard'].validate(value))
   if (result instanceof Promise) {
@@ -87,10 +100,10 @@ function validateStandard(
 
 function valueOf(
   result: { value: unknown; issues?: undefined } | { issues: ReadonlyArray<StandardSchemaIssue> },
-  source: ValidationSource,
+  source: SchemaTarget,
 ): unknown {
   if (result.issues) {
-    throw new ValidationError(source, result.issues)
+    throw mismatch(source, result.issues)
   }
   return result.value
 }
@@ -103,7 +116,7 @@ function valueOf(
 export function validateSchema(
   schema: StandardSchemaV1,
   value: unknown,
-  source: ValidationSource,
+  source: SchemaTarget,
 ): unknown | Promise<unknown> {
   switch (modes.get(schema) ?? classify(schema)) {
     case 'standard':

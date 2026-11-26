@@ -19,6 +19,15 @@ describe('appendQuery', () => {
     )
   })
 
+  it('should write objects as JSON, as a multipart body does', () => {
+    // An object used to be written as `[object Object]`
+    expect(appendQuery('/ws', { filter: { role: 'admin' }, ids: [[1, 2]] })).toBe(
+      '/ws?filter=%7B%22role%22%3A%22admin%22%7D&ids=%5B1%2C2%5D',
+    )
+    const money = { toJSON: () => '12.50' }
+    expect(appendQuery('/ws', { price: money, n: 10n })).toBe('/ws?price=12.50&n=10')
+  })
+
   it('should continue an existing query string', () => {
     expect(appendQuery('/ws?v=2', { token: 't' })).toBe('/ws?v=2&token=t')
     expect(appendQuery('/ws?', { token: 't' })).toBe('/ws?token=t')

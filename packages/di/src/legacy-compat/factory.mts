@@ -1,10 +1,9 @@
-import { Factory as OriginalFactory, type FactoryOptions } from '../decorators/factory.mjs'
+import { registerFactory } from '../provider/registration.mjs'
 
+import type { FactoryOptions } from '../decorators/factory.mjs'
 import type { ClassType } from '../token/class-type.mjs'
 
-import { createClassContext } from './context-compat.mjs'
-
-export type { FactoryOptions }
+import { assertLegacyClass } from './context-compat.mjs'
 
 /**
  * Legacy-compatible Factory decorator.
@@ -25,11 +24,9 @@ export type { FactoryOptions }
  * ```
  */
 export function Factory(options: FactoryOptions = {}) {
-  return function (target: ClassType) {
-    const context = createClassContext(target)
-    // Use the no-args overload when options is empty, otherwise pass options
-    const originalDecorator =
-      Object.keys(options).length === 0 ? OriginalFactory() : OriginalFactory(options)
-    return originalDecorator(target, context)
+  return <T extends ClassType>(target: T): T => {
+    assertLegacyClass('Factory', target)
+    registerFactory(target, options)
+    return target
   }
 }

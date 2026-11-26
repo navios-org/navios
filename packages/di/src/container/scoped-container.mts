@@ -1,10 +1,10 @@
-import { containerDisposed, misuse } from '../errors/create.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { abandonBuilds, settleHost, settleStore } from '../internal/background.mjs'
-import { destroyAll, destroyLoose, rejectWith } from '../internal/destruction.mjs'
+import { abandonBuilds, settleHost } from '../internal/background.mjs'
+import { destroyAll, destroyHeld, destroyLoose, rejectWith } from '../internal/destruction.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
-import { hasProvider, lookupRecord } from '../internal/normalize.mjs'
+import { disposedError } from '../internal/liveness.mjs'
+import { hasProvider, lookupRecord } from '../internal/lookup.mjs'
 import { resolveInstance, resolveSyncOrThrow } from '../internal/resolution.mjs'
 import { Store } from '../internal/store.mjs'
 import { peek, storeValue } from '../internal/stored-values.mjs'
@@ -35,6 +35,8 @@ import type { IContainer } from './i-container.mjs'
  * request-scoped service gives the scope it belongs to.
  */
 export class ScopedContainer implements IContainer {
+  // What the engine reads of a container or a scope comes first, in the same
+  // order in both.
   /** @internal */
   readonly root: RootHost
   /** @internal */
@@ -42,25 +44,26 @@ export class ScopedContainer implements IContainer {
   /** @internal */
   readonly isScope = true
   /** @internal */
-  readonly facade: IContainer = this
-  /** @internal */
-  looseTransients: Entry[] | null = null
+  disposed = false
   /** @internal */
   background: Set<Promise<unknown>> | null = null
   /** @internal */
   building: Set<Entry> | null = null
 
-  /** @internal */
-  disposed = false
+  /** The root container of the scope. */
+  readonly parent: Container
+  /**
+   * Transients nobody else destroys: those the scope handed out by `get`.
+   * @internal
+   */
+  looseTransients: Entry[] | null = null
 
   private disposal: Promise<void> | null = null
   private metadata: Record<string, any> | undefined
 
-  constructor(
-    public readonly parent: Container,
-    metadata?: Record<string, any>,
-  ) {
+  constructor(parent: Container, metadata?: Record<string, any>) {
     this.root = parent
+    this.parent = parent
     this.metadata = metadata
   }
 
@@ -72,23 +75,17 @@ export class ScopedContainer implements IContainer {
     ;(this.metadata ??= {})[key] = value
   }
 
-  private assertUsable(): void {
-    if (this.disposed) {
-      throw containerDisposed('ScopedContainer')
-    }
-  }
+  /**
+   * Resolves an instance, waiting for asynchronous initialisers. Refused once
+   * the disposal of the scope has started.
+   */
+  declare get: AsyncResolve
 
-  get: AsyncResolve = ((token: AnyInjectableType, args?: unknown) => {
-    if (this.disposed) {
-      return rejectWith(containerDisposed('ScopedContainer'))
-    }
-    return resolveInstance(this, token, args)
-  }) as AsyncResolve
-
-  getSync: SyncResolve = ((token: AnyInjectableType, args?: unknown) => {
-    this.assertUsable()
-    return resolveSyncOrThrow(this, token, args).instance
-  }) as SyncResolve
+  /**
+   * Resolves an instance synchronously. Throws `AsyncInitRequired` when the
+   * service or one of its dependencies has an unfinished async initialiser.
+   */
+  declare getSync: SyncResolve
 
   /** Returns an instance that is already built, or `null`. Never constructs. */
   declare peek: OptionalResolve
@@ -109,14 +106,11 @@ export class ScopedContainer implements IContainer {
    * was built from it. The next resolution builds it again.
    */
   async invalidate(service: unknown): Promise<void> {
-    if (service === this) {
-      throw misuse('A scope cannot be invalidated; use dispose()')
-    }
-    const entries = this.store.findByInstance(service)
-    if (entries.length === 0) {
+    const held = destroyHeld(this, service)
+    if (held === null) {
       return this.parent.invalidate(service)
     }
-    await destroyAll([...entries])
+    await held
   }
 
   onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
@@ -135,8 +129,12 @@ export class ScopedContainer implements IContainer {
     )
   }
 
-  async ready(): Promise<void> {
-    await settleStore(this.store)
+  /**
+   * Resolves when nothing is still being created in the scope, and the cleanup
+   * that nobody awaits is over.
+   */
+  ready(): Promise<void> {
+    return settleHost(this)
   }
 
   /**
@@ -187,6 +185,32 @@ export class ScopedContainer implements IContainer {
     return destroyAll(entries)
   }
 }
+
+// On the prototype, so that a scope, created once per request, allocates no
+// closures for them. A scope refuses to resolve as soon as its own disposal
+// starts, also what it holds, and unlike the root container even to a destroy
+// hook.
+ScopedContainer.prototype.get = function get(
+  this: ScopedContainer,
+  token: AnyInjectableType,
+  args?: unknown,
+) {
+  if (this.disposed) {
+    return rejectWith(disposedError(this))
+  }
+  return resolveInstance(this, token, args)
+} as AsyncResolve
+
+ScopedContainer.prototype.getSync = function getSync(
+  this: ScopedContainer,
+  token: AnyInjectableType,
+  args?: unknown,
+) {
+  if (this.disposed) {
+    throw disposedError(this)
+  }
+  return resolveSyncOrThrow(this, token, args).instance
+} as SyncResolve
 
 ScopedContainer.prototype.peek = peek as OptionalResolve
 

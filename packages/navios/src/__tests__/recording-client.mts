@@ -1,6 +1,6 @@
 import { create } from '../client/create-navios.mjs'
 
-import type { Navios } from '../client/index.mjs'
+import type { Navios } from '../client/navios.mjs'
 import type { NaviosConfig } from '../navios-config.mjs'
 
 export interface Call {

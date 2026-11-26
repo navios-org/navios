@@ -73,5 +73,5 @@ export interface BunAdapterOptions<WebSocketData = undefined> {
 export function defineBunEnvironment<WebSocketData = undefined>(
   options: BunAdapterOptions<WebSocketData> = {},
 ): AdapterDefinition<BunEnvironment<WebSocketData>> {
-  return { name: 'bun', create: (context) => new BunAdapter(options, context) }
+  return { create: (context) => new BunAdapter(options, context) }
 }

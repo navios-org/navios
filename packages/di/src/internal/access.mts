@@ -3,8 +3,8 @@ import type { Provider } from '../provider/provide.mjs'
 import type { ClassType } from '../token/class-type.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
-import { EntryStatus } from './entry.mjs'
-import { baseToken, isResolved } from './normalize.mjs'
+import { EntryStatus, isSelfEntry } from './entry.mjs'
+import { baseToken, isResolved } from './lookup.mjs'
 
 import type { Entry } from './entry.mjs'
 import type { ErrorReporter } from './host.mjs'
@@ -17,7 +17,7 @@ function isShared(instance: unknown): boolean {
 export function readyEntries(container: Container): Entry[] {
   return container.store
     .entries()
-    .filter((entry) => entry.status === EntryStatus.Ready && entry.instance !== container)
+    .filter((entry) => entry.status === EntryStatus.Ready && !isSelfEntry(entry))
     .sort((left, right) => left.readySeq - right.readySeq)
 }
 
@@ -73,6 +73,23 @@ export function setProvider(container: Container, provider: Provider): boolean {
   }
   container.overrides.set(provider.token, provider.record)
   return true
+}
+
+/**
+ * Whether two providers come to the same: the same kind, scope, class,
+ * factory function and value, each compared with `Object.is`. Meant for two
+ * providers of one token; the tokens are not compared.
+ */
+export function isSameProvider(a: Provider, b: Provider): boolean {
+  const left = a.record
+  const right = b.record
+  return (
+    Object.is(left.kind, right.kind) &&
+    Object.is(left.scope, right.scope) &&
+    Object.is(left.target, right.target) &&
+    Object.is(left.fn, right.fn) &&
+    Object.is(left.value, right.value)
+  )
 }
 
 /** Whether the container was given a provider of its own for `token`. */

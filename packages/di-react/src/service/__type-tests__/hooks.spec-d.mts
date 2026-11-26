@@ -8,6 +8,13 @@ import { useOptionalService } from '../use-optional-service.mjs'
 import { useService } from '../use-service.mjs'
 import { useSuspenseService } from '../use-suspense-service.mjs'
 
+import type {
+  ServiceHook,
+  ServiceHookResults,
+  UseOptionalServiceResult,
+  UseServiceResult,
+} from '../types.mjs'
+
 @Injectable()
 class Db {
   private readonly secret = 1
@@ -70,5 +77,32 @@ describe('hooks', () => {
     void useService(KEYED).data
     // @ts-expect-error the args are wrong
     useService(KEYED, { id: 1 })
+  })
+
+  test('name the result types', () => {
+    expectTypeOf(useService(Db)).toEqualTypeOf<UseServiceResult<Db>>()
+    expectTypeOf(useOptionalService(Db)).toEqualTypeOf<UseOptionalServiceResult<Db>>()
+    expectTypeOf(useSuspenseService(Db)).toEqualTypeOf<Db>()
+    expectTypeOf(useService(KEYED, { id: '1' })).toEqualTypeOf<UseServiceResult<{ a: 1 }>>()
+    expectTypeOf(useOptionalService(PLAIN)).toEqualTypeOf<UseOptionalServiceResult<{ a: 1 }>>()
+    expectTypeOf<ReturnType<typeof useService>>().toEqualTypeOf<UseServiceResult<unknown>>()
+    expectTypeOf<ReturnType<typeof useSuspenseService>>().toEqualTypeOf<unknown>()
+  })
+
+  test('still ask for the args of a token that requires them in every hook', () => {
+    expectTypeOf(useOptionalService(KEYED, { id: '1' }).data).toEqualTypeOf<{ a: 1 } | undefined>()
+    expectTypeOf(useSuspenseService(KEYED, { id: '1' })).toEqualTypeOf<{ a: 1 }>()
+    expectTypeOf(useOptionalService(KEYED)).toExtend<string>()
+    // @ts-expect-error the args are wrong
+    useOptionalService(KEYED, { id: 1 })
+    // @ts-expect-error the args are wrong
+    useSuspenseService(KEYED, { id: 1 })
+  })
+
+  test('type a hook of the same shape', () => {
+    expectTypeOf(useService).toEqualTypeOf<ServiceHook<'service'>>()
+    expectTypeOf(useOptionalService).toEqualTypeOf<ServiceHook<'optional'>>()
+    expectTypeOf(useSuspenseService).toEqualTypeOf<ServiceHook<'suspense'>>()
+    expectTypeOf<ServiceHookResults<Db>['service']>().toEqualTypeOf<UseServiceResult<Db>>()
   })
 })

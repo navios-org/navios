@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ClassType } from '@navios/di'
 
+import { currentContext, enableAsyncContext } from '../execution/async-context.mjs'
 import { handlerChain } from '../metadata/handler-chain.mjs'
-import { resolveChain, runChain } from '../metadata/run-chain.mjs'
+import { executeChain, resolveChain, runChain } from '../metadata/run-chain.mjs'
 
 import type { ExecutionContext } from '../execution/execution-context.mjs'
 import type { Guard } from '../guards/guard.mjs'
@@ -20,6 +21,7 @@ class I1 {}
 class I2 {}
 class I3 {}
 class M {}
+class C {}
 
 const Tier = Symbol.for('test.chain.Tier')
 
@@ -27,8 +29,12 @@ const node = (guards: ClassType[] = [], interceptors: ClassType[] = []) => ({
   module: M,
   guards,
   interceptors,
+  attributes: new Map<symbol, unknown>(),
   disputed: new Map<symbol, string>(),
 })
+
+/** Where the handler is. */
+const at = { controller: C, handlerName: 'run' }
 
 const extras = (guards: ClassType[] = [], interceptors: ClassType[] = []) => ({
   guards,
@@ -38,16 +44,23 @@ const extras = (guards: ClassType[] = [], interceptors: ClassType[] = []) => ({
 
 describe('handlerChain', () => {
   it('orders the chain and removes duplicates', () => {
-    expect(
-      handlerChain({
-        application: [App],
-        node: node([G1], [I1]),
-        owner: extras([G2, G1], [I2]),
-        member: extras([G3], [App, I3]),
-      }),
-    ).toEqual({
-      guards: [G1, G2, G3],
-      interceptors: [App, I1, I2, I3],
+    const given = node([G1], [I1])
+    const owner = extras([G2, G1], [I2])
+    const member = extras([G3], [App, I3])
+
+    expect(handlerChain({ application: [App], node: given, owner, member, ...at })).toEqual({
+      info: {
+        module: M,
+        controller: C,
+        handlerName: 'run',
+        guards: [G1, G2, G3],
+        interceptors: [App, I1, I2, I3],
+        attributes: {
+          handler: member.attributes,
+          controller: owner.attributes,
+          module: given.attributes,
+        },
+      },
       outer: [App],
       inner: [I1, I2, I3],
     })
@@ -59,6 +72,7 @@ describe('handlerChain', () => {
       node: node([], [I1, App]),
       owner: extras([], [I1]),
       member: extras(),
+      ...at,
     })
 
     expect(outer).toEqual([App])
@@ -72,11 +86,11 @@ describe('handlerChain', () => {
       node: given,
       owner: extras(),
       member: extras(),
+      ...at,
     })
 
-    chain.guards.push(G2)
-
-    expect(given.guards).toEqual([G1])
+    expect(chain.info.guards).toEqual([G1])
+    expect(chain.info.guards).not.toBe(given.guards)
   })
 
   it('refuses a handler that would inherit a disputed attribute', () => {
@@ -84,7 +98,7 @@ describe('handlerChain', () => {
     given.disputed.set(Tier, 'one over A -> M, none over B -> M')
     const owner = extras()
     const member = extras()
-    const chain = () => handlerChain({ application: [], node: given, owner, member })
+    const chain = () => handlerChain({ application: [], node: given, owner, member, ...at })
 
     expect(chain).toThrow(
       '[Navios] Module M inherits different values of the attribute Symbol(test.chain.Tier): ' +
@@ -155,6 +169,7 @@ describe('resolveChain and runChain', () => {
         node: node([guard('module')], [around('moduleInterceptor')]),
         owner: extras([guard('owner', Promise.resolve(true))], [around('inner')]),
         member: extras([guard('member')], [around('member')]),
+        ...at,
       }),
     )
 
@@ -185,6 +200,7 @@ describe('resolveChain and runChain', () => {
         node: node(),
         owner: extras([Denying, guard('later')], [around('inner')]),
         member: extras(),
+        ...at,
       }),
     )
     const onDenied = vi.fn(() => 'denied')
@@ -198,8 +214,8 @@ describe('resolveChain and runChain', () => {
   it.each(['yes', 1, {}, null, 0, ''])('takes %j from a guard for a refusal', async (result) => {
     for (const given of [result, Promise.resolve(result)]) {
       const chain = await resolveChain(container, {
+        info: { guards: [guard('loose', given as boolean | Promise<boolean>)] },
         outer: [],
-        guards: [guard('loose', given as boolean | Promise<boolean>)],
         inner: [],
       })
 
@@ -216,6 +232,7 @@ describe('resolveChain and runChain', () => {
         node: node(),
         owner: extras([guard('denying', false)]),
         member: extras(),
+        ...at,
       }),
     )
     const deny = () => {
@@ -229,7 +246,7 @@ describe('resolveChain and runChain', () => {
   it('runs a handler with nothing around it', async () => {
     const chain = await resolveChain(
       container,
-      handlerChain({ application: [], node: node(), owner: extras(), member: extras() }),
+      handlerChain({ application: [], node: node(), owner: extras(), member: extras(), ...at }),
     )
 
     await expect(runChain(ctx, chain, handler, vi.fn())).resolves.toBe('result')
@@ -240,13 +257,80 @@ describe('resolveChain and runChain', () => {
     class Neither {}
 
     await expect(
-      resolveChain(container, { guards: [Neither], outer: [], inner: [] }),
+      resolveChain(container, { info: { guards: [Neither] }, outer: [], inner: [] }),
     ).rejects.toThrow('[Navios] Guard Neither does not implement canActivate()')
     await expect(
-      resolveChain(container, { guards: [], outer: [Neither], inner: [] }),
+      resolveChain(container, { info: { guards: [] }, outer: [Neither], inner: [] }),
     ).rejects.toThrow('[Navios] Interceptor Neither does not implement intercept()')
     await expect(
-      resolveChain(container, { guards: [], outer: [], inner: [Neither] }),
+      resolveChain(container, { info: { guards: [] }, outer: [], inner: [Neither] }),
     ).rejects.toThrow('[Navios] Interceptor Neither does not implement intercept()')
+  })
+})
+
+describe('executeChain', () => {
+  let container: Container
+
+  beforeEach(() => {
+    container = new Container()
+  })
+
+  afterEach(async () => {
+    await container.dispose()
+  })
+
+  const bare = () =>
+    resolveChain(
+      container,
+      handlerChain({ application: [], node: node(), owner: extras(), member: extras(), ...at }),
+    )
+
+  it('finishes the context after the handler, whatever the outcome', async () => {
+    const chain = await bare()
+    const done = fakeContext(container)
+    const failed = fakeContext(container)
+    const finished = vi.fn()
+    done.onFinish(() => finished('done'))
+    failed.onFinish(() => finished('failed'))
+    const fail = () => {
+      throw new Error('failed')
+    }
+
+    await expect(
+      executeChain({ asyncContext: false }, done, chain, () => 'result', vi.fn()),
+    ).resolves.toBe('result')
+    await expect(
+      executeChain({ asyncContext: false }, failed, chain, fail, vi.fn()),
+    ).rejects.toThrow('failed')
+
+    expect(finished.mock.calls).toEqual([['done'], ['failed']])
+  })
+
+  it('runs in the async context, finishing included, when the application keeps one', async () => {
+    await enableAsyncContext()
+    const chain = await bare()
+    const kept = fakeContext(container)
+    const notKept = fakeContext(container)
+    const seen: unknown[] = []
+    kept.onFinish(() => {
+      seen.push(currentContext())
+    })
+
+    await executeChain(
+      { asyncContext: true },
+      kept,
+      chain,
+      () => seen.push(currentContext()),
+      vi.fn(),
+    )
+    await executeChain(
+      { asyncContext: false },
+      notKept,
+      chain,
+      () => seen.push(currentContext()),
+      vi.fn(),
+    )
+
+    expect(seen).toEqual([kept, kept, undefined])
   })
 })

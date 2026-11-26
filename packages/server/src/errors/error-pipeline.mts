@@ -3,11 +3,11 @@ import { encodeResult } from '../pipeline/encode-result.mjs'
 import { toRouteResult } from '../pipeline/to-route-result.mjs'
 import { validateSchema } from '../pipeline/validate-schema.mjs'
 
+import type { RouteResponse } from '../adapter/route-response.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { EndpointReply } from '../responses/reply.mjs'
 import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
-import type { RouteResponse } from '../routing/route-response.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
 import { GuardDeniedError } from './guard-denied-error.mjs'
@@ -50,7 +50,7 @@ export interface ErrorPipelineOptions {
  * Turns anything thrown while handling a request into a response.
  *
  * The most specific class wins. The built-in mappings count as registered
- * for `HttpException`, for a denied guard and for a request `ValidationError`,
+ * for `HttpException`, for a denied guard and for a `ValidationError`,
  * so a mapper for one of these classes or a subclass replaces the built-in,
  * and a mapper for `Error` gets only what none of them handles. What nothing
  * maps goes to the internal-error responder.
@@ -64,15 +64,19 @@ export class ErrorPipeline {
     this.mappers.set(errorClass, mapper)
   }
 
+  /** The mapper of an error's class, or `undefined` for the built-in mapping. */
   private findMapper(error: unknown): ErrorMapper<any> | undefined {
     if (this.mappers.size === 0 || error === null || typeof error !== 'object') {
       return undefined
     }
-    for (
-      let proto = Object.getPrototypeOf(error);
-      proto !== null;
-      proto = Object.getPrototypeOf(proto)
-    ) {
+    let proto: any
+    try {
+      proto = Object.getPrototypeOf(error)
+    } catch {
+      // A proxy that throws: what `builtIn()` makes of it.
+      return undefined
+    }
+    for (; proto !== null; proto = Object.getPrototypeOf(proto)) {
       const mapper = this.mappers.get(proto.constructor)
       if (mapper !== undefined) {
         return mapper
@@ -82,7 +86,7 @@ export class ErrorPipeline {
       if (
         proto === HttpException.prototype ||
         proto === GuardDeniedError.prototype ||
-        (proto === ValidationError.prototype && (error as ValidationError).source !== 'response')
+        proto === ValidationError.prototype
       ) {
         return undefined
       }
@@ -111,11 +115,7 @@ export class ErrorPipeline {
    * @internal
    */
   reportUnseen(error: unknown, at: ErrorSite | null): void {
-    const isClientError =
-      (error instanceof HttpException && error.statusCode < 500) ||
-      error instanceof GuardDeniedError ||
-      (error instanceof ValidationError && error.source !== 'response')
-    if (!isClientError) {
+    if (!isClientError(error)) {
       this.report(error, at)
     }
   }
@@ -138,10 +138,13 @@ export class ErrorPipeline {
 
   /**
    * The response for an error outside a route's pipeline, such as one of a
-   * plugin of the native server. Reported like any other unhandled error.
+   * plugin of the native server or of a CORS check. It is mapped as in a
+   * route, without the mappers: an `HttpException` keeps its status, and an
+   * error that has none is a 500 and reported.
    */
   unexpected(error: unknown, at: ErrorSite | null = null): RouteResponse {
-    const result = this.internal(error, at)
+    // Without an endpoint nothing is declared, so the answer is there at once.
+    const result = this.builtIn(error, at, null) as RouteResult
     try {
       return encodeResult(result)
     } catch (defect) {
@@ -151,17 +154,11 @@ export class ErrorPipeline {
   }
 
   /**
-   * The result for a result that cannot be sent.
-   * @internal
-   */
-  defect(error: unknown, ctx: RequestContext): RouteResult {
-    return this.internal(error, ctx)
-  }
-
-  /**
    * The result for an error. Error mappers apply to one of a route's
    * pipeline, which has a context. For another, `at` is the request it is
-   * reported with.
+   * reported with. Never throws, and the promise never rejects: what a mapper
+   * or a responder fails with, and an error that throws when it is looked at,
+   * is answered as well.
    */
   toResult(
     error: unknown,
@@ -198,32 +195,39 @@ export class ErrorPipeline {
     return isPromise(mapped) ? mapped.then(settle, refuse) : settle(mapped)
   }
 
+  /** The built-in mapping. Asynchronous only for an error body the endpoint declares. */
   private builtIn(
     error: unknown,
     at: ErrorSite | null,
     config: RouteEndpointConfig | null,
   ): MaybePromise<RouteResult> {
-    if (error instanceof HttpException) {
-      const { statusCode, response } = error
-      if (statusCode >= 500) {
-        this.report(error, at)
+    try {
+      if (error instanceof HttpException) {
+        const { statusCode, response } = error
+        if (statusCode >= 500) {
+          this.report(error, at)
+        }
+        if (typeof response === 'string') {
+          // Not a declared body, which is an object.
+          return problem(statusCode, response)
+        }
+        if (config?.errorSchema !== undefined && Object.hasOwn(config.errorSchema, statusCode)) {
+          return this.declared(error, at, config)
+        }
+        return problem(statusCode, undefined, response as Record<string, unknown>)
       }
-      if (typeof response === 'string') {
-        // Not a declared body, which is an object.
-        return problem(statusCode, response)
+      if (error instanceof GuardDeniedError) {
+        return this.respond('forbidden', 403, error, at)
       }
-      if (config?.errorSchema !== undefined && Object.hasOwn(config.errorSchema, statusCode)) {
-        return this.declared(error, at, config)
+      if (error instanceof ValidationError) {
+        return this.respond('validation', 400, error, at)
       }
-      return problem(statusCode, undefined, response as Record<string, unknown>)
+      return this.internal(error, at)
+    } catch (defect) {
+      // What an error that is a proxy throws when it is looked at.
+      this.report(defect, at)
+      return problem(500)
     }
-    if (error instanceof GuardDeniedError) {
-      return this.respond('forbidden', 403, error, at)
-    }
-    if (error instanceof ValidationError && error.source !== 'response') {
-      return this.respond('validation', 400, error, at)
-    }
-    return this.internal(error, at)
   }
 
   /**
@@ -289,6 +293,23 @@ export class ErrorPipeline {
   }
 }
 
+/**
+ * Whether an error is answered with a 4xx status and needs no report: an
+ * `HttpException` below 500, a denied guard, a request that does not match
+ * its schema.
+ */
+function isClientError(error: unknown): boolean {
+  try {
+    return (
+      (error instanceof HttpException && error.statusCode < 500) ||
+      error instanceof GuardDeniedError ||
+      error instanceof ValidationError
+    )
+  } catch {
+    return false
+  }
+}
+
 function errorName(error: unknown): string {
   return error !== null && typeof error === 'object'
     ? (error.constructor?.name ?? 'an error')
@@ -298,12 +319,16 @@ function errorName(error: unknown): string {
 /** Whether an error is what work that was given an `AbortSignal` fails with, or was caused by one. */
 function isAbort(error: unknown): boolean {
   let current = error
-  for (let depth = 0; depth < 5 && typeof current === 'object' && current !== null; depth++) {
-    const { name, cause } = current as { name?: unknown; cause?: unknown }
-    if (name === 'AbortError' || name === 'CanceledError') {
-      return true
+  try {
+    for (let depth = 0; depth < 5 && typeof current === 'object' && current !== null; depth++) {
+      const { name, cause } = current as { name?: unknown; cause?: unknown }
+      if (name === 'AbortError' || name === 'CanceledError') {
+        return true
+      }
+      current = cause
     }
-    current = cause
+  } catch {
+    // An error that throws when it is looked at is not one.
   }
   return false
 }

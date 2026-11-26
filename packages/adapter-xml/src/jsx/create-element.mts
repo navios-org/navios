@@ -13,14 +13,10 @@ import type {
 type ComponentType = FunctionComponent | ComponentClass
 type ElementNode = XmlNode | ClassComponentNode | FunctionComponentNode
 
-function flattenChildren(children: any): AnyXmlNode[] {
-  if (children == null || children === false) {
-    return []
-  }
-  if (Array.isArray(children)) {
-    return children.flat(Infinity).filter((c) => c != null && c !== false)
-  }
-  return [children]
+/** The children of an element as a flat list, without `null`, `undefined` and booleans. */
+export function flattenChildren(children: any): AnyXmlNode[] {
+  const list = Array.isArray(children) ? children.flat(Infinity) : [children]
+  return list.filter((c) => c != null && typeof c !== 'boolean')
 }
 
 function element(

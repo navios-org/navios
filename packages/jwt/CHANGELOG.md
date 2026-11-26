@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.1] - Unreleased
+
+### Added
+
+- The types `SignOptions` and `VerifyOptions` of `JwtServiceOptions.signOptions` and `JwtServiceOptions.verifyOptions` are exported.
+
+### Fixed
+
+- A configuration function of `provideJwtService` that returns a thenable which is not a native promise is waited for. The service resolved to `undefined`.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 Ported to `@navios/core` 2.0 and `@navios/di` 2.0.

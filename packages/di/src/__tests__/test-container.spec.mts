@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Container } from '../container/container.mjs'
 import { Injectable } from '../decorators/injectable.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { inject } from '../injection/injectors.mjs'
+import { inject } from '../internal/inject-impl.mjs'
 import { TestContainer } from '../testing/test-container.mjs'
 import { InjectionToken } from '../token/injection-token.mjs'
 
@@ -231,6 +231,29 @@ describe('TestContainer', () => {
       expect(() => container.expectCallCount(TOKEN, 'process', 3)).not.toThrow()
     })
 
+    it('should assert that a method was not called', async () => {
+      const TOKEN = InjectionToken.create<{ save(): void; load(): void }>('store-token')
+      container.bind(TOKEN).toValue({ save() {}, load() {} })
+
+      container.recordMethodCall(TOKEN, 'load', [])
+
+      expect(() => container.expectNotCalled(TOKEN, 'save')).not.toThrow()
+      expect(() => container.expectNotCalled(TOKEN, 'load')).toThrow(
+        'Expected store-token.load() to NOT be called, but it was',
+      )
+    })
+
+    it('should name the recorded calls when the args do not match', async () => {
+      const TOKEN = InjectionToken.create<{ send(to: string): void }>('mail-token')
+      container.bind(TOKEN).toValue({ send() {} })
+
+      container.recordMethodCall(TOKEN, 'send', ['a@example.com'])
+
+      expect(() => container.expectCalledWith(TOKEN, 'send', ['b@example.com'])).toThrow(
+        'Expected mail-token.send() to be called with ["b@example.com"]. Actual calls: [["a@example.com"]]',
+      )
+    })
+
     it('should get all method calls', async () => {
       const TOKEN = InjectionToken.create<{ action(s: string): void }>('action-token')
 
@@ -270,17 +293,7 @@ describe('TestContainer', () => {
     })
   })
 
-  describe('Lifecycle Tracking', () => {
-    it('should track lifecycle events for value bindings', async () => {
-      const TOKEN = InjectionToken.create<object>('lifecycle-token')
-
-      // Value bindings record 'created' event automatically
-      container.bind(TOKEN).toValue({ name: 'test' })
-
-      const stats = container.getServiceStats(TOKEN)
-      expect(stats.lifecycleEvents.some((e) => e.event === 'created')).toBe(true)
-    })
-
+  describe('Service stats', () => {
     it('should get service stats with method calls', async () => {
       const TOKEN = InjectionToken.create<{ method(): void }>('stats-token')
 
@@ -292,8 +305,7 @@ describe('TestContainer', () => {
       container.recordMethodCall(TOKEN, 'method', [])
 
       const stats = container.getServiceStats(TOKEN)
-      expect(stats.instanceCount).toBe(1)
-      expect(stats.methodCalls).toHaveLength(1)
+      expect(stats).toEqual({ methodCalls: [expect.objectContaining({ method: 'method' })] })
     })
   })
 

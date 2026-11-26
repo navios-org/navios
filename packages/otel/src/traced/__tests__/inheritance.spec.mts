@@ -1,9 +1,14 @@
+import { trace } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { Traceable as LegacyTraceable, Traced as LegacyTraced } from '../../legacy-compat/index.mjs'
-import { extractTracedMetadata, Traceable, Traced } from '../index.mjs'
+import { traceInstance } from '../trace-instance.mjs'
+import { tracedClasses } from '../traced-metadata.mjs'
+import { Traceable, Traced } from '../traced.mjs'
+
+const extractTracedMetadata = (target: ClassType) => tracedClasses.get(target)!
 
 const seen = (target: ClassType) => {
   const { name, attributes, enabled, methods } = extractTracedMetadata(target)
@@ -23,7 +28,12 @@ const expected = {
     enabled: true,
     methods: ['list', 'create'],
   },
-  users: { name: 'users', attributes: undefined, enabled: false, methods: ['list', 'remove'] },
+  users: {
+    name: 'users',
+    attributes: { layer: 'base', team: 'a' },
+    enabled: false,
+    methods: ['list', 'remove'],
+  },
 }
 
 describe('traced metadata of a subclass', () => {
@@ -90,5 +100,49 @@ describe('traced metadata of a subclass', () => {
     expect(seen(Orders)).toEqual(expected.orders)
     expect(seen(Users)).toEqual(expected.users)
     expect(extractTracedMetadata(Base).methods.get('list')!.name).toBe('base-list')
+  })
+})
+
+describe('@Traceable on a subclass', () => {
+  it('keeps the span name and the attributes of the base class', () => {
+    @Traced({ name: 'base-service', attributes: { layer: 'base' } })
+    class Base {
+      list() {}
+    }
+
+    @Traceable({ attributes: { team: 'a' } })
+    class Child extends Base {
+      @Traced()
+      remove() {}
+    }
+
+    expect(seen(Child)).toEqual({
+      name: 'base-service',
+      attributes: { layer: 'base', team: 'a' },
+      enabled: false,
+      methods: ['remove'],
+    })
+    expect(seen(Base)).toEqual({
+      name: 'base-service',
+      attributes: { layer: 'base' },
+      enabled: true,
+      methods: [],
+    })
+  })
+})
+
+describe('a subclass without a decorator', () => {
+  it('is not traced as its base class', () => {
+    @Traced({ name: 'base-service' })
+    class Base {
+      list() {}
+    }
+    class Child extends Base {}
+
+    expect(tracedClasses.has(Base)).toBe(true)
+    expect(tracedClasses.has(Child)).toBe(false)
+
+    const child = traceInstance(new Child(), Child, trace.getTracer('test'))
+    expect(Object.getOwnPropertyNames(child)).toEqual([])
   })
 })

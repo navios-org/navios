@@ -59,19 +59,34 @@ export async function toTestMessage(request: TestRequest): Promise<TestMessage> 
 
 /**
  * What `inject()` answers with. The values of a repeated header are joined
- * with `, `, those of `set-cookie` with a line break.
+ * with `, `, those of `set-cookie` with a line break. `headers` are those of
+ * the server, as a record or as web `Headers`.
  */
 export function toTestResponse(
   status: number,
-  headers: Readonly<Record<string, string | number | readonly string[] | undefined>>,
+  headers: Headers | Readonly<Record<string, string | number | readonly string[] | undefined>>,
   text: string,
 ): TestResponse {
   const joined: Record<string, string> = {}
-  for (const [name, value] of Object.entries(headers)) {
-    if (value !== undefined) {
-      joined[name] =
-        typeof value === 'object' ? value.join(name === 'set-cookie' ? '\n' : ', ') : String(value)
+  let cookies: string[]
+  if (headers instanceof Headers) {
+    headers.forEach((value, name) => {
+      joined[name] = value
+    })
+    cookies = headers.getSetCookie()
+    if (cookies.length > 0) {
+      joined['set-cookie'] = cookies.join('\n')
     }
+  } else {
+    for (const [name, value] of Object.entries(headers)) {
+      if (value !== undefined) {
+        joined[name] =
+          typeof value === 'object'
+            ? value.join(name === 'set-cookie' ? '\n' : ', ')
+            : String(value)
+      }
+    }
+    cookies = [headers['set-cookie'] ?? []].flat().map(String)
   }
   const type = mediaType(joined['content-type'])
   let body: unknown
@@ -82,6 +97,5 @@ export function toTestResponse(
       body = undefined
     }
   }
-  const cookies = [headers['set-cookie'] ?? []].flat().map(String)
   return { status, headers: joined, cookies, text, body }
 }

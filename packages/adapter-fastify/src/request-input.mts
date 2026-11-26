@@ -1,7 +1,12 @@
 import { Readable } from 'node:stream'
 
 import { HttpException } from '@navios/server'
-import { canonicalPath, malformedMultipart } from '@navios/server/adapter'
+import {
+  bodyTooLarge,
+  canonicalPath,
+  incompleteBody,
+  malformedMultipart,
+} from '@navios/server/adapter'
 
 import type { BodyPart, BodySource, RouteInput } from '@navios/server/adapter'
 import type { FastifyReply, FastifyRequest } from 'fastify'
@@ -175,15 +180,15 @@ export class FastifyRouteInput implements RouteInput, BodySource {
       const collect = (chunk: Buffer) => {
         size += chunk.byteLength
         if (size > this.multipartLimit) {
-          refuse(tooLarge())
+          refuse(bodyTooLarge())
         } else {
           chunks.push(chunk)
         }
       }
       raw.on('data', collect)
       raw.once('end', () => resolve(Buffer.concat(chunks)))
-      raw.once('error', () => refuse(incomplete()))
-      raw.once('close', () => refuse(incomplete()))
+      raw.once('error', () => refuse(incompleteBody()))
+      raw.once('close', () => refuse(incompleteBody()))
     })
   }
 
@@ -199,7 +204,7 @@ export class FastifyRouteInput implements RouteInput, BodySource {
         }
         left -= value.size
         if (left < 0) {
-          throw tooLarge()
+          throw bodyTooLarge()
         }
         if (value.name) {
           yield { name: value.name, value: value.content }
@@ -252,14 +257,6 @@ export class FastifyRouteInput implements RouteInput, BodySource {
 /** Whether `@fastify/multipart` takes the body, which it only does when it is asked for parts. */
 function isMultipart(request: FastifyRequest): boolean {
   return (request as any).isMultipart?.() === true && request.body === undefined
-}
-
-function tooLarge(): HttpException {
-  return new HttpException(413, 'Request body is too large')
-}
-
-function incomplete(): HttpException {
-  return new HttpException(400, 'The request body is incomplete')
 }
 
 interface Part {

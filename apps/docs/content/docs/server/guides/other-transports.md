@@ -159,26 +159,44 @@ export const myTransport = defineTransport({
 })
 ```
 
-`setup` receives the module graph: every module in dependency order with its providers, the guards, interceptors and attributes it inherits, and `entries`, the `@Module` options the module system itself does not use. The same entry point exports what the rest needs, and the types of the contract:
+`setup` receives the module graph: every module in dependency order with its providers, the guards, interceptors and attributes it inherits, and `entries`, the `@Module` options the module system itself does not use. The same entry point exports what the rest needs, and the types only a transport uses, such as `TransportHost`; those it shares with application code, such as `Transport`, `HandlerInfo` and `Guard`, come from `@navios/core`:
 
+- `moduleClasses(node, entry)` for the classes a module lists under your option, once each.
 - `describeHandlerClass` for the decorator of your handler classes, and `memberMetadata` for decorators of their methods.
-- `handlerChain` for the guards and interceptors that apply to a handler, `resolveChain` for their instances, once, in `setup`, and `runChain` to run them around a handler. They are the same on every transport: the application's interceptors, then the guards, then the interceptors of the module, the class and the handler. `handlerChain` refuses a handler that would inherit an attribute its module's importers [disagree about](/docs/server/essentials/modules#module-guards-and-interceptors). A guard refuses with anything but `true`; `runChain` takes a function that says what becomes of the execution then.
-- `BasicExecutionContext` for a context of your own kind. Call `finish()` when the handler is done.
-- `runInContext`, to run a handler when `host.asyncContext` is set.
+- `handlerChain` for the guards and interceptors that apply to a handler and the `HandlerInfo` its contexts carry, `resolveChain` for their instances, once, in `setup`, and `runChain` to run them around a handler. They are the same on every transport: the application's interceptors, then the guards, then the interceptors of the module, the class and the handler. `handlerChain` refuses a handler that would inherit an attribute its module's importers [disagree about](/docs/server/essentials/modules#module-guards-and-interceptors). A guard refuses with anything but `true`; `runChain` takes a function that says what becomes of the execution then.
+- `BasicExecutionContext` for a context of your own kind, and `executeChain`, which runs the chain with it: in the async context when `host.asyncContext` is set, and with `finish()` afterwards, whatever the outcome.
+- `settledWithin(work, ms)`, to wait for what is in flight in `stop(timeoutMs)`.
 
 ```ts
-import { handlerChain, resolveChain, runChain } from '@navios/core/transport'
+import {
+  BasicExecutionContext,
+  executeChain,
+  handlerChain,
+  resolveChain,
+} from '@navios/core/transport'
 
-// in setup(), for a method `member` of `HandlerClass`, described by `owner`
-const chain = await resolveChain(
-  host.container,
-  handlerChain({ application: host.interceptors, node, owner, member }),
-)
+// in setup(), for a method `name` of `HandlerClass`, described by `owner`
+const chain = handlerChain({
+  application: host.interceptors,
+  node,
+  controller: HandlerClass,
+  owner,
+  handlerName: name,
+  member: owner.members.get(name)!,
+})
+const resolved = await resolveChain(host.container, chain)
 
 // for each execution
-await runChain(
+const ctx = new BasicExecutionContext({
+  kind: 'my-transport',
+  id,
+  handler: chain.info,
+  host: host.contextHost,
+})
+await executeChain(
+  host,
   ctx,
-  chain,
+  resolved,
   () => handler(payload, ctx),
   (guard) => {
     throw new Error(`${guard.name} denied it`)

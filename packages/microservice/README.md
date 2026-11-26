@@ -84,9 +84,9 @@ await app.listen({ port: 3000 })
 
 One module can list both `controllers` and `messageControllers`. A guard on such a module runs for requests and for messages; `isMessageContext(ctx)` and `isHttpContext(ctx)` tell them apart.
 
-## Not yet
+## Acknowledgement and retries
 
-The attributes `Ack`, `NoAck`, `ManualAck`, `Retry`, `DeadLetterQueue`, `Concurrency`, `Timeout`, `ErrorHandling`, `Idempotency`, `RateLimit`, `BatchProcessing` and `Priority` can be put on handlers and read with `AttributeFactory`, but the transport does not act on them yet. Acknowledgement and retries are whatever the queue client does when a handler resolves or rejects.
+The transport has no settings for them: they are whatever the queue client does when a handler resolves or rejects.
 
 ## License
 

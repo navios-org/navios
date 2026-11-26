@@ -13,4 +13,6 @@ export type {
   JwtPrivateKey,
   JwtSignOptions,
   JwtVerifyOptions,
+  SignOptions,
+  VerifyOptions,
 } from './token-options.mjs'

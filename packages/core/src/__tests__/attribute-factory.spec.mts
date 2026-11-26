@@ -1,7 +1,11 @@
+import { runInNewContext } from 'node:vm'
+
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 
-import { AttributeFactory } from '../attributes/index.mjs'
+import type { StandardSchemaV1 } from '@navios/di'
+
+import { AttributeFactory } from '../attributes/attribute-factory.mjs'
 import { describeHandlerClass } from '../metadata/handler-class.mjs'
 
 import type { HandlerClassMetadata } from '../metadata/handler-class.mjs'
@@ -83,6 +87,27 @@ describe('AttributeFactory', () => {
     )
 
     expect(() => Async('x')).toThrow('validates synchronously')
+  })
+
+  it('refuses a schema that answers with a promise of another realm', async () => {
+    const foreign: StandardSchemaV1<string> = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        validate: () => runInNewContext('Promise.reject(new Error("too late"))'),
+      },
+    }
+    const Foreign = AttributeFactory.createAttribute(Symbol.for('test.attributes.Foreign'), foreign)
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+
+    try {
+      expect(() => Foreign('x')).toThrow('validates synchronously')
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 
   it('refuses what it cannot be attached to', () => {

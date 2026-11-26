@@ -6,8 +6,8 @@ import { isJsonType, mediaType } from '../decoding/media-type.mjs'
 import { parseJson } from '../decoding/parse-json.mjs'
 import { HttpException, ValidationError } from '../errors/index.mjs'
 
+import type { BodySource } from '../adapter/route-input.mjs'
 import type { RequestContext } from '../context/index.mjs'
-import type { BodySource } from '../routing/route-input.mjs'
 
 import { body, input, setup } from './pipeline-setup.mjs'
 

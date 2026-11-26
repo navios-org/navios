@@ -1,4 +1,4 @@
-import { registerInjectable } from '@navios/di'
+import { registerInjectable } from '@navios/core'
 import {
   createNoopMeter,
   metrics,
@@ -13,17 +13,26 @@ import type { Meter, Tracer } from '@opentelemetry/api'
 import type { Resource } from '@opentelemetry/resources'
 import type { SpanProcessor } from '@opentelemetry/sdk-trace'
 
-import { resolveOtelConfig } from '../config/resolve-otel-config.mjs'
+import { resolveOtelConfig } from '../otel-config.mjs'
 
-import type { OtelConfig, ResolvedOtelConfig } from '../config/otel-config.mjs'
+import type { OtelConfig, ResolvedOtelConfig } from '../otel-config.mjs'
 
-import { createMetricReaders } from './metric-readers.mjs'
-import { registerTracerProvider } from './register-tracer-provider.mjs'
-import { createResource } from './resource.mjs'
-import { createSampler } from './sampler.mjs'
-import { createSpanExporter } from './span-exporter.mjs'
+import {
+  createMetricReaders,
+  createResource,
+  createSampler,
+  createSpanExporter,
+  registerTracerProvider,
+} from './providers.mjs'
 
-import type { OtelSetupLogger } from './otel-setup-logger.mjs'
+/**
+ * The part of a logger the setup service writes to.
+ */
+export interface OtelSetupLogger {
+  debug(message: string): void
+  warn(message: string): void
+  error(message: string, ...rest: unknown[]): void
+}
 
 /**
  * Owns the OpenTelemetry SDK objects of an application: the tracer provider

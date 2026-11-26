@@ -5,11 +5,11 @@ import {
   InjectionToken,
   provide,
   registerInjectable,
-} from '@navios/core'
+} from '@navios/di'
 import { TestContainer } from '@navios/di/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FactoryContext } from '@navios/core'
+import type { FactoryContext } from '@navios/di'
 
 import { JsonWebTokenError, JwtService, provideJwtService } from '../index.mjs'
 
@@ -98,6 +98,18 @@ describe('provideJwtService', () => {
     const Async = provideJwtService(async () => ({ secret: ACCESS }))
     expect(() => container.getSync(Async)).toThrow()
     expect(await container.get(Async)).toBeInstanceOf(JwtService)
+  })
+
+  it('should wait for a configuration that is a thenable', async () => {
+    const thenable = {
+      // oxlint-disable-next-line unicorn/no-thenable -- the case under test
+      then(resolve: (options: { secret: string }) => void) {
+        resolve({ secret: ACCESS })
+      },
+    }
+    const Jwt = provideJwtService(() => thenable as unknown as Promise<{ secret: string }>)
+
+    expect(await container.get(Jwt)).toBeInstanceOf(JwtService)
   })
 
   it('should inject the service of an asynchronous configuration', async () => {

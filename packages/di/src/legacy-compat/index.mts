@@ -9,7 +9,6 @@
  */
 import '../symbol-metadata.mjs'
 
-// Re-export decorator options types
 export type { InjectableOptions } from '../decorators/injectable.mjs'
 export type { FactoryOptions } from '../decorators/factory.mjs'
 

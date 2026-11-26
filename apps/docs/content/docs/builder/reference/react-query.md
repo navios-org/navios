@@ -164,7 +164,7 @@ interface DataWithResponse<TData> {
 
 Header names are lower-cased and `headers` is a plain record, so the value survives dehydration and persistence. Entries declared with `withResponse` live under their own key, marked `'with-response'`. Failures still go to the error channel.
 
-`MaybeWithResponse<TData, WithResponse>` is `DataWithResponse<TData>` when `WithResponse` is `true`, and `TData` otherwise.
+`MaybeWithResponse<TData, WithResponse>` is `DataWithResponse<TData>` when `WithResponse` is `true`, and `TData` otherwise. `SurfaceData<Options, WithResponse>` is that for the data of an endpoint: `MaybeWithResponse<InferEndpointReturn<Options>, WithResponse>`.
 
 ## setHttpClient and getHttpClient
 
@@ -214,7 +214,6 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 | `ClientOptions`                     | Argument of `declareClient`                                                   |
 | `KeyOptions`                        | `{ keyPrefix?, keySuffix? }`                                                  |
 | `SurfaceOptions<WithResponse>`      | `KeyOptions` plus `withResponse`                                              |
-| `EndpointArgs<Options>`             | The full call arguments of an endpoint                                        |
 | `EndpointInputs<Options>`           | The part of the arguments that goes into the key: `urlParams`, `params`, `data` |
 | `PartialEndpointInputs<Options>`    | Any subset of the inputs; the argument of `key` and `invalidate`              |
 | `KeyBy<Options>`                    | The `keyBy` setting, with the endpoint's part and field names                 |
@@ -222,10 +221,8 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 | `SendArgs<Options, TKeyBy>`         | Arguments of the calls that send shared inputs: those inputs are optional     |
 | `KeyedArgs<Options, TKeyBy>`        | Arguments that address the entry: only the inputs that identify it            |
 | `PartialKeyedInputs<Options, TKeyBy>` | Any subset of those inputs; the argument of `key` and `invalidate` under a `keyBy` |
-| `EndpointData<Options>`             | The data an endpoint resolves to                                              |
-| `EndpointFailure<Options>`          | The typed `EndpointError` an endpoint fails with                              |
-| `ArgsWith<Options, Rest>`           | `[args, ...Rest]`, with `args` optional when nothing is required              |
-| `ArgsOf<Args, Rest>`                | The same for any arguments type                                               |
+| `SurfaceData<Options, WithResponse>` | The data a query, infinite query page or mutation delivers: `MaybeWithResponse<InferEndpointReturn<Options>, WithResponse>` |
+| `ArgsOf<Args, Rest>`                | `[args, ...Rest]`, with `args` optional when `Args` requires nothing          |
 | `RequiredKeys<T>`                   | Keys of `T` that must be provided                                             |
 | `TaggedKey<TData, TError>`          | A key tagged with the types stored under it                                   |
 | `QueryHookOptions`, `SuspenseQueryHookOptions` | The `options` of `use` and `useSuspense`                           |
@@ -243,3 +240,5 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 | `OptimisticUpdateSpec<Q, TVariables>` | The description passed to it                                                |
 | `OptimisticUpdate<TVariables>`      | What it returns                                                               |
 | `QueryObject`, `InfiniteQueryObject`, `MutationObject`, `InfiniteQuerySettings`, `MutationSettings`, `DataWithResponse`, `MaybeWithResponse` | Described in their sections above |
+
+An endpoint's call arguments, data and error are the builder's types: `ClientRequestArgs<Options>`, `InferEndpointReturn<Options>` and `InferEndpointError<Options>` from `@navios/builder` (see the [builder reference](/docs/builder/reference/builder)). `ArgsOf<ClientRequestArgs<Options>, Rest>` is the argument list of a call that takes them.
