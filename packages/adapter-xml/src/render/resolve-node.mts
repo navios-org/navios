@@ -1,8 +1,13 @@
 import { flattenChildren } from '../jsx/create-element.mjs'
-import { ClassComponent, Fragment, FunctionComponentSymbol } from '../nodes/xml-node.mjs'
+import {
+  ClassComponent,
+  Fragment,
+  FunctionComponentSymbol,
+  isNodeOfType,
+} from '../nodes/xml-node.mjs'
 
 import type { XmlComponent } from '../components/xml-component.mjs'
-import type { AnyXmlNode, ClassComponentNode, FunctionComponentNode } from '../nodes/xml-node.mjs'
+import type { AnyXmlNode } from '../nodes/xml-node.mjs'
 
 import { MissingContainerError } from './errors.mjs'
 
@@ -19,11 +24,11 @@ export async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Pro
       // A boolean renders nothing, as `{flag && <item />}` does.
       return typeof current === 'boolean' ? null : current
     }
-    if (isFunctionComponentNode(current)) {
+    if (isNodeOfType(current, FunctionComponentSymbol)) {
       // Function components are called here, not when the JSX is evaluated,
       // so that they receive the request context.
       current = (await current.component(current.props, env.ctx)) as AnyXmlNode
-    } else if (isClassComponentNode(current)) {
+    } else if (isNodeOfType(current, ClassComponent)) {
       // Class components: a new instance from the container, with the props
       // as constructor argument (validated when the component declares a
       // schema).
@@ -51,17 +56,4 @@ export async function resolveNode(node: AnyXmlNode, env: RenderEnvironment): Pro
 
 function isThenable(value: object): value is PromiseLike<unknown> {
   return typeof (value as { then?: unknown }).then === 'function'
-}
-
-function isFunctionComponentNode(node: unknown): node is FunctionComponentNode {
-  return (
-    node !== null &&
-    typeof node === 'object' &&
-    'type' in node &&
-    node.type === FunctionComponentSymbol
-  )
-}
-
-function isClassComponentNode(node: unknown): node is ClassComponentNode {
-  return node !== null && typeof node === 'object' && 'type' in node && node.type === ClassComponent
 }

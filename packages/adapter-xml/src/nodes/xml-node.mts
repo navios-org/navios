@@ -50,3 +50,11 @@ export type AnyXmlNode =
   | number
   | null
   | undefined
+
+/** Whether `node` is a node object of the given type, such as `CDataSymbol`. */
+export function isNodeOfType<Type extends symbol>(
+  node: unknown,
+  type: Type,
+): node is Extract<AnyXmlNode, { type: Type }> {
+  return typeof node === 'object' && node !== null && (node as { type?: unknown }).type === type
+}
