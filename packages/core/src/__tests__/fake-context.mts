@@ -5,9 +5,10 @@ import { BasicExecutionContext } from '../execution/basic-execution-context.mjs'
 import type { HandlerInfo } from '../execution/execution-context.mjs'
 
 class Owner {}
+class OwnerModule {}
 
 export const fakeHandler: HandlerInfo = {
-  module: null,
+  module: OwnerModule,
   controller: Owner,
   handlerName: 'run',
   guards: [],

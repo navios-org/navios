@@ -117,7 +117,7 @@ export function setup(
     method: endpoint.method,
     path: extra.path ?? endpoint.url,
     endpoint,
-    module: null,
+    module: class TestModule {},
     controller: class TestController {},
     handlerName: 'handle',
     guards: [],

@@ -12,9 +12,10 @@ import type { ContextHost } from '../execution/context-host.mjs'
 import type { ExecutionContext, HandlerInfo } from '../execution/execution-context.mjs'
 
 class Owner {}
+class OwnerModule {}
 
 const handler: HandlerInfo = {
-  module: null,
+  module: OwnerModule,
   controller: Owner,
   handlerName: 'run',
   guards: [],

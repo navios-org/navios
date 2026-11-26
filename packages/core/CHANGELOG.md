@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking
 
 - **`@navios/core/transport` no longer re-exports `constructedInstances`.** It is part of `@navios/di/internal`, which follows no semver; a transport that needs it imports it from there and lists `@navios/di` as a peer dependency.
+- **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
 
 ### Added
 

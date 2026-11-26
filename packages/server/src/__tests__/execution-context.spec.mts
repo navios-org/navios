@@ -145,7 +145,7 @@ describe('RequestContext as an ExecutionContext', () => {
       id: 'job-1',
       host: { container: new Container(), onScopedUse: null },
       handler: {
-        module: null,
+        module: Root,
         controller: Ctl,
         handlerName: 'run',
         guards: [],

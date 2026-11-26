@@ -9,7 +9,7 @@ export type AttributeMap = ReadonlyMap<symbol, unknown>
  * is declared and what applies to it.
  */
 export interface HandlerInfo {
-  readonly module: ClassType | null
+  readonly module: ClassType
   /** The class that owns the handler. */
   readonly controller: ClassType
   readonly handlerName: string
