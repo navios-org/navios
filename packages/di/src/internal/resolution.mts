@@ -1,13 +1,11 @@
 import {
   asyncInitRequired,
   circularDependency,
-  initializationError,
   misuse,
   notYetDestroyed,
   providerNotFound,
   requestScopeFromRoot,
 } from '../errors/create.mjs'
-import { DIError } from '../errors/di-error.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
 import { validateSync } from '../schema/standard-schema.mjs'
 
@@ -19,8 +17,8 @@ import type {
 } from '../token/injection-token.mjs'
 
 import { keyOf } from './args-key.mjs'
-import { inBackground, trackBuild } from './background.mjs'
-import { discard, rejectWith, runDestroyListeners } from './destruction.mjs'
+import { trackBuild } from './background.mjs'
+import { discard, rejectWith } from './destruction.mjs'
 import { createEntry, EntryStatus, isLeaving, markReady } from './entry.mjs'
 import {
   current,
@@ -44,6 +42,7 @@ import {
   normArgs,
   normToken,
 } from './normalize.mjs'
+import { failEntry, settleEntry } from './outcome.mjs'
 import { findStored } from './store.mjs'
 import { findReady } from './stored-values.mjs'
 import { isThenable, noop } from './thenable.mjs'
@@ -293,11 +292,11 @@ function build(
     const leaving = isDestroying(host) && record.plan !== null ? leavingIn(host, record.plan) : null
     outcome = leaving !== null ? afterDestruction(frame, leaving) : pass(frame)
   } catch (error) {
-    throw fail(frame, error)
+    throw failEntry(frame.entry, error, frame)
   }
   if (outcome !== undefined) {
     const tracked = outcome.then(undefined, (error) => {
-      throw fail(frame, error)
+      throw failEntry(frame.entry, error, frame)
     })
     tracked.catch(noop)
     entry.promise = tracked
@@ -511,46 +510,7 @@ function complete(entry: Entry, produced: unknown): void {
       }
     })
   }
-  entry.promise = null
-  entry.waitingFor = null
-  markReady(entry, value)
-  if (entry.stale) {
-    discard(entry)
-  }
-}
-
-function fail(frame: Frame, error: unknown): DIError {
-  const entry = frame.entry
-  const wrapped =
-    error instanceof DIError ? error : initializationError(entry.token.toString(), error)
-  if (entry.status === EntryStatus.Creating) {
-    entry.status = EntryStatus.Failed
-    entry.promise = null
-    entry.waitingFor = null
-    entry.store?.delete(entry)
-    unlink(entry)
-    cleanUpFailed(entry, frame)
-  }
-  return wrapped
-}
-
-/**
- * Releases what a build that failed had acquired: the destroy listeners its
- * factory registered, and its transients, also those of the pass that failed,
- * which no one adopted.
- */
-export function cleanUpFailed(entry: Entry, frame: Frame | null): void {
-  const released = runDestroyListeners(entry)
-  if (released !== null) {
-    inBackground(entry.host, Promise.all(released))
-  }
-  entry.transients?.forEach(discard)
-  entry.transients = null
-  if (frame !== null) {
-    frame.used?.forEach(discard)
-    frame.reuse?.forEach(discard)
-    frame.used = frame.reuse = null
-  }
+  settleEntry(entry, value)
 }
 
 /**
