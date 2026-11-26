@@ -1,5 +1,5 @@
 // Configuration
-export { OtelConfigToken, resolveOtelConfig } from './config/index.mjs'
+export { OtelConfigToken } from './config/index.mjs'
 export type {
   AutoInstrumentConfig,
   MetricsConfig,
@@ -25,23 +25,8 @@ export {
 export type { HeaderCarrier } from './tracing/index.mjs'
 
 // @Traced / @Traceable
-export {
-  extractTracedMetadata,
-  getTraceableServices,
-  getTracedMetadata,
-  hasTracedMetadata,
-  Traceable,
-  Traced,
-  TracedMetadataKey,
-  TracedProxyFactory,
-  traceInstance,
-} from './traced/index.mjs'
-export type {
-  ClassTracedMetadata,
-  MethodTracedMetadata,
-  TracedMetadata,
-  TracedOptions,
-} from './traced/index.mjs'
+export { Traceable, Traced, TracedProxyFactory, traceInstance } from './traced/index.mjs'
+export type { TracedOptions } from './traced/index.mjs'
 
 // Handlers of transports other than HTTP. The HTTP request span is in
 // `@navios/otel/http`.

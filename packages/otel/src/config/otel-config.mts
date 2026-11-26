@@ -12,8 +12,11 @@ export interface AutoInstrumentConfig {
    */
   http?: boolean
   /**
-   * Trace handlers of the application's other transports (queue messages,
-   * commands, jobs): one span per run, named `<transport> <Class>.<handler>`.
+   * Trace the handlers of the application's other transports, those that
+   * run guards and interceptors around a handler, such as queue messages or
+   * commands: one span per run, named `<transport> <Class>.<handler>`.
+   * The jobs of `@navios/schedule` are not run that way and get no span from
+   * this; mark the class with `@Traced` to trace its methods.
    *
    * `'auto'` traces them in an application that has no HTTP transport. In
    * one that serves HTTP as well, set `true`: the interceptor is then also
@@ -47,13 +50,13 @@ export interface SamplingConfig {
 }
 
 /**
- * Options for OTLP exporter.
+ * Options of the OTLP exporters, which send over HTTP.
  */
 export interface OtlpExporterOptions {
   /**
-   * OTLP endpoint URL.
-   * @example 'http://localhost:4317' for gRPC
-   * @example 'http://localhost:4318/v1/traces' for HTTP
+   * URL of the OTLP/HTTP traces endpoint. With metrics enabled, metrics go to
+   * the same URL with `/traces` replaced by `/metrics`.
+   * @example 'http://localhost:4318/v1/traces'
    */
   endpoint?: string
 
@@ -62,12 +65,6 @@ export interface OtlpExporterOptions {
    * Useful for authentication.
    */
   headers?: Record<string, string>
-
-  /**
-   * Use HTTP protocol instead of gRPC.
-   * @default true
-   */
-  useHttp?: boolean
 }
 
 /**

@@ -4,13 +4,11 @@ import { describe, expect, it } from 'vitest'
 import type { ClassType } from '@navios/di'
 
 import { Traceable as LegacyTraceable, Traced as LegacyTraced } from '../../legacy-compat/index.mjs'
-import {
-  extractTracedMetadata,
-  hasTracedMetadata,
-  Traceable,
-  traceInstance,
-  Traced,
-} from '../index.mjs'
+import { traceInstance } from '../trace-instance.mjs'
+import { tracedClasses } from '../traced-metadata.mjs'
+import { Traceable, Traced } from '../traced.mjs'
+
+const extractTracedMetadata = (target: ClassType) => tracedClasses.get(target)!
 
 const seen = (target: ClassType) => {
   const { name, attributes, enabled, methods } = extractTracedMetadata(target)
@@ -141,9 +139,8 @@ describe('a subclass without a decorator', () => {
     }
     class Child extends Base {}
 
-    expect(hasTracedMetadata(Base)).toBe(true)
-    expect(hasTracedMetadata(Child)).toBe(false)
-    expect(() => extractTracedMetadata(Child)).toThrow(/Child/)
+    expect(tracedClasses.has(Base)).toBe(true)
+    expect(tracedClasses.has(Child)).toBe(false)
 
     const child = traceInstance(new Child(), Child, trace.getTracer('test'))
     expect(Object.getOwnPropertyNames(child)).toEqual([])

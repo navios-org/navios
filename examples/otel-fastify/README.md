@@ -89,7 +89,6 @@ cp .env.development .env  # or .env.production, etc.
 | `OTEL_TRACES_ENDPOINT` | OTLP traces endpoint | `http://localhost:4318/v1/traces` |
 | `OTEL_METRICS_ENDPOINT` | OTLP metrics endpoint | `http://localhost:4318/v1/metrics` |
 | `OTEL_LOGS_ENDPOINT` | OTLP logs endpoint | `http://localhost:4318/v1/logs` |
-| `OTEL_USE_HTTP` | Use HTTP instead of gRPC | `true` |
 | `OTEL_HEADERS` | JSON headers for auth | - |
 
 ### Auto-Instrumentation

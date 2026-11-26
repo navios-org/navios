@@ -3,10 +3,8 @@ import { ownMetadata, requireMetadata } from '@navios/core/transport'
 import type { ClassType } from '@navios/di'
 import type { AttributeValue } from '@opentelemetry/api'
 
-/**
- * Symbol used to store traced metadata in context.metadata.
- */
-export const TracedMetadataKey = Symbol('navios:traced:metadata')
+// Where the decorators of a class keep their metadata in context.metadata.
+const TracedMetadataKey = Symbol('navios:traced:metadata')
 
 /**
  * Options for the @Traced decorator.
@@ -64,10 +62,14 @@ export interface ClassTracedMetadata extends TracedMetadata {
   methods: Map<string, MethodTracedMetadata>
 }
 
-// The classes decorated with `@Traced` or `@Traceable`, filled when they are
-// decorated. Only a class decorated itself is in it: a subclass without a
-// decorator is not what the decorator made of its parent.
-const tracedClasses = new Map<ClassType, ClassTracedMetadata>()
+const classes = new Map<ClassType, ClassTracedMetadata>()
+
+/**
+ * The classes decorated with `@Traced` or `@Traceable`, with their metadata,
+ * filled when they are decorated. Only a class decorated itself is in it: a
+ * subclass without a decorator is not what the decorator made of its parent.
+ */
+export const tracedClasses: ReadonlyMap<ClassType, ClassTracedMetadata> = classes
 
 /**
  * Gets or creates traced metadata during decoration.
@@ -115,41 +117,5 @@ export function markClass(
   metadata.name = options.name ?? metadata.name
   metadata.attributes = { ...metadata.attributes, ...options.attributes }
   metadata.enabled = enabled
-  tracedClasses.set(target, metadata)
-}
-
-/**
- * Extracts traced metadata from an already-decorated class.
- * Used at runtime when context is not available.
- *
- * @param target - The decorated class
- * @returns The class traced metadata
- * @throws Error if the class itself is not decorated
- */
-export function extractTracedMetadata(target: ClassType): ClassTracedMetadata {
-  const metadata = tracedClasses.get(target)
-  if (!metadata) {
-    throw new Error(
-      `[Navios] Traced metadata not found on ${target.name}. Make sure to use @Traceable or @Traced decorator.`,
-    )
-  }
-  return metadata
-}
-
-/**
- * Checks if a class is decorated with `@Traced` or `@Traceable` itself.
- *
- * @param target - The class to check
- * @returns True if the class has traced metadata
- */
-export function hasTracedMetadata(target: ClassType): boolean {
-  return tracedClasses.has(target)
-}
-
-/**
- * Returns the set of all classes decorated with @Traceable or @Traced.
- * Used by the plugin to find services that need wrapping.
- */
-export function getTraceableServices(): ReadonlySet<ClassType> {
-  return new Set(tracedClasses.keys())
+  classes.set(target, metadata)
 }

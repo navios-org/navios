@@ -7,7 +7,7 @@ import { ATTR_CODE_FUNCTION_NAME } from '../tracing/attributes.mjs'
 import { parentContext } from '../tracing/context.mjs'
 import { recordSpanError, runInSpan } from '../tracing/span.mjs'
 
-import { extractTracedMetadata, hasTracedMetadata } from './traced-metadata.mjs'
+import { tracedClasses } from './traced-metadata.mjs'
 
 import type { MethodTracedMetadata } from './traced-metadata.mjs'
 
@@ -98,10 +98,10 @@ export function traceInstance<T extends object>(
   classType: ClassType,
   tracer: Tracer,
 ): T {
-  if (!hasTracedMetadata(classType) || (instance as any)[instrumented] === true) {
+  const metadata = tracedClasses.get(classType)
+  if (metadata === undefined || (instance as any)[instrumented] === true) {
     return instance
   }
-  const metadata = extractTracedMetadata(classType)
   const baseName = metadata.name ?? classType.name
   const baseAttributes = metadata.attributes ?? {}
 

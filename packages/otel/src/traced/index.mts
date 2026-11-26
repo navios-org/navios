@@ -1,16 +1,4 @@
 export { traceInstance } from './trace-instance.mjs'
 export { Traceable, Traced } from './traced.mjs'
-export {
-  extractTracedMetadata,
-  getTraceableServices,
-  getTracedMetadata,
-  hasTracedMetadata,
-  TracedMetadataKey,
-} from './traced-metadata.mjs'
-export type {
-  ClassTracedMetadata,
-  MethodTracedMetadata,
-  TracedMetadata,
-} from './traced-metadata.mjs'
 export type { TracedOptions } from './traced-metadata.mjs'
 export { TracedProxyFactory } from './traced-proxy-factory.mjs'

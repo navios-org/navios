@@ -11,14 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING**: `@navios/otel/legacy-compat` exports the decorators `Traced` and `Traceable` and the type `TracedOptions`, as the documentation says. `extractTracedMetadata`, `getTracedMetadata`, `hasTracedMetadata`, `getTraceableServices`, `TracedMetadataKey` and the types `TracedMetadata`, `ClassTracedMetadata` and `MethodTracedMetadata` are no longer exported from it.
 - **BREAKING**: the legacy `Traced` and `Traceable` are built with `legacy()` of `@navios/core/legacy-compat` and accept only the legacy call shapes. Before, they also accepted a standard decorator call; use `Traced` and `Traceable` of `@navios/otel` for standard decorators.
-
 - **BREAKING**: span attributes have their stable semantic-convention names, and each is set once. A request span has `http.request.method` instead of `http.method`, `url.path` instead of `http.url`, `user_agent.original` instead of `http.user_agent`, and the status only as `http.response.status_code`: `http.status_code` is no longer set. A traced method's span has `code.function.name`, `<Class>.<method>`, instead of `code.function` and `code.namespace`. `environment` sets the resource attribute `deployment.environment.name` instead of `deployment.environment`. Queries and dashboards that use the old names need the new ones.
 
 ### Removed
 
 - **BREAKING**: the span helpers written for the removed `@navios/otel-fastify` and `@navios/otel-bun`, which nothing in the package used any more: `SpanFactoryService` with the types `HttpSpanOptions` and `ChildSpanOptions`, `HttpAttributes`, `createHttpRequestAttributes`, `parseUrlAttributes`, `NaviosAttributes` and `createNaviosAttributes`. Start a span with the tracer of `TracerToken`; `parentContext()` is the context to start a child span in when no context manager is registered.
-
 - **BREAKING**: `TraceContextService` is removed. Its methods wrapped functions the package exports: use `getCurrentSpan()`, `extractTraceContext(headers)`, `context.with(trace.setSpan(context.active(), span), fn)` of `@opentelemetry/api` instead of `runWithSpan(span, fn)`, and `trace.setSpan()` instead of `createContextWithSpan()`. `runWithSpanContext()`, `getCurrentSpanContext()` and the type `SpanContext`, which only it used, are removed too; the active baggage is `propagation.getBaggage(context.active())`.
+- **BREAKING**: plugin internals are no longer exported. From `@navios/otel`: `resolveOtelConfig`, `extractTracedMetadata`, `getTracedMetadata`, `hasTracedMetadata`, `getTraceableServices`, `TracedMetadataKey` and the types `TracedMetadata`, `ClassTracedMetadata` and `MethodTracedMetadata`. From `@navios/otel/http`: `compileIgnoreRoutes`, `hasHttpTransport` and `instrumentHttp`; the entry exports `OtelHttpInterceptor`, which the plugin registers by itself.
+- **BREAKING**: `OtlpExporterOptions.useHttp` is removed. Nothing read it: the OTLP exporters always send over HTTP.
 
 ### Added
 
@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The documentation of `autoInstrument.transports` no longer promises spans for the jobs of `@navios/schedule`. Jobs do not run through interceptors; a `@Traced` class traces them.
 - A subclass of a `@Traced` or `@Traceable` class that is not decorated itself is no longer traced with the metadata of its parent by `traceInstance()` and `TracedProxyFactory.wrap()`. Only what a class is decorated with itself counts, as with `@Schedulable()`.
 - `@Traceable` on a subclass adds to the span name and attributes it inherits, as `@Traced` does. Before, it replaced them, so the subclass lost the name and the attributes of its parent.
 
