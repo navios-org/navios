@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-alpha.0] - Unreleased
+## [2.0.0-alpha.0] - 2026-11-26
 
 This package is new: it is the HTTP framework that `@navios/core` was in 1.x, and the entries below are the changes from `@navios/core` 1.x. `@navios/core` itself is now the part that does not depend on HTTP, and this package re-exports it.
 

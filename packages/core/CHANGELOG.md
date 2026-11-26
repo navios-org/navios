@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0-alpha.0] - Unreleased
+## [2.0.0-alpha.0] - 2026-11-26
 
 `@navios/core` is now the part of Navios that does not depend on HTTP. The HTTP framework it was in 1.x is `@navios/server`, which is built on this package and re-exports it. The changes to the HTTP framework itself are listed in the changelog of `@navios/server`.
 
@@ -224,7 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated to support `@navios/builder` ^1.0.0-alpha.2 with new `RequestArgs` type system
 
-## [1.0.0-alpha.1] - 2026-01-22
+## [1.0.0-alpha.1] - 2026-01-07
 
 ### Added
 
@@ -362,7 +362,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Guards can be pre-resolved at startup for faster request handling
 - Response validation can be disabled for production performance
 
-## [0.7.1] - 2025-12-18
+## [0.7.1] - 2025-12-20
 
 ### Added
 
