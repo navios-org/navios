@@ -1,11 +1,11 @@
+import type { ProvideClientOptions } from '../shared/realtime.mjs'
+
 import type { EventSourceClient } from './eventsource-client.mjs'
 import type { EventHandler } from './eventsource-handlers.mjs'
 import type { EventOptions } from './eventsource-options.mjs'
 
-export interface ProvideEventSourceClientOptions {
-  /** Close the client that is replaced. It is left open by default. */
-  closePrevious?: boolean
-}
+/** Options of `provideClient`. */
+export type ProvideEventSourceClientOptions = ProvideClientOptions
 
 /**
  * EventSource builder instance interface.

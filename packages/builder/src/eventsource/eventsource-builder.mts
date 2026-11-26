@@ -1,16 +1,14 @@
-import { dispatch } from '../shared/dispatch.mjs'
 import { NaviosError } from '../shared/navios-error.mjs'
+import { Listeners, subscribeValidated } from '../shared/realtime.mjs'
 import { isPendingOutcome, validateEager } from '../shared/validate.mjs'
 
+import type { ProvideClientOptions } from '../shared/realtime.mjs'
 import type { Schema } from '../shared/schema.mjs'
 import type { ValidationOutcome } from '../shared/validate.mjs'
 
-import { reportEventSourceError } from './report-eventsource-error.mjs'
+import { EventSourceError } from './eventsource-error.mjs'
 
-import type {
-  EventSourceBuilderInstance,
-  ProvideEventSourceClientOptions,
-} from './eventsource-builder-instance.mjs'
+import type { EventSourceBuilderInstance } from './eventsource-builder-instance.mjs'
 import type { EventSourceClient } from './eventsource-client.mjs'
 import type { EventHandler, EventUnsubscribe } from './eventsource-handlers.mjs'
 import type { EventSourceBuilderConfig, EventOptions } from './eventsource-options.mjs'
@@ -101,7 +99,7 @@ export function eventSourceBuilder(
 
   // State for event handling
   type Handler = (data: unknown, text?: string) => void
-  const eventHandlers = new Map<string, Set<Handler>>()
+  const eventHandlers = new Listeners<Handler>()
 
   // Track registered event listeners on the client
   const registeredListeners = new Map<string, Handler>()
@@ -129,13 +127,9 @@ export function eventSourceBuilder(
 
     const currentClient = getClient()
 
-    const listener: Handler = (data, text) => {
-      // Registered handlers validate, isolate and report on their own; they never throw.
-      dispatch(
-        () => eventHandlers.get(eventName),
-        (handler) => handler(data, text),
-      )
-    }
+    // Registered handlers validate, isolate and report on their own; they never throw.
+    const listener: Handler = (data, text) =>
+      eventHandlers.emit(eventName, (handler) => handler(data, text))
 
     currentClient.on(eventName, listener)
     registeredListeners.set(eventName, listener)
@@ -143,7 +137,7 @@ export function eventSourceBuilder(
 
   function provideClient(
     newClient: EventSourceClient,
-    { closePrevious = false }: ProvideEventSourceClientOptions = {},
+    { closePrevious = false }: ProvideClientOptions = {},
   ): void {
     if (newClient === client) {
       return
@@ -162,9 +156,9 @@ export function eventSourceBuilder(
     client = newClient
 
     // Re-setup listeners for existing event handlers
-    eventHandlers.forEach((_, eventName) => {
+    for (const eventName of eventHandlers.events()) {
       setupEventListener(eventName)
-    })
+    }
   }
 
   /**
@@ -175,76 +169,22 @@ export function eventSourceBuilder(
   ): EventHandler<Options> {
     const { eventName, payloadSchema } = options
 
-    const handlerFn = (handler: (payload: unknown) => void): EventUnsubscribe => {
-      // Get or create handler set for this event
-      let handlers = eventHandlers.get(eventName)
-      if (!handlers) {
-        handlers = new Set()
-        eventHandlers.set(eventName, handlers)
-      }
-
-      let subscribed = true
-
-      // Wrapper that validates the event and isolates handler errors. It never throws.
-      const wrappedHandler: Handler = (rawData, text) => {
-        const url = client?.url
-
-        const deliver = (outcome: ValidationOutcome): void => {
-          if (!outcome.ok) {
-            reportEventSourceError(config.onError, {
-              kind: 'validation',
-              eventName,
-              url,
-              issues: outcome.issues,
-              rawData,
-              cause: outcome.cause,
-            })
-            return // Skip handler if validation fails
-          }
-
-          try {
-            handler(outcome.value)
-          } catch (cause) {
-            reportEventSourceError(config.onError, { kind: 'transport', eventName, url, cause })
-          }
-        }
-
-        if (!payloadSchema) {
-          deliver({ ok: true, value: rawData })
-          return
-        }
-
-        // A synchronous schema delivers within the same tick. An asynchronous
-        // one is awaited first, unless the handler unsubscribed in the meantime.
-        const outcome = validatePayload(payloadSchema, rawData, text)
-        if (isPendingOutcome(outcome)) {
-          void outcome.then((resolved) => {
-            if (subscribed) deliver(resolved)
-          })
-        } else {
-          deliver(outcome)
-        }
-      }
-
-      handlers.add(wrappedHandler)
-
-      // Set up listener on client if connected
-      if (client) {
-        setupEventListener(eventName)
-      }
-
-      // The last handler of an event takes the client's listener with it, so
-      // neither this client nor the next one is listened to for nothing
-      return () => {
-        subscribed = false
-        const current = eventHandlers.get(eventName)
-        if (!current?.delete(wrappedHandler) || current.size > 0) return
-        eventHandlers.delete(eventName)
-        const listener = registeredListeners.get(eventName)
-        registeredListeners.delete(eventName)
-        if (listener) client?.off(eventName, listener)
-      }
-    }
+    const handlerFn = (handler: (payload: unknown) => void): EventUnsubscribe =>
+      subscribeValidated(eventHandlers, eventName, handler, {
+        validate: payloadSchema && ((data, text) => validatePayload(payloadSchema, data, text)),
+        url: () => client?.url,
+        report: (failure) => EventSourceError.report(config.onError, { ...failure, eventName }),
+        listen: () => {
+          if (client) setupEventListener(eventName)
+        },
+        // The last handler of an event takes the client's listener with it, so
+        // neither this client nor the next one is listened to for nothing
+        unlisten: () => {
+          const listener = registeredListeners.get(eventName)
+          registeredListeners.delete(eventName)
+          if (listener) client?.off(eventName, listener)
+        },
+      })
 
     // Attach config to the handler function
     const handler = handlerFn as unknown as EventHandler<Options>

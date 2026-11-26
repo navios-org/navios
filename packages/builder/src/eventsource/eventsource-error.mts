@@ -1,7 +1,6 @@
-import { NaviosError } from '../shared/navios-error.mjs'
-import { toSchemaIssue } from '../shared/schema.mjs'
+import { RealtimeError } from '../shared/realtime.mjs'
 
-import type { SchemaIssue, StandardIssue } from '../shared/schema.mjs'
+import type { RealtimeErrorFields } from '../shared/realtime.mjs'
 
 /**
  * Why handling a server-sent event failed.
@@ -13,14 +12,8 @@ import type { SchemaIssue, StandardIssue } from '../shared/schema.mjs'
  */
 export type EventSourceErrorKind = 'validation' | 'transport'
 
-export interface EventSourceErrorInit {
-  kind: EventSourceErrorKind
+export interface EventSourceErrorInit extends RealtimeErrorFields<EventSourceErrorKind> {
   eventName: string
-  message?: string
-  url?: string
-  issues?: readonly StandardIssue[]
-  rawData?: unknown
-  cause?: unknown
 }
 
 function defaultMessage(init: EventSourceErrorInit): string {
@@ -34,49 +27,17 @@ function defaultMessage(init: EventSourceErrorInit): string {
  * hook of `eventSourceBuilder` and `createEventSourceHandler`.
  * Discriminate on `error.kind`.
  */
-export class EventSourceError extends NaviosError {
-  readonly kind: EventSourceErrorKind
+export class EventSourceError extends RealtimeError<EventSourceErrorKind, { eventName: string }> {
   /** Name of the event the failure belongs to. */
   readonly eventName: string
-  /** URL of the connection, when the client exposes one. */
-  declare readonly url?: string
-  /** Validation issues, for `validation`. */
-  declare readonly issues?: readonly SchemaIssue[]
-  /** The event data that failed validation, exactly as it was received. */
-  declare readonly rawData?: unknown
 
   constructor(init: EventSourceErrorInit) {
-    super(init.message ?? defaultMessage(init), { cause: init.cause })
-    this.name = 'EventSourceError'
-    this.kind = init.kind
+    super('EventSourceError', init.message ?? defaultMessage(init), init)
     this.eventName = init.eventName
-    if (init.url !== undefined) this.url = init.url
-    if (init.issues !== undefined) this.issues = init.issues.map(toSchemaIssue)
-    if ('rawData' in init) this.rawData = init.rawData
   }
 
-  /**
-   * Plain-object form without `cause`. Safe to hand to loggers and
-   * `JSON.stringify` as long as `rawData` itself is serializable.
-   */
-  toJSON(): {
-    name: string
-    message: string
-    kind: EventSourceErrorKind
-    eventName: string
-    url?: string
-    issues?: readonly SchemaIssue[]
-    rawData?: unknown
-  } {
-    return {
-      name: this.name,
-      message: this.message,
-      kind: this.kind,
-      eventName: this.eventName,
-      ...(this.url !== undefined ? { url: this.url } : {}),
-      ...(this.issues !== undefined ? { issues: this.issues } : {}),
-      ...('rawData' in this ? { rawData: this.rawData } : {}),
-    }
+  protected subject(): { eventName: string } {
+    return { eventName: this.eventName }
   }
 }
 

@@ -1,4 +1,7 @@
 import { NaviosError } from '../shared/navios-error.mjs'
+import { Listeners } from '../shared/realtime.mjs'
+
+import type { ProvideClientOptions } from '../shared/realtime.mjs'
 
 import { createSendHandler, type CreateSendContext, type PendingAck } from './create-send.mjs'
 import {
@@ -7,12 +10,9 @@ import {
   createTopicEventListener,
   type CreateSubscribeContext,
 } from './create-subscribe.mjs'
-import { reportSocketError } from './report-socket-error.mjs'
+import { SocketError } from './socket-error.mjs'
 
-import type {
-  ProvideSocketClientOptions,
-  SocketBuilderInstance,
-} from './socket-builder-instance.mjs'
+import type { SocketBuilderInstance } from './socket-builder-instance.mjs'
 import type { SocketClient } from './socket-client.mjs'
 import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
 import type { SendOptions, SocketBuilderConfig, SubscribeOptions } from './socket-options.mjs'
@@ -66,7 +66,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
   let client: SocketClient | null = null
 
   // State for message handling
-  const topicHandlers = new Map<string, Set<(payload: unknown) => void>>()
+  const topicHandlers = new Listeners<(payload: unknown) => void>()
   const ackHandlers = new Map<string, PendingAck>()
 
   // What the builder listens to on the current client, once it does
@@ -116,7 +116,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     for (const [event, listener] of active) {
       client.on(event, listener)
     }
-    for (const topic of topicHandlers.keys()) {
+    for (const topic of topicHandlers.events()) {
       listenTopic(topic)
     }
   }
@@ -151,7 +151,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
     for (const { topic, release, reject } of pending) {
       release()
       reject(
-        reportSocketError(config.onError, {
+        SocketError.report(config.onError, {
           kind: 'transport',
           topic,
           url: connectionUrl(),
@@ -163,7 +163,7 @@ export function socketBuilder(config: SocketBuilderConfig = {}): SocketBuilderIn
 
   function provideClient(
     newClient: SocketClient,
-    { closePrevious = false }: ProvideSocketClientOptions = {},
+    { closePrevious = false }: ProvideClientOptions = {},
   ): void {
     if (newClient === client) {
       return

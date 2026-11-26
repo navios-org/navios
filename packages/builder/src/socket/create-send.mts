@@ -2,10 +2,10 @@ import { isPendingOutcome, validateEager } from '../shared/validate.mjs'
 
 import type { ValidationOutcome } from '../shared/validate.mjs'
 
-import { reportSocketError } from './report-socket-error.mjs'
+import { SocketError } from './socket-error.mjs'
 
 import type { SocketClient } from './socket-client.mjs'
-import type { SocketError, SocketErrorInit } from './socket-error.mjs'
+import type { SocketErrorInit } from './socket-error.mjs'
 import type { SendHandler } from './socket-handlers.mjs'
 import type { MessageFormatter, SendOptions, SocketBuilderConfig } from './socket-options.mjs'
 
@@ -89,7 +89,7 @@ export function createSendHandler<Options extends SendOptions>(
 
   /** Builds the error, reports it to `onError`, and hands it back to throw or reject with. */
   function fail(client: SocketClient, init: Omit<SocketErrorInit, 'topic' | 'url'>) {
-    return reportSocketError(config.onError, { ...init, topic, url: client.url })
+    return SocketError.report(config.onError, { ...init, topic, url: client.url })
   }
 
   function invalidPayload(

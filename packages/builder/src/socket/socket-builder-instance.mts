@@ -1,11 +1,11 @@
+import type { ProvideClientOptions } from '../shared/realtime.mjs'
+
 import type { SocketClient } from './socket-client.mjs'
 import type { SendHandler, SubscribeHandler } from './socket-handlers.mjs'
 import type { SendOptions, SubscribeOptions } from './socket-options.mjs'
 
-export interface ProvideSocketClientOptions {
-  /** Close the client that is replaced. It is left open by default. */
-  closePrevious?: boolean
-}
+/** Options of `provideClient`. */
+export type ProvideSocketClientOptions = ProvideClientOptions
 
 /**
  * Socket builder instance interface.

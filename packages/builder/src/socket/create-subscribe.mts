@@ -1,9 +1,9 @@
-import { dispatch } from '../shared/dispatch.mjs'
-import { isPendingOutcome, validateEager } from '../shared/validate.mjs'
+import { subscribeValidated } from '../shared/realtime.mjs'
+import { validateEager } from '../shared/validate.mjs'
 
-import type { ValidationOutcome } from '../shared/validate.mjs'
+import type { Listeners } from '../shared/realtime.mjs'
 
-import { reportSocketError } from './report-socket-error.mjs'
+import { SocketError } from './socket-error.mjs'
 
 import type { PendingAck } from './create-send.mjs'
 import type { SubscribeHandler, Unsubscribe } from './socket-handlers.mjs'
@@ -29,7 +29,7 @@ export interface CreateSubscribeContext {
   /** The URL of the current connection, if there is one and it has a URL. */
   connectionUrl: () => string | undefined
   config: SocketBuilderConfig
-  topicHandlers: Map<string, Set<(payload: unknown) => void>>
+  topicHandlers: Listeners<(payload: unknown) => void>
   /** Listens to the client, once there is one. */
   setupGlobalListener: () => void
   /** Called when a topic gets its first subscriber (`topics: 'events'` listens per topic). */
@@ -53,73 +53,17 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
   const { connectionUrl, config, topicHandlers, setupGlobalListener, listenTopic, unlistenTopic } =
     context
 
-  const handler = ((userHandler: (payload: unknown) => void): Unsubscribe => {
-    let subscribed = true
-
-    // Wrapper that validates the payload and isolates handler errors. It never throws.
-    const wrappedHandler = (payload: unknown) => {
-      const url = connectionUrl()
-
-      const deliver = (outcome: ValidationOutcome) => {
-        if (!outcome.ok) {
-          reportSocketError(config.onError, {
-            kind: 'validation',
-            topic,
-            url,
-            issues: outcome.issues,
-            rawData: payload,
-            cause: outcome.cause,
-          })
-          return
-        }
-
-        try {
-          userHandler(outcome.value)
-        } catch (cause) {
-          reportSocketError(config.onError, { kind: 'transport', topic, url, cause })
-        }
-      }
-
-      if (!payloadSchema) {
-        deliver({ ok: true, value: payload })
-        return
-      }
-
-      // A synchronous schema delivers within the same tick. An asynchronous
-      // one is awaited first, unless the handler unsubscribed in the meantime.
-      const outcome = validateEager(payloadSchema, payload)
-      if (isPendingOutcome(outcome)) {
-        void outcome.then((resolved) => {
-          if (subscribed) deliver(resolved)
-        })
-      } else {
-        deliver(outcome)
-      }
-    }
-
-    // Get or create handler set for this topic
-    let handlers = topicHandlers.get(topic)
-    if (!handlers) {
-      handlers = new Set()
-      topicHandlers.set(topic, handlers)
-    }
-    handlers.add(wrappedHandler)
-    setupGlobalListener()
-    listenTopic?.(topic)
-
-    // Return unsubscribe function
-    return () => {
-      subscribed = false
-      const currentHandlers = topicHandlers.get(topic)
-      if (currentHandlers) {
-        currentHandlers.delete(wrappedHandler)
-        if (currentHandlers.size === 0) {
-          topicHandlers.delete(topic)
-          unlistenTopic?.(topic)
-        }
-      }
-    }
-  }) as SubscribeHandler<Options>
+  const handler = ((userHandler: (payload: unknown) => void): Unsubscribe =>
+    subscribeValidated(topicHandlers, topic, userHandler, {
+      validate: payloadSchema && ((payload) => validateEager(payloadSchema, payload)),
+      url: connectionUrl,
+      report: (failure) => SocketError.report(config.onError, { ...failure, topic }),
+      listen: () => {
+        setupGlobalListener()
+        listenTopic?.(topic)
+      },
+      unlisten: () => unlistenTopic?.(topic),
+    })) as SubscribeHandler<Options>
 
   // Attach config to handler
   handler.config = options
@@ -142,7 +86,7 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
  */
 export function createGlobalMessageHandler(
   config: SocketBuilderConfig,
-  topicHandlers: Map<string, Set<(payload: unknown) => void>>,
+  topicHandlers: Listeners<(payload: unknown) => void>,
   ackHandlers: Map<string, Pick<PendingAck, 'settle'>>,
   connectionUrl: () => string | undefined,
 ): (data: unknown) => void {
@@ -154,7 +98,7 @@ export function createGlobalMessageHandler(
       parsed = parseMessage(data, 'message')
     } catch (cause) {
       // It must not reach the client, whose emitter would pass it on as uncaught
-      reportSocketError(config.onError, {
+      SocketError.report(config.onError, {
         kind: 'transport',
         topic: 'message',
         url: connectionUrl(),
@@ -177,10 +121,7 @@ export function createGlobalMessageHandler(
     }
 
     // Registered handlers validate, isolate and report on their own; they never throw.
-    dispatch(
-      () => topicHandlers.get(topic),
-      (handler) => handler(payload),
-    )
+    topicHandlers.emit(topic, (handler) => handler(payload))
   }
 }
 
@@ -197,7 +138,7 @@ const parseEvent: MessageParser = (data, event) => ({ topic: event, payload: dat
 export function createTopicEventListener(
   config: SocketBuilderConfig,
   event: string,
-  topicHandlers: Map<string, Set<(payload: unknown) => void>>,
+  topicHandlers: Listeners<(payload: unknown) => void>,
   connectionUrl: () => string | undefined,
 ): (...args: unknown[]) => void {
   const parseMessage = config.parseMessage ?? parseEvent
@@ -209,7 +150,7 @@ export function createTopicEventListener(
       parsed = parseMessage(data, event)
     } catch (cause) {
       // It must not reach the client, whose emitter would pass it on as uncaught
-      reportSocketError(config.onError, {
+      SocketError.report(config.onError, {
         kind: 'transport',
         topic: event,
         url: connectionUrl(),
@@ -223,9 +164,6 @@ export function createTopicEventListener(
       return
     }
     const { topic, payload } = parsed
-    dispatch(
-      () => topicHandlers.get(topic),
-      (handler) => handler(payload),
-    )
+    topicHandlers.emit(topic, (handler) => handler(payload))
   }
 }

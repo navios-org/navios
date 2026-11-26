@@ -153,7 +153,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     init: Omit<EndpointErrorInit, 'endpoint'>,
   ): SafeResult<never, EndpointError> {
     const error = new EndpointError({ ...init, endpoint })
-    callErrorHook(context.config.onError, error, 'Navios-API', { request: attempt.request })
+    callErrorHook(context.config.onError, 'Navios-API', error, { request: attempt.request })
     return { ok: false, data: null, error, response: error.response }
   }
 

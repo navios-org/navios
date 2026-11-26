@@ -1,7 +1,6 @@
-import { NaviosError } from '../shared/navios-error.mjs'
-import { toSchemaIssue } from '../shared/schema.mjs'
+import { RealtimeError } from '../shared/realtime.mjs'
 
-import type { SchemaIssue, StandardIssue } from '../shared/schema.mjs'
+import type { RealtimeErrorFields } from '../shared/realtime.mjs'
 
 /**
  * Why a socket operation failed.
@@ -17,14 +16,8 @@ import type { SchemaIssue, StandardIssue } from '../shared/schema.mjs'
  */
 export type SocketErrorKind = 'validation' | 'ack-timeout' | 'transport'
 
-export interface SocketErrorInit {
-  kind: SocketErrorKind
+export interface SocketErrorInit extends RealtimeErrorFields<SocketErrorKind> {
   topic: string
-  message?: string
-  url?: string
-  issues?: readonly StandardIssue[]
-  rawData?: unknown
-  cause?: unknown
 }
 
 function defaultMessage(init: SocketErrorInit): string {
@@ -45,49 +38,17 @@ function defaultMessage(init: SocketErrorInit): string {
  * to the `onError` hook of `socketBuilder` and `createWebSocketHandler`.
  * Discriminate on `error.kind`.
  */
-export class SocketError extends NaviosError {
-  readonly kind: SocketErrorKind
+export class SocketError extends RealtimeError<SocketErrorKind, { topic: string }> {
   /** Topic (event name) the failure belongs to. */
   readonly topic: string
-  /** URL of the connection, when the client exposes one. */
-  declare readonly url?: string
-  /** Validation issues, for `validation`. */
-  declare readonly issues?: readonly SchemaIssue[]
-  /** The value that failed validation or parsing, exactly as it was received or passed. */
-  declare readonly rawData?: unknown
 
   constructor(init: SocketErrorInit) {
-    super(init.message ?? defaultMessage(init), { cause: init.cause })
-    this.name = 'SocketError'
-    this.kind = init.kind
+    super('SocketError', init.message ?? defaultMessage(init), init)
     this.topic = init.topic
-    if (init.url !== undefined) this.url = init.url
-    if (init.issues !== undefined) this.issues = init.issues.map(toSchemaIssue)
-    if ('rawData' in init) this.rawData = init.rawData
   }
 
-  /**
-   * Plain-object form without `cause`. Safe to hand to loggers and
-   * `JSON.stringify` as long as `rawData` itself is serializable.
-   */
-  toJSON(): {
-    name: string
-    message: string
-    kind: SocketErrorKind
-    topic: string
-    url?: string
-    issues?: readonly SchemaIssue[]
-    rawData?: unknown
-  } {
-    return {
-      name: this.name,
-      message: this.message,
-      kind: this.kind,
-      topic: this.topic,
-      ...(this.url !== undefined ? { url: this.url } : {}),
-      ...(this.issues !== undefined ? { issues: this.issues } : {}),
-      ...('rawData' in this ? { rawData: this.rawData } : {}),
-    }
+  protected subject(): { topic: string } {
+    return { topic: this.topic }
   }
 }
 
