@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A subclass of a `@Traced` or `@Traceable` class that is not decorated itself is no longer traced with the metadata of its parent by `traceInstance()` and `TracedProxyFactory.wrap()`. Only what a class is decorated with itself counts, as with `@Schedulable()`.
+- `@Traceable` on a subclass adds to the span name and attributes it inherits, as `@Traced` does. Before, it replaced them, so the subclass lost the name and the attributes of its parent.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

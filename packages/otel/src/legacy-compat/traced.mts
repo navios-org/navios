@@ -4,7 +4,7 @@ import type { ClassType } from '@navios/di'
 
 import { Traced as OriginalTraced } from '../traced/traced.mjs'
 
-import type { TracedOptions } from '../traced/traced-options.mjs'
+import type { TracedOptions } from '../traced/traced-metadata.mjs'
 
 /**
  * Legacy-compatible Traced decorator for class-level tracing.

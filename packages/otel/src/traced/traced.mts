@@ -1,6 +1,8 @@
-import { getTracedMetadata } from './traced-metadata.mjs'
+import type { ClassType } from '@navios/di'
 
-import type { TracedOptions } from './traced-options.mjs'
+import { getTracedMetadata, markClass } from './traced-metadata.mjs'
+
+import type { TracedOptions } from './traced-metadata.mjs'
 
 /**
  * Decorator that marks a class or method for tracing.
@@ -60,35 +62,51 @@ import type { TracedOptions } from './traced-options.mjs'
  */
 export function Traced(options: TracedOptions = {}) {
   return function (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
-    if (context.kind === 'class') {
-      // Get or create metadata (preserves method decorators' data)
-      const metadata = getTracedMetadata(context, target)
-
-      // Update class-level settings
-      metadata.name = options.name ?? metadata.name
-      metadata.attributes = { ...metadata.attributes, ...options.attributes }
-      metadata.enabled = true // All methods traced
-
-      return target
-    } else if (context.kind === 'method') {
-      // Method decorator - just store method metadata
-      // Does NOT add class to tracked set (class must have @Traceable or @Traced)
+    if (context.kind === 'method') {
+      // The class must have @Traceable or @Traced to be instrumented.
       const methodName = String(context.name)
-
-      // Get or create metadata (uses shared context.metadata)
-      const metadata = getTracedMetadata(context)
-
-      // Add method-specific metadata
-      metadata.methods.set(methodName, {
+      getTracedMetadata(context).methods.set(methodName, {
         methodName,
         name: options.name,
         attributes: options.attributes,
         enabled: true,
       })
-
-      return target
+    } else {
+      markClass(target, context, options, true)
     }
+    return target
+  }
+}
 
-    throw new Error('[Navios] @Traced decorator can only be used on classes or methods.')
+/**
+ * Decorator that marks a class for tracing without enabling all methods.
+ *
+ * Use `@Traceable` when you want to:
+ * - Mark a class for tracing proxy wrapping
+ * - Only trace specific methods decorated with `@Traced`
+ *
+ * @param options - Tracing options (name, attributes)
+ * @returns A class decorator
+ *
+ * @example
+ * ```typescript
+ * @Injectable()
+ * @Traceable({ name: 'order-service' })
+ * class OrderService {
+ *   @Traced({ name: 'process-order' })
+ *   async processOrder(orderId: string) {
+ *     // Traced as "process-order"
+ *   }
+ *
+ *   async getOrder(orderId: string) {
+ *     // NOT traced
+ *   }
+ * }
+ * ```
+ */
+export function Traceable(options: TracedOptions = {}) {
+  return function <T extends ClassType>(target: T, context: ClassDecoratorContext): T {
+    markClass(target, context, options, false)
+    return target
   }
 }

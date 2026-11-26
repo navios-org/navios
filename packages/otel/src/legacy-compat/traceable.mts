@@ -2,9 +2,9 @@ import { createClassContext } from '@navios/di/legacy-compat'
 
 import type { ClassType } from '@navios/di'
 
-import { Traceable as OriginalTraceable } from '../traced/traceable.mjs'
+import { Traceable as OriginalTraceable } from '../traced/traced.mjs'
 
-import type { TracedOptions } from '../traced/traced-options.mjs'
+import type { TracedOptions } from '../traced/traced-metadata.mjs'
 
 /**
  * Legacy-compatible Traceable decorator for class-level tracing setup.

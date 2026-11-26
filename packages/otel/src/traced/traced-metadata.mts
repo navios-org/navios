@@ -9,6 +9,22 @@ import type { AttributeValue } from '@opentelemetry/api'
 export const TracedMetadataKey = Symbol('navios:traced:metadata')
 
 /**
+ * Options for the @Traced decorator.
+ */
+export interface TracedOptions {
+  /**
+   * Custom span name.
+   * If not provided, defaults to class.method name.
+   */
+  name?: string
+
+  /**
+   * Additional attributes to add to spans.
+   */
+  attributes?: Record<string, AttributeValue>
+}
+
+/**
  * Metadata stored by the @Traced decorator.
  */
 export interface TracedMetadata {
@@ -55,22 +71,18 @@ const tracedClasses = new Map<ClassType, ClassTracedMetadata>()
 
 /**
  * Gets or creates traced metadata during decoration.
- * Used inside decorators with access to context.metadata.
- *
- * For class decorators, also records the class for runtime extraction.
- * For method decorators, only uses context.metadata (shared with class decorator).
+ * Used inside decorators with access to context.metadata, which the method
+ * decorators of a class share with its class decorator.
  *
  * @param context - The decorator context
- * @param target - The class being decorated (only for class decorators)
  * @returns The class traced metadata
  */
 export function getTracedMetadata(
   context: ClassDecoratorContext | ClassMethodDecoratorContext,
-  target?: ClassType,
 ): ClassTracedMetadata {
   // A subclass starts from a copy: the metadata object of its base class is the
   // prototype of its own, and other subclasses share it.
-  const metadata = ownMetadata<ClassTracedMetadata>(
+  return ownMetadata<ClassTracedMetadata>(
     requireMetadata(context),
     TracedMetadataKey,
     (inherited) => ({
@@ -80,11 +92,30 @@ export function getTracedMetadata(
       methods: new Map(inherited?.methods),
     }),
   )
-  // Method decorators, which run first, may have created the metadata.
-  if (target) {
-    tracedClasses.set(target, metadata)
+}
+
+/**
+ * What `@Traced` (`enabled`) and `@Traceable` do to a class. The options are
+ * added to what the class inherits: a name replaces the inherited one, and
+ * attributes are merged into the inherited ones.
+ */
+export function markClass(
+  target: ClassType,
+  context: ClassDecoratorContext,
+  options: TracedOptions,
+  enabled: boolean,
+): void {
+  if (context.kind !== 'class') {
+    throw new Error(
+      `[Navios] @${enabled ? 'Traced' : 'Traceable'} cannot be applied to a ${context.kind as string}.`,
+    )
   }
-  return metadata
+  // Method decorators, which run first, may have created the metadata.
+  const metadata = getTracedMetadata(context)
+  metadata.name = options.name ?? metadata.name
+  metadata.attributes = { ...metadata.attributes, ...options.attributes }
+  metadata.enabled = enabled
+  tracedClasses.set(target, metadata)
 }
 
 /**

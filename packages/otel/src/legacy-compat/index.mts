@@ -20,7 +20,7 @@
  */
 
 // Re-export types from main module
-export type { TracedOptions } from '../traced/traced-options.mjs'
+export type { TracedOptions } from '../traced/traced-metadata.mjs'
 export type {
   TracedMetadata,
   ClassTracedMetadata,

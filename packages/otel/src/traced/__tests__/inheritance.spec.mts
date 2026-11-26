@@ -30,7 +30,12 @@ const expected = {
     enabled: true,
     methods: ['list', 'create'],
   },
-  users: { name: 'users', attributes: undefined, enabled: false, methods: ['list', 'remove'] },
+  users: {
+    name: 'users',
+    attributes: { layer: 'base', team: 'a' },
+    enabled: false,
+    methods: ['list', 'remove'],
+  },
 }
 
 describe('traced metadata of a subclass', () => {
@@ -97,6 +102,34 @@ describe('traced metadata of a subclass', () => {
     expect(seen(Orders)).toEqual(expected.orders)
     expect(seen(Users)).toEqual(expected.users)
     expect(extractTracedMetadata(Base).methods.get('list')!.name).toBe('base-list')
+  })
+})
+
+describe('@Traceable on a subclass', () => {
+  it('keeps the span name and the attributes of the base class', () => {
+    @Traced({ name: 'base-service', attributes: { layer: 'base' } })
+    class Base {
+      list() {}
+    }
+
+    @Traceable({ attributes: { team: 'a' } })
+    class Child extends Base {
+      @Traced()
+      remove() {}
+    }
+
+    expect(seen(Child)).toEqual({
+      name: 'base-service',
+      attributes: { layer: 'base', team: 'a' },
+      enabled: false,
+      methods: ['remove'],
+    })
+    expect(seen(Base)).toEqual({
+      name: 'base-service',
+      attributes: { layer: 'base' },
+      enabled: true,
+      methods: [],
+    })
   })
 })
 
