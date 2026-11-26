@@ -199,6 +199,8 @@ const app = await NaviosFactory.create(AppModule, {
 })
 ```
 
+The defaults are exported as `NotFoundResponder`, `ForbiddenResponder`, `ValidationErrorResponder` and `InternalServerErrorResponder`. Extend one to keep its response and change part of it, for example to add a field to the problem that `ValidationErrorResponder` builds.
+
 A responder may also return `reply()` or `problem()`. One that throws, returns something else or returns what cannot be sent is logged, and a plain problem is sent in its place.
 
 `description` is a message from the framework: the unmatched method and path for not-found, and the error's message for the internal-error responder when `exposeErrorDetails` is on. Responders are resolved once at `init()`.
