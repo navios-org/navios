@@ -14,7 +14,7 @@ import {
   registerInjectable,
 } from '../index.mjs'
 import { argsKey } from '../internal/args-key.mjs'
-import { validateSync } from '../internal/index.mjs'
+import { validateSync } from '../schema/standard-schema.mjs'
 
 import type { StandardSchemaV1 } from '../index.mjs'
 
