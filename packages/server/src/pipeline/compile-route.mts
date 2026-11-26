@@ -21,7 +21,7 @@ import type { RouteInfo } from '../routing/route-info.mjs'
 import type { RoutePath } from '../routing/route-path.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
-import { compileFinalizer, PrimedGenerator } from './compile-finalizer.mjs'
+import { compileFinalizer } from './compile-finalizer.mjs'
 import { compileParams } from './compile-params.mjs'
 import { encodeResponse, ownResult } from './encode-result.mjs'
 import { runGuards } from './run-guards.mjs'
@@ -145,18 +145,14 @@ export function compileRoute(definition: RouteDefinition, options: CompileOption
     }
     // A stream that cannot start, for example a file that is not there, is an
     // error like any other. Not so an event stream, whose headers must not
-    // wait for its first event.
+    // wait for its first event. A generator's has been waited for already.
     const { body } = response
-    if (!(body instanceof ManagedBody) || body.opening !== null || ctx.method === 'HEAD') {
-      return response
-    }
-    const first = result.body instanceof PrimedGenerator ? result.body.take() : null
-    if (first !== null) {
-      try {
-        body.accept(first)
-      } catch (error) {
-        return fail(error, ctx)
-      }
+    if (
+      !(body instanceof ManagedBody) ||
+      body.isStarted ||
+      body.opening !== null ||
+      ctx.method === 'HEAD'
+    ) {
       return response
     }
     return body

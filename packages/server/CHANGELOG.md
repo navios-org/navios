@@ -21,12 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Request helpers in `@navios/server/adapter`** that adapters wrote each for themselves: `parseQuery(search)`, the query as `RouteInput.query()` gives it; `bodyTooLarge()` and `incompleteBody(cause?)`, the 413 and 400 of a body; `malformedPath(path)`, the 400 of a path that is not valid percent-encoding; and `settledWithin(work, ms)` of `@navios/core/transport`, for an adapter that peers on the server only.
 - **`RouteInfo.params`**, the names of the url params of a route's path, prefixes included, in order: what the server takes the path apart into, so that a plugin does not parse it again.
 - **`toTestResponse()` takes web `Headers`** as well as a record, for an adapter whose server answers with a web `Response`.
+- **`ManagedBody.throw(error)`**, for a reader that delegates to the body, as `yield*` does: it closes what produces the body and throws the error.
 
 ### Changed
 
 - **A result of error mapping that cannot be sent is answered with a plain 500 problem**, and reported. It went to the internal-error responder first, whose result could fail as well.
 - **`ErrorPipeline.unexpected()` maps an error as a route does without error mappers**: an `HttpException` keeps its status, and anything else is reported and a 500. It answered every error with a 500 and an error log, so an adapter answered an `HttpException` outside a route differently from another.
 - **`RouteResponse.release` may be called again**, the contract says now: a later call returns the promise of the first and does nothing else, as it always has. An adapter can make it the listener of every event that ends a response.
+- **What an async generator handler returns is a `ManagedBody` by the time interceptors see the result**, run up to its first chunk, which the first reader gets. It was an iterator of its own that held the chunk for the pipeline. Its chunks are checked as they are read, an `ArrayBuffer` becoming a `Uint8Array`, and `throw(error)` closes the generator and throws the error, which the generator no longer gets to catch.
 
 ### Fixed
 

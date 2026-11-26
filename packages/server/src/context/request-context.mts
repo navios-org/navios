@@ -527,10 +527,14 @@ export class RequestContext<
 
   /**
    * Makes the request the owner of a lazy body, which is closed when the
-   * request is released, or at once when it already has been.
+   * request is released, or at once when it already has been. A body that is
+   * managed already is returned as it is.
    * @internal
    */
   ownBody(body: object): ManagedBody {
+    if (body instanceof ManagedBody) {
+      return body
+    }
     const owned = this.bodies?.find((managed) => managed.body === body)
     if (owned !== undefined) {
       return owned

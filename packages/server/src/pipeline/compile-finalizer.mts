@@ -1,6 +1,5 @@
 import { describeValue } from '../internal/describe-value.mjs'
 import { ignore, isPromise } from '../internal/promises.mjs'
-import { settledOrAborted } from '../internal/waiting.mjs'
 import { isCustomResult } from '../responses/custom-result.mjs'
 import { isLazyBody } from '../responses/managed-body.mjs'
 import { isEndpointReply } from '../responses/reply.mjs'
@@ -114,11 +113,19 @@ export function compileFinalizer(
         return { status: 200, body, kind: 'sse' }
       }
       if (isAsyncGenerator(value)) {
-        const body = new PrimedGenerator(value)
-        ctx.ownBody(body)
+        // Run up to its first chunk, for the headers it sets before it. An
+        // interceptor that wraps the body still reads that chunk first.
+        const body = ctx.ownBody(value)
         const result: RouteResult = { status: 200, body, kind }
-        const pending = body.prime(ctx)
-        return pending === undefined ? result : pending.then(() => result)
+        const first = body.start()
+        // An event stream may have nothing to send for a long time: its
+        // headers are those that the generator has set until it first waits.
+        if (isEventStream(ctx.responseHeaders)) {
+          // Whoever reads it sees the rejection. Nobody may.
+          first.catch(ignore)
+          return result
+        }
+        return body.prime(() => ctx.signal).then(() => result)
       }
       if (isLazyBody(value)) {
         ctx.ownBody(value)
@@ -143,82 +150,4 @@ function isAsyncGenerator(value: unknown): value is AsyncIterableIterator<unknow
     typeof (value as AsyncIterableIterator<unknown>).next === 'function' &&
     typeof (value as AsyncIterableIterator<unknown>)[Symbol.asyncIterator] === 'function'
   )
-}
-
-/**
- * An async generator that is run up to its first chunk before the response is
- * encoded. A generator's body does not run until it is first pulled, so
- * without this, headers it sets through `ctx.reply` before its first `yield`
- * would be set after the response headers were already taken.
- *
- * It is an iterator written by hand, not a second generator around the first:
- * `return()` on a generator that was never pulled skips its body, so a
- * response dropped before its first read would leave the handler's generator
- * suspended, with its `finally` blocks not run. Both `return()` and `throw()`
- * are optional on an iterator.
- */
-export class PrimedGenerator implements AsyncIterableIterator<unknown> {
-  private pending: Promise<IteratorResult<unknown>> | null = null
-  private first: IteratorResult<unknown> | null = null
-
-  constructor(private readonly generator: AsyncIterableIterator<unknown>) {}
-
-  /**
-   * Runs the generator up to its first chunk. Waits no longer than the client
-   * does: nobody could close it before. Does not wait for an event stream,
-   * which may have nothing to send for a long time: its headers are those that
-   * the generator has set until it first waits for something.
-   */
-  prime(ctx: RequestContext): Promise<void> | undefined {
-    const pending = (this.pending = Promise.resolve(this.generator.next()))
-    if (isEventStream(ctx.responseHeaders)) {
-      pending.catch(ignore)
-      return undefined
-    }
-    return settledOrAborted(
-      pending.then((first) => {
-        this.first = first
-      }),
-      () => ctx.signal,
-    )
-  }
-
-  /** The first chunk, if it is there and has not been read. It is not read again. */
-  take(): IteratorResult<unknown> | null {
-    const { first } = this
-    if (this.pending === null) {
-      return null
-    }
-    if (first !== null) {
-      this.pending = null
-    }
-    return first
-  }
-
-  [Symbol.asyncIterator](): this {
-    return this
-  }
-
-  next(): Promise<IteratorResult<unknown>> {
-    const { pending } = this
-    if (pending !== null) {
-      this.pending = null
-      return pending
-    }
-    return this.generator.next()
-  }
-
-  async return(value?: unknown): Promise<IteratorResult<unknown>> {
-    this.pending = null
-    return (await this.generator.return?.(value)) ?? { done: true, value }
-  }
-
-  async throw(error?: unknown): Promise<IteratorResult<unknown>> {
-    this.pending = null
-    if (this.generator.throw !== undefined) {
-      return this.generator.throw(error)
-    }
-    await this.generator.return?.()
-    throw error
-  }
 }
