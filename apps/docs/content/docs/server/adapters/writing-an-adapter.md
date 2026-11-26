@@ -208,7 +208,7 @@ Most responses have no `release`. Check for it before installing any listener.
 
 `inject()` turns a `TestRequest` into what is sent over HTTP with `toTestMessage(request)`, and answers with `toTestResponse(status, headers, text)`, so that a test sees the same on every adapter.
 
-An error of the server itself, which never reached an executor or came after it, is answered with `context.errors.unexpected(error, { method, path })`. It reports the error and returns the `RouteResponse` to write. For a response that is not an error of the application, such as a 413, encode a result: `encodeResult(problem(413, detail))`.
+An error of the server itself, which never reached an executor or came after it, is answered with `context.errors.unexpected(error, { method, path })`. It maps the error as a route does without error mappers, and returns the `RouteResponse` to write: an `HttpException` keeps its status, and anything else is reported and answered with a 500. For a response that is not an error of the application, such as a 413, encode a result: `encodeResult(problem(413, detail))`.
 
 When the error came after the headers of another response were set, remove those that `describesSuccess(name, value)` names first.
 
@@ -232,7 +232,7 @@ When the error came after the headers of another response were set, remove those
 - streams: read one chunk at a time, and no faster than the client reads; a chunk is sent when it is produced; the headers of an event stream before its first event; closed when the client leaves, also before the first chunk, for a `HEAD` and when they cannot be sent; errors before and after the first chunk; the request scope until a stream is closed
 - `inject()`, also of a response that fails after it has begun
 - closing: connections without a request, requests and streams in flight, what outlives the timeout, and calls to a closed application
-- with `cors` set, preflight requests, and the CORS headers and `Vary` of every other response, errors included
+- with `cors` set, preflight requests, the CORS headers and `Vary` of every other response, errors included, and an `HttpException` that the origin function fails with
 - with `bodyLimit` set, a 413 problem response for a JSON, text or multipart body over the limit
 
 It takes the test runner's functions as an argument, so it runs under Vitest, `bun:test` or anything with the same five functions. It uses a small built-in Standard Schema implementation and depends on no schema library.
@@ -257,7 +257,7 @@ runAdapterConformance({
 | `runner`        | `{ describe, it, expect, beforeAll, afterAll }` from the test runner.         |
 | `name`          | Shown in the suite title.                                                     |
 | `adapter`       | Creates the adapter definition under test. Multipart support must be enabled. |
-| `cors`          | Optional. Creates the adapter definition under test with CORS for `{ origin, methods, credentials }`: a list of origins, a list of methods and `true`. Enables the CORS cases. Leave it out for an adapter without CORS. |
+| `cors`          | Optional. Creates the adapter definition under test with CORS for `{ origin, methods, credentials }`: a list of origins or a function `(origin, callback)` that calls back with an error or whether the origin is allowed, a list of methods and `true`. Enables the CORS cases. Leave it out for an adapter without CORS. |
 | `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port. Leave it out for an adapter without a server: requests then go through `inject()`, and what needs a connection is not checked. |
 | `bodyLimit`     | Optional. The largest request body in bytes the adapter under test accepts, 16 KiB or more: a JSON or text body, and one file of a multipart body. Enables the 413 cases, which run with and without a declared length and through `inject()`. |
 

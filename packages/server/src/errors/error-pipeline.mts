@@ -138,10 +138,13 @@ export class ErrorPipeline {
 
   /**
    * The response for an error outside a route's pipeline, such as one of a
-   * plugin of the native server. Reported like any other unhandled error.
+   * plugin of the native server or of a CORS check. It is mapped as in a
+   * route, without the mappers: an `HttpException` keeps its status, and an
+   * error that has none is a 500 and reported.
    */
   unexpected(error: unknown, at: ErrorSite | null = null): RouteResponse {
-    const result = this.internal(error, at)
+    // Without an endpoint nothing is declared, so the answer is there at once.
+    const result = this.builtIn(error, at, null) as RouteResult
     try {
       return encodeResult(result)
     } catch (defect) {
