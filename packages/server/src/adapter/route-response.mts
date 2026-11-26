@@ -25,8 +25,10 @@ export interface RouteResponse {
   /**
    * Present when the request holds something: a DI scope, request values with
    * a `dispose` hook, `onFinish` callbacks, a body that is produced while it
-   * is sent. The adapter calls it once: when the response has been sent, the
-   * connection is gone, the body will not be sent (`HEAD`) or writing failed.
+   * is sent. The adapter calls it when the response has been sent, the
+   * connection is gone, the body will not be sent (`HEAD`) or writing failed,
+   * whichever comes first. It may call it again: a later call returns the
+   * promise of the first and does nothing else.
    *
    * It closes the body, runs the `onFinish` callbacks, disposes request
    * values and then the scope. It never rejects, and calls no user code

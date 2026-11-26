@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A result of error mapping that cannot be sent is answered with a plain 500 problem**, and reported. It went to the internal-error responder first, whose result could fail as well.
 - **`ErrorPipeline.unexpected()` maps an error as a route does without error mappers**: an `HttpException` keeps its status, and anything else is reported and a 500. It answered every error with a 500 and an error log, so an adapter answered an `HttpException` outside a route differently from another.
+- **`RouteResponse.release` may be called again**, the contract says now: a later call returns the promise of the first and does nothing else, as it always has. An adapter can make it the listener of every event that ends a response.
 
 ### Fixed
 

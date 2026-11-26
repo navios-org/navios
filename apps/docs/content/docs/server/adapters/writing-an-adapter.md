@@ -188,7 +188,7 @@ Read it with `next()`, one chunk at a time and no faster than the client takes t
 
 ### `release`
 
-`release` is present when the request holds something: a DI scope, request values with a `dispose` hook, `onFinish` callbacks, or a `ManagedBody`. The adapter must call it exactly once, as soon as one of these is true:
+`release` is present when the request holds something: a DI scope, request values with a `dispose` hook, `onFinish` callbacks, or a `ManagedBody`. The adapter must call it as soon as one of these is true:
 
 - the response has been sent
 - the connection is gone, which may have happened before the executor returned
@@ -196,6 +196,8 @@ Read it with `next()`, one chunk at a time and no faster than the client takes t
 - writing failed, whatever the reason
 
 For a body in memory, right after writing it is early enough when the server does not tell when it has been sent.
+
+A second call does nothing and returns the promise of the first, so `release` can be the listener of every event that ends a response, without a flag of the adapter's own.
 
 It closes the body, runs the `onFinish` callbacks, disposes request values and then the scope. It never rejects, and runs none of that before it returns, so it may be called from an event of the connection. What a request still holds when `close()` resolves is released before the container is disposed, so an adapter does not have to wait for it.
 
