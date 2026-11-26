@@ -154,10 +154,11 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
       input.responded = () => upgraded.has(request)
     }
     const respond = (response: RouteResponse): Response => {
-      const { release, takenOver } = response
-      if (takenOver) {
-        // Bun has answered, and takes no other response. It ignores the error
-        // response of a handler that failed after the upgrade as well.
+      const { release } = response
+      // A handler that fails after the upgrade leaves `takenOver` unset, so
+      // the set of upgraded requests is asked as well.
+      if (response.takenOver || upgraded?.has(request)) {
+        // Bun has answered, and takes no other response.
         void release?.()
         return new Response(null)
       }
