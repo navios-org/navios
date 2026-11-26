@@ -67,7 +67,6 @@ describe('the exports of', () => {
       [
         'BasicExecutionContext',
         'buildModuleGraph',
-        'constructedInstances',
         'defineTransport',
         'describeHandlerClass',
         'getModuleMetadata',

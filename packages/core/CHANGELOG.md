@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Breaking
+
+- **`@navios/core/transport` no longer re-exports `constructedInstances`.** It is part of `@navios/di/internal`, which follows no semver; a transport that needs it imports it from there and lists `@navios/di` as a peer dependency.
+
 ### Added
 
 - **`settledWithin(work, ms)` and `MAX_DELAY_MS`** in `@navios/core/transport`: whether a promise settles within `ms`, for a transport's `stop(timeoutMs)`. A longer time than a timer takes is cut to `MAX_DELAY_MS`.

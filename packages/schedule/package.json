@@ -55,10 +55,12 @@
   },
   "devDependencies": {
     "@navios/core": "workspace:^",
+    "@navios/di": "workspace:^",
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
-    "@navios/core": "workspace:*"
+    "@navios/core": "workspace:*",
+    "@navios/di": "workspace:*"
   },
   "engines": {
     "node": ">=24"

@@ -1301,10 +1301,12 @@ __metadata:
   resolution: "@navios/schedule@workspace:packages/schedule"
   dependencies:
     "@navios/core": "workspace:^"
+    "@navios/di": "workspace:^"
     cron: "npm:^4.4.2"
     typescript: "npm:^7.0.2"
   peerDependencies:
     "@navios/core": "workspace:*"
+    "@navios/di": "workspace:*"
   languageName: unknown
   linkType: soft
 
