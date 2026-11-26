@@ -44,11 +44,11 @@ export const rabbitmqConfigSchema = z.object({
   /** Channel prefetch count for consumer */
   prefetch: z.number().int().min(1).default(10),
   /** Connection options */
-  connectionOptions: rabbitmqConnectionOptionsSchema.optional(),
+  connectionOptions: rabbitmqConnectionOptionsSchema.prefault({}),
   /** TLS configuration */
   tls: tlsConfigSchema.optional(),
   /** Retry configuration for message processing */
-  retry: retryConfigSchema.optional(),
+  retry: retryConfigSchema.prefault({}),
   /** Dead letter configuration */
   deadLetter: deadLetterConfigSchema.optional(),
   /** Exchange options */
@@ -58,7 +58,7 @@ export const rabbitmqConfigSchema = z.object({
       durable: z.boolean().default(true),
       autoDelete: z.boolean().default(false),
     })
-    .optional(),
+    .prefault({}),
   /** Queue options */
   queue: z
     .object({
@@ -69,7 +69,8 @@ export const rabbitmqConfigSchema = z.object({
       maxLength: z.number().int().min(0).optional(),
       maxPriority: z.number().int().min(0).max(255).optional(),
     })
-    .optional(),
+    .prefault({}),
 })
 
+/** A parsed RabbitMQ entry: the defaults are set, and so are the option objects. */
 export type RabbitmqConfig = z.infer<typeof rabbitmqConfigSchema>

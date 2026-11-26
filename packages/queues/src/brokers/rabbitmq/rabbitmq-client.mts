@@ -51,13 +51,13 @@ export class RabbitMQClient implements QueueClient {
 
     // Build connection options
     const connectionOptions: AmqpConnectionManagerOptions['connectionOptions'] = {
-      timeout: this.config.connectionOptions?.timeout ?? 30000,
-      keepAlive: this.config.connectionOptions?.keepAlive ?? true,
-      keepAliveDelay: this.config.connectionOptions?.keepAliveDelay ?? 10000,
-      noDelay: this.config.connectionOptions?.noDelay ?? false,
+      timeout: this.config.connectionOptions.timeout,
+      keepAlive: this.config.connectionOptions.keepAlive,
+      keepAliveDelay: this.config.connectionOptions.keepAliveDelay,
+      noDelay: this.config.connectionOptions.noDelay,
     }
 
-    if (this.config.connectionOptions?.clientProperties) {
+    if (this.config.connectionOptions.clientProperties) {
       connectionOptions.clientProperties = this.config.connectionOptions.clientProperties
     }
 
@@ -66,7 +66,7 @@ export class RabbitMQClient implements QueueClient {
     }
 
     this.connection = amqp.connect([url.toString()], {
-      heartbeatIntervalInSeconds: this.config.heartbeatIntervalInSeconds ?? 5,
+      heartbeatIntervalInSeconds: this.config.heartbeatIntervalInSeconds,
       reconnectTimeInSeconds: this.config.reconnectTimeInSeconds,
       connectionOptions,
     })
@@ -79,7 +79,7 @@ export class RabbitMQClient implements QueueClient {
       // Disconnected - will auto-reconnect
     })
 
-    const prefetch = this.config.prefetch ?? 10
+    const { prefetch } = this.config
 
     this.channel = this.connection.createChannel({
       json: true,
@@ -100,9 +100,7 @@ export class RabbitMQClient implements QueueClient {
       throw new Error('RabbitMQ channel not initialized')
     }
 
-    const exchangeType = this.config.exchange?.type ?? 'topic'
-    const durable = this.config.exchange?.durable ?? true
-    const autoDelete = this.config.exchange?.autoDelete ?? false
+    const { type: exchangeType, durable, autoDelete } = this.config.exchange
 
     await this.channel.addSetup(async (channel: AmqplibChannel) => {
       await channel.assertExchange(exchangeName, exchangeType, {
@@ -117,19 +115,17 @@ export class RabbitMQClient implements QueueClient {
       throw new Error('RabbitMQ channel not initialized')
     }
 
-    const durable = this.config.queue?.durable ?? true
-    const autoDelete = this.config.queue?.autoDelete ?? false
-    const exclusive = this.config.queue?.exclusive ?? false
+    const { durable, autoDelete, exclusive, messageTtl, maxLength, maxPriority } = this.config.queue
 
     const args: Record<string, unknown> = {}
-    if (this.config.queue?.messageTtl) {
-      args['x-message-ttl'] = this.config.queue.messageTtl
+    if (messageTtl) {
+      args['x-message-ttl'] = messageTtl
     }
-    if (this.config.queue?.maxLength) {
-      args['x-max-length'] = this.config.queue.maxLength
+    if (maxLength) {
+      args['x-max-length'] = maxLength
     }
-    if (this.config.queue?.maxPriority) {
-      args['x-max-priority'] = this.config.queue.maxPriority
+    if (maxPriority) {
+      args['x-max-priority'] = maxPriority
     }
     if (this.config.deadLetter?.enabled && this.config.deadLetter.exchange) {
       args['x-dead-letter-exchange'] = this.config.deadLetter.exchange
@@ -191,7 +187,7 @@ export class RabbitMQClient implements QueueClient {
           } catch {
             // Retry logic
             const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
-            const maxRetries = this.config.retry?.maxRetries ?? 3
+            const maxRetries = this.config.retry.maxRetries
 
             if (retryCount < maxRetries) {
               // Requeue with incremented retry count
@@ -249,7 +245,7 @@ export class RabbitMQClient implements QueueClient {
             channel.ack(msg)
           } catch {
             const retryCount = (msg.properties.headers?.['x-retry-count'] ?? 0) as number
-            const maxRetries = this.config.retry?.maxRetries ?? 3
+            const maxRetries = this.config.retry.maxRetries
 
             if (retryCount < maxRetries) {
               channel.nack(msg, false, false)

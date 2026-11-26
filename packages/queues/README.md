@@ -30,19 +30,8 @@ import type { QueueConfig, QueueConfigService } from '@navios/queues'
 export class AppQueueConfig implements QueueConfigService {
   getConfig(): QueueConfig {
     return {
-      default: {
-        type: 'rabbitmq',
-        url: process.env.AMQP_URL!,
-        vhost: '/',
-        heartbeatIntervalInSeconds: 5,
-        prefetch: 10,
-      },
-      audit: {
-        type: 'kafka',
-        brokers: ['localhost:9092'],
-        connectionTimeout: 30000,
-        requestTimeout: 30000,
-      },
+      default: { type: 'rabbitmq', url: process.env.AMQP_URL! },
+      audit: { type: 'kafka', brokers: ['localhost:9092'], consumer: { groupId: 'audit' } },
     }
   }
 }
@@ -71,7 +60,7 @@ container.provide(QueueConfigServiceToken, AppQueueConfig)
 
 In `@navios/queues` 0.x the default was registered with `priority: -1000` and replaced by a second `@Injectable({ token: QueueConfigServiceToken })`. Priorities no longer exist in `@navios/di` 2.0, and a second class declaring the same token throws `ProviderConflict`; use `provide()` as shown.
 
-`queueConfigSchema` and the per-broker schemas (`rabbitmqConfigSchema`, `kafkaConfigSchema`, `sqsConfigSchema`) are exported if you want to validate configuration that comes from the environment.
+Each entry is parsed with `abstractQueueConfigSchema` (a union of `rabbitmqConfigSchema`, `kafkaConfigSchema` and `sqsConfigSchema`) when its client is first resolved, so an entry names only what differs from the defaults, and an invalid entry rejects that resolution with `Invalid configuration of queue <name>` and the zod issues. The schemas are exported if you want to validate configuration earlier, for example when it is read from the environment.
 
 ## Queue clients
 

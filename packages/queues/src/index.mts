@@ -33,7 +33,6 @@ export {
   DefaultQueueConfigService,
   QueueConfigServiceToken,
   abstractQueueConfigSchema,
-  queueConfigSchema,
 } from './config/index.mjs'
 export type { AbstractQueueConfig, QueueConfig, QueueConfigService } from './config/index.mjs'
 

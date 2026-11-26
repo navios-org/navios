@@ -1,4 +1,4 @@
-export { abstractQueueConfigSchema, queueConfigSchema } from './queue-config.mjs'
+export { abstractQueueConfigSchema } from './queue-config.mjs'
 export type { AbstractQueueConfig, QueueConfig } from './queue-config.mjs'
 export type { QueueConfigService } from './queue-config-service.mjs'
 export { QueueConfigServiceToken } from './queue-config-service-token.mjs'

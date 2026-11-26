@@ -39,7 +39,7 @@ export class KafkaClient implements QueueClient {
         ? true
         : this.config.ssl
           ? {
-              rejectUnauthorized: this.config.ssl.rejectUnauthorized ?? true,
+              rejectUnauthorized: this.config.ssl.rejectUnauthorized,
               ca: this.config.ssl.ca ? [this.config.ssl.ca] : undefined,
               cert: this.config.ssl.cert,
               key: this.config.ssl.key,
@@ -49,21 +49,13 @@ export class KafkaClient implements QueueClient {
     const sasl = this.config.sasl ? buildSaslConfig(this.config.sasl) : undefined
 
     this.kafka = new kafkajs.Kafka({
-      clientId: this.config.clientId ?? 'navios-queue-client',
+      clientId: this.config.clientId,
       brokers: this.config.brokers,
-      connectionTimeout: this.config.connectionTimeout ?? 30000,
-      requestTimeout: this.config.requestTimeout ?? 30000,
+      connectionTimeout: this.config.connectionTimeout,
+      requestTimeout: this.config.requestTimeout,
       ssl,
       sasl,
-      retry: this.config.retry
-        ? {
-            maxRetryTime: this.config.retry.maxRetryTime ?? 30000,
-            initialRetryTime: this.config.retry.initialRetryTime ?? 300,
-            factor: this.config.retry.factor ?? 0.2,
-            multiplier: this.config.retry.multiplier ?? 2,
-            retries: this.config.retry.retries ?? 5,
-          }
-        : undefined,
+      retry: this.config.retry,
     })
 
     // Initialize producer
@@ -71,10 +63,10 @@ export class KafkaClient implements QueueClient {
       this.config.producer
         ? {
             allowAutoTopicCreation: true,
-            transactionTimeout: this.config.producer.timeout ?? 30000,
-            idempotent: this.config.producer.idempotent ?? false,
+            transactionTimeout: this.config.producer.timeout,
+            idempotent: this.config.producer.idempotent,
             transactionalId: this.config.producer.transactionalId,
-            maxInFlightRequests: this.config.producer.maxInFlightRequests ?? 5,
+            maxInFlightRequests: this.config.producer.maxInFlightRequests,
           }
         : undefined,
     )
@@ -88,19 +80,14 @@ export class KafkaClient implements QueueClient {
     }
 
     if (!this.consumer) {
-      const groupId = this.config.consumer?.groupId ?? `navios-consumer-${generateId()}`
+      // `fromBeginning` is an option of subscribe(). Without a `consumer` entry
+      // kafkajs applies the same defaults as kafkaConfigSchema.
+      const { fromBeginning: _, ...options } = this.config.consumer ?? {
+        groupId: `navios-consumer-${generateId()}`,
+        fromBeginning: false,
+      }
 
-      this.consumer = this.kafka.consumer({
-        groupId,
-        sessionTimeout: this.config.consumer?.sessionTimeout ?? 30000,
-        rebalanceTimeout: this.config.consumer?.rebalanceTimeout ?? 60000,
-        heartbeatInterval: this.config.consumer?.heartbeatInterval ?? 3000,
-        maxBytesPerPartition: this.config.consumer?.maxBytesPerPartition ?? 1048576,
-        minBytes: this.config.consumer?.minBytes ?? 1,
-        maxBytes: this.config.consumer?.maxBytes ?? 10485760,
-        maxWaitTimeInMs: this.config.consumer?.maxWaitTimeInMs ?? 5000,
-        allowAutoTopicCreation: this.config.consumer?.allowAutoTopicCreation ?? true,
-      })
+      this.consumer = this.kafka.consumer(options)
 
       await this.consumer.connect()
     }
@@ -152,7 +139,7 @@ export class KafkaClient implements QueueClient {
 
     await consumer.subscribe({
       topic,
-      fromBeginning: this.config.consumer?.fromBeginning ?? false,
+      fromBeginning: this.config.consumer?.fromBeginning,
     })
 
     this.subscriptions.set(topic, handler)

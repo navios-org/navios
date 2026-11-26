@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RabbitMQClient } from '../brokers/rabbitmq/rabbitmq-client.mjs'
-
-import type { RabbitmqConfig } from '../brokers/rabbitmq/rabbitmq-config.mjs'
+import { rabbitmqConfigSchema } from '../brokers/rabbitmq/rabbitmq-config.mjs'
 
 interface FakeMessage {
   content: Buffer
@@ -66,13 +65,11 @@ function installConnectionManager() {
   return { connection, wrapper }
 }
 
-const config = {
+const config = rabbitmqConfigSchema.parse({
   type: 'rabbitmq',
   url: 'amqp://localhost:5672',
-  vhost: '/',
-  heartbeatIntervalInSeconds: 5,
   prefetch: 7,
-} as RabbitmqConfig
+})
 
 describe('RabbitMQClient with amqplib 2.x channel API', () => {
   beforeEach(() => {

@@ -80,32 +80,28 @@ export class SQSClient implements QueueClient {
 
     const { CreateQueueCommand, GetQueueAttributesCommand } = await loadSQS()
 
-    const isFifo = this.config.fifo?.enabled ?? false
+    const isFifo = this.config.fifo.enabled
     const actualQueueName = isFifo && !queueName.endsWith('.fifo') ? `${queueName}.fifo` : queueName
 
     const attributes: Record<string, string> = {
-      VisibilityTimeout: String(this.config.visibilityTimeout ?? 30),
-      MessageRetentionPeriod: String(this.config.messageRetentionPeriod ?? 345600),
-      DelaySeconds: String(this.config.delaySeconds ?? 0),
+      VisibilityTimeout: String(this.config.visibilityTimeout),
+      MessageRetentionPeriod: String(this.config.messageRetentionPeriod),
+      DelaySeconds: String(this.config.delaySeconds),
     }
 
     if (isFifo) {
       attributes.FifoQueue = 'true'
-      if (this.config.fifo?.contentBasedDeduplication) {
+      if (this.config.fifo.contentBasedDeduplication) {
         attributes.ContentBasedDeduplication = 'true'
       }
-      if (this.config.fifo?.deduplicationScope) {
-        attributes.DeduplicationScope = this.config.fifo.deduplicationScope
-      }
-      if (this.config.fifo?.throughputLimit) {
-        attributes.FifoThroughputLimit = this.config.fifo.throughputLimit
-      }
+      attributes.DeduplicationScope = this.config.fifo.deduplicationScope
+      attributes.FifoThroughputLimit = this.config.fifo.throughputLimit
     }
 
     if (this.config.deadLetter?.enabled && this.config.deadLetter.queueArn) {
       attributes.RedrivePolicy = JSON.stringify({
         deadLetterTargetArn: this.config.deadLetter.queueArn,
-        maxReceiveCount: this.config.deadLetter.maxReceiveCount ?? 3,
+        maxReceiveCount: this.config.deadLetter.maxReceiveCount,
       })
     }
 
@@ -144,13 +140,13 @@ export class SQSClient implements QueueClient {
 
     const { CreateTopicCommand } = await loadSNS()
 
-    const isFifo = this.config.fifo?.enabled ?? false
+    const isFifo = this.config.fifo.enabled
     const actualTopicName = isFifo && !topicName.endsWith('.fifo') ? `${topicName}.fifo` : topicName
 
     const attributes: Record<string, string> = {}
     if (isFifo) {
       attributes.FifoTopic = 'true'
-      if (this.config.fifo?.contentBasedDeduplication) {
+      if (this.config.fifo.contentBasedDeduplication) {
         attributes.ContentBasedDeduplication = 'true'
       }
     }
@@ -176,7 +172,7 @@ export class SQSClient implements QueueClient {
     const { PublishCommand } = await loadSNS()
 
     const topicInfo = await this.ensureTopic(topic)
-    const isFifo = this.config.fifo?.enabled ?? false
+    const isFifo = this.config.fifo.enabled
 
     await this.snsClient.send(
       new PublishCommand({
@@ -266,13 +262,13 @@ export class SQSClient implements QueueClient {
     const { SendMessageCommand } = await loadSQS()
 
     const queueInfo = await this.ensureQueue(queue)
-    const isFifo = this.config.fifo?.enabled ?? false
+    const isFifo = this.config.fifo.enabled
 
     await this.sqsClient.send(
       new SendMessageCommand({
         QueueUrl: queueInfo.url,
         MessageBody: JSON.stringify(message),
-        DelaySeconds: this.config.delaySeconds ?? 0,
+        DelaySeconds: this.config.delaySeconds,
         ...(isFifo
           ? {
               MessageGroupId: 'default',
@@ -316,9 +312,9 @@ export class SQSClient implements QueueClient {
         const result = await this.sqsClient.send(
           new ReceiveMessageCommand({
             QueueUrl: queueUrl,
-            MaxNumberOfMessages: this.config.maxNumberOfMessages ?? 10,
-            WaitTimeSeconds: this.config.waitTimeSeconds ?? 20,
-            VisibilityTimeout: this.config.visibilityTimeout ?? 30,
+            MaxNumberOfMessages: this.config.maxNumberOfMessages,
+            WaitTimeSeconds: this.config.waitTimeSeconds,
+            VisibilityTimeout: this.config.visibilityTimeout,
             MessageAttributeNames: ['All'],
             AttributeNames: ['All'],
           }),
@@ -366,7 +362,7 @@ export class SQSClient implements QueueClient {
 
     const correlationId = generateId()
     const requestQueue = await this.ensureQueue(`${topic}-request`)
-    const isFifo = this.config.fifo?.enabled ?? false
+    const isFifo = this.config.fifo.enabled
 
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -481,7 +477,7 @@ export class SQSClient implements QueueClient {
     const { SendMessageCommand } = await loadSQS()
 
     const requestQueue = await this.ensureQueue(`${topic}-request`)
-    const isFifo = this.config.fifo?.enabled ?? false
+    const isFifo = this.config.fifo.enabled
 
     // Custom polling that extracts reply metadata
     const abortController = new AbortController()
@@ -495,8 +491,8 @@ export class SQSClient implements QueueClient {
           const result = await this.sqsClient!.send(
             new ReceiveMessageCommand({
               QueueUrl: requestQueue.url,
-              MaxNumberOfMessages: this.config.maxNumberOfMessages ?? 10,
-              WaitTimeSeconds: this.config.waitTimeSeconds ?? 20,
+              MaxNumberOfMessages: this.config.maxNumberOfMessages,
+              WaitTimeSeconds: this.config.waitTimeSeconds,
               MessageAttributeNames: ['correlationId', 'replyTo'],
             }),
           )

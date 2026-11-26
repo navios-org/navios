@@ -17,6 +17,13 @@ Ported to `@navios/di` 2.0.
 - `QueueClientFactory`, `DefaultQueueConfigService`, `QueuePublisher`, `QueueSender` and `QueueRequester` are registered with `registerFactory()` / `registerInjectable()` instead of decorators.
 - **BREAKING**: `RabbitMQClient`, `KafkaClient` and `SQSClient` no longer implement `OnServiceInit` and `OnServiceDestroy`. `onServiceInit()` is renamed `connect()`, and `onServiceDestroy()` is removed: call `disconnect()`. `QueueClientFactory` calls `connect()` and registers `disconnect()` with `ctx.addDestroyListener`: in `@navios/di` 2.0 the container calls the lifecycle hooks of classes it constructs, not of a factory's product.
 
+- **BREAKING**: `QueueClientFactory` parses the entry of the requested name with `abstractQueueConfigSchema` when its client is first resolved. The defaults of the broker schemas are applied there, and an invalid entry rejects the resolution with `Invalid configuration of queue <name>` and the zod issues. `QueueConfig` is the schema input, `Record<string, z.input<typeof abstractQueueConfigSchema>>`, so an entry leaves out what has a default; before, it was the output type and an entry had to spell out every default. The broker clients take a parsed entry (`RabbitmqConfig`, `KafkaConfig` and `SqsConfig` are output types) and no longer re-apply the defaults themselves.
+- `kafkaConfigSchema` defaults `clientId` to `'navios-queue-client'`, the name the client used. The RabbitMQ `connectionOptions`, `retry`, `exchange` and `queue` and the SQS `fifo` options are filled with their defaults when they are left out.
+
+### Removed
+
+- **BREAKING**: `queueConfigSchema`. It accepted `{ default }` or any record and was never used to parse; validate an entry with `abstractQueueConfigSchema`.
+
 ### Added
 
 - `QueuePublisherToken`, `QueueSenderToken`, `QueueRequesterToken` and their argument schemas are exported from the package entry, together with `queueClientOptionsSchema`.
