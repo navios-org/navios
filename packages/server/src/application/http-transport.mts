@@ -60,7 +60,14 @@ export interface HttpTransportOptions<Env extends HttpAdapterEnvironment = HttpA
   /** Send the message of unexpected errors to the client. @default false */
   exposeErrorDetails?: boolean
   /**
-   * When errors that are answered with a 4xx status capture a stack.
+   * When errors that are answered with a 4xx status capture a stack: an
+   * `HttpException` below 500, a denied guard, a request that does not match
+   * its schema. Capturing one costs more than the rest of the pipeline, and
+   * nothing in the framework reads it. `'development'` captures unless
+   * `NODE_ENV` is `production`. Other errors always have their stack.
+   *
+   * The choice applies to the process while the application runs: with
+   * several applications, stacks are captured if any of them wants them.
    * @default 'development'
    */
   clientErrorStacks?: ClientErrorStacks

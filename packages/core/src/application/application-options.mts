@@ -36,7 +36,8 @@ export interface ApplicationOptions {
   /**
    * What happens when a handler uses a service that is not a singleton through
    * `ctx.use()` / `ctx.resolve()`, which needs a DI scope for the execution:
-   * nothing, a warning the first time, or an error.
+   * nothing, a warning the first time, or an error. A context key is the
+   * cheaper home for data of one execution.
    * @default 'warn' outside production, 'allow' in production
    */
   requestScopedServices?: 'allow' | 'warn' | 'forbid'
