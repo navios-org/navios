@@ -1,4 +1,4 @@
-import type { RouteResponse } from '../routing/route-response.mjs'
+import type { RouteResponse } from '../adapter/route-response.mjs'
 import type { ResponseHeaders } from '../routing/route-result.mjs'
 
 /**

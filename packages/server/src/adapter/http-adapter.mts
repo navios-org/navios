@@ -3,8 +3,8 @@ import type { Container } from '@navios/di'
 
 import type { AdapterEnvironment } from '../context/environment.mjs'
 import type { ErrorPipeline } from '../errors/error-pipeline.mjs'
-import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
 
+import type { CompiledRoute, RouteExecutor } from './compiled-route.mjs'
 import type { TestRequest, TestResponse } from './test-request.mjs'
 
 /**

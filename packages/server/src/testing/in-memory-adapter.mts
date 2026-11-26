@@ -5,15 +5,15 @@ import { encodeResult } from '../pipeline/encode-result.mjs'
 import { canonicalPath } from '../routing/route-path.mjs'
 import { RouteTable } from '../routing/route-table.mjs'
 
+import type { CompiledRoute, RouteExecutor } from '../adapter/compiled-route.mjs'
 import type {
   AdapterDefinition,
   HttpAdapter,
   HttpAdapterEnvironment,
 } from '../adapter/http-adapter.mjs'
+import type { BodySource, RouteInput } from '../adapter/route-input.mjs'
+import type { RouteBody, RouteResponse } from '../adapter/route-response.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
-import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
-import type { BodySource, RouteInput } from '../routing/route-input.mjs'
-import type { RouteBody, RouteResponse } from '../routing/route-response.mjs'
 
 export interface InMemoryEnvironment extends HttpAdapterEnvironment {
   raw: { request: TestRequest }

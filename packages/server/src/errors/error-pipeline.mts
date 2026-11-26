@@ -3,11 +3,11 @@ import { encodeResult } from '../pipeline/encode-result.mjs'
 import { toRouteResult } from '../pipeline/to-route-result.mjs'
 import { validateSchema } from '../pipeline/validate-schema.mjs'
 
+import type { RouteResponse } from '../adapter/route-response.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { EndpointReply } from '../responses/reply.mjs'
 import type { RouteEndpointConfig } from '../routing/endpoint-config.mjs'
-import type { RouteResponse } from '../routing/route-response.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'
 
 import { GuardDeniedError } from './guard-denied-error.mjs'

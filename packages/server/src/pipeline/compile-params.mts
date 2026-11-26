@@ -3,11 +3,11 @@ import { fieldDecoder } from '../decoding/field-decoder.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
 import { compileRoutePath } from '../routing/route-path.mjs'
 
+import type { RouteInput } from '../adapter/route-input.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
 import type { ValidationSource } from '../errors/validation-error.mjs'
 import type { MaybePromise } from '../internal/promises.mjs'
 import type { RouteEndpointConfig, SchemaLike } from '../routing/endpoint-config.mjs'
-import type { RouteInput } from '../routing/route-input.mjs'
 import type { RoutePath } from '../routing/route-path.mjs'
 
 import { validateSchema } from './validate-schema.mjs'

@@ -1,10 +1,10 @@
-import { cookieKey, serializeCookie } from '../adapter/serialize-cookie.mjs'
 import { describeValue } from '../internal/describe-value.mjs'
 import { isLazyBody, ManagedBody } from '../responses/managed-body.mjs'
 import { setHeader } from '../responses/response-headers.mjs'
+import { cookieKey, serializeCookie } from '../responses/serialize-cookie.mjs'
 
+import type { RouteBody, RouteResponse } from '../adapter/route-response.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
-import type { RouteBody, RouteResponse } from '../routing/route-response.mjs'
 import type { ResponseHeaders, RouteResult } from '../routing/route-result.mjs'
 
 const CONTENT_TYPES: Record<string, string> = {

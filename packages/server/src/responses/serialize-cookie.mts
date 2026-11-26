@@ -1,6 +1,6 @@
-import { TOKEN } from '../responses/response-headers.mjs'
-
 import type { SetCookie } from '../routing/cookies.mjs'
+
+import { TOKEN } from './response-headers.mjs'
 
 /** What `Path` and `Domain` may hold: no `;`, which would start an attribute, and no control character. */
 const ATTRIBUTE = /^[\x20-\x3a\x3c-\x7e]*$/

@@ -18,6 +18,7 @@ import { encodeResult } from '../pipeline/encode-result.mjs'
 import { joinPaths } from '../routing/join-paths.mjs'
 import { RouteTable } from '../routing/route-table.mjs'
 
+import type { CompiledRoute, RouteExecutor } from '../adapter/compiled-route.mjs'
 import type {
   AdapterDefinition,
   HttpAdapter,
@@ -27,7 +28,6 @@ import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
 import type { ClientErrorStacks } from '../errors/client-error-stacks.mjs'
 import type { ErrorClass, ErrorMapper } from '../errors/error-pipeline.mjs'
 import type { ResponseEncoder } from '../pipeline/response-encoder.mjs'
-import type { CompiledRoute, RouteExecutor } from '../routing/compiled-route.mjs'
 import type { HttpGuardClass, HttpInterceptorClass } from '../routing/http-contracts.mjs'
 import type { RouteInfo } from '../routing/route-info.mjs'
 

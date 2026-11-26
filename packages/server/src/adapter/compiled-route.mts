@@ -1,6 +1,7 @@
-import type { RouteInfo } from './route-info.mjs'
+import type { RouteInfo } from '../routing/route-info.mjs'
+import type { RoutePath } from '../routing/route-path.mjs'
+
 import type { RouteInput } from './route-input.mjs'
-import type { RoutePath } from './route-path.mjs'
 import type { RouteResponse } from './route-response.mjs'
 
 /** Handles one request. It does not throw, and its promise does not reject. */

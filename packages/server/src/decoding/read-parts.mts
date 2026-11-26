@@ -1,6 +1,6 @@
 import { ValidationError } from '../errors/validation-error.mjs'
 
-import type { BodyPart } from '../routing/route-input.mjs'
+import type { BodyPart } from '../adapter/route-input.mjs'
 
 /** The error for a multipart body that cannot be parsed. */
 export function malformedMultipart(cause: unknown): ValidationError {
