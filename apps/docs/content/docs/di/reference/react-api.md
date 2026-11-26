@@ -144,10 +144,9 @@ The two contexts behind the providers and hooks. They are exported for code that
 
 ## Types
 
-| Export                                  | Description                                                |
-| --------------------------------------- | ---------------------------------------------------------- |
-| `ContainerProviderProps`                | Props of [`ContainerProvider`](#containerprovider)         |
-| `ScopeProviderProps`                    | Props of [`ScopeProvider`](#scopeprovider)                 |
-| `UseServiceResult<T>`                   | Return type of [`useService`](#useservice)                 |
-| `UseOptionalServiceResult<T>`           | Return type of [`useOptionalService`](#useoptionalservice) |
-| `UnionToArray<T>`, `Join<T, Delimiter>` | Type-level helpers. No hook signature uses them            |
+| Export                        | Description                                                |
+| ----------------------------- | ---------------------------------------------------------- |
+| `ContainerProviderProps`      | Props of [`ContainerProvider`](#containerprovider)         |
+| `ScopeProviderProps`          | Props of [`ScopeProvider`](#scopeprovider)                 |
+| `UseServiceResult<T>`         | Return type of [`useService`](#useservice)                 |
+| `UseOptionalServiceResult<T>` | Return type of [`useOptionalService`](#useoptionalservice) |
