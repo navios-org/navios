@@ -19,7 +19,7 @@ processors:
   # Add resource attributes
   resource:
     attributes:
-      - key: deployment.environment
+      - key: deployment.environment.name
         value: development
         action: upsert
 
