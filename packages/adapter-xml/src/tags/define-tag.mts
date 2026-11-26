@@ -1,5 +1,7 @@
 import type { InferInput, StandardSchemaV1 } from '@navios/server'
 
+import { flattenChildren } from '../jsx/create-element.mjs'
+
 import type { XmlNode, XmlRenderable } from '../nodes/xml-node.mjs'
 
 /**
@@ -68,11 +70,7 @@ export function defineTag(name: string, propsSchema?: StandardSchemaV1): TagComp
       }
     }
 
-    return {
-      type: name,
-      props: rest,
-      children: Array.isArray(children) ? children : children ? [children] : [],
-    }
+    return { type: name, props: rest, children: flattenChildren(children) }
   }
 
   component.tagName = name
