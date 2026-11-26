@@ -48,7 +48,9 @@ export function encodeResponse(result: RouteResult, ctx: RequestContext | null):
     !(status >= 200 && status <= 599 && Number.isInteger(status)) &&
     !(ctx !== null && ctx.takenOver)
   ) {
-    own(result, ctx)
+    if (ctx !== null) {
+      ownResult(result, ctx)
+    }
     throw new Error(`[Navios] ${nameOf(ctx)} has the status ${status}, which cannot be sent.`)
   }
   if (
@@ -64,9 +66,9 @@ export function encodeResponse(result: RouteResult, ctx: RequestContext | null):
   }
 
   // From here on, whatever goes wrong, the request closes the body.
-  own(result, ctx)
+  const owned = ctx === null ? null : ownResult(result, ctx)
   const headers = mergeHeaders(result, ctx)
-  const body = isBodiless(status) ? null : encodeBody(result, ctx)
+  const body = isBodiless(status) ? null : encodeBody(result, ctx, owned)
   if (body !== null) {
     headers['content-type'] ??=
       body instanceof Blob && body.type !== '' ? body.type : CONTENT_TYPES[kind]
@@ -83,11 +85,14 @@ export function encodeResponse(result: RouteResult, ctx: RequestContext | null):
   return respond(status, headers, body, ctx)
 }
 
-/** Makes the request the owner of a lazy body, which is then closed with it. */
-function own({ body, kind }: RouteResult, ctx: RequestContext | null): void {
-  if (ctx !== null && kind !== 'json' && isLazyBody(body)) {
-    ctx.ownBody(body)
-  }
+/**
+ * Makes the request the owner of the lazy body of a result, which is then
+ * closed with the request whatever becomes of the result. Returns the body as
+ * it is sent, or `null` for a result without a lazy body.
+ * @internal
+ */
+export function ownResult({ body, kind }: RouteResult, ctx: RequestContext): ManagedBody | null {
+  return kind !== 'json' && isLazyBody(body) ? ctx.ownBody(body) : null
 }
 
 function respond(
@@ -141,7 +146,12 @@ function mergeHeaders(result: RouteResult, ctx: RequestContext | null): Response
   return headers
 }
 
-function encodeBody(result: RouteResult, ctx: RequestContext | null): RouteBody {
+/** `owned` is the lazy body of the result, as the request owns it. */
+function encodeBody(
+  result: RouteResult,
+  ctx: RequestContext | null,
+  owned: ManagedBody | null,
+): RouteBody {
   const { body, kind } = result
   if (kind === 'json') {
     return JSON.stringify(body) ?? null
@@ -166,14 +176,15 @@ function encodeBody(result: RouteResult, ctx: RequestContext | null): RouteBody 
     return new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
   }
   if (isLazyBody(body)) {
-    return ctx === null
-      ? new ManagedBody(body, {
-          name: nameOf(ctx),
-          step: (source, step) => source[step]() as never,
-          failed() {},
-          closeFailed() {},
-        })
-      : ctx.ownBody(body)
+    return (
+      owned ??
+      new ManagedBody(body, {
+        name: nameOf(ctx),
+        step: (source, step) => source[step]() as never,
+        failed() {},
+        closeFailed() {},
+      })
+    )
   }
   throw new Error(
     `[Navios] ${nameOf(ctx)} is declared as "${kind}", but its body is ${describeValue(body)}. ` +

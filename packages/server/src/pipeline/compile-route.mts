@@ -5,7 +5,7 @@ import type { ContextHost } from '@navios/core/transport'
 import { RequestContext } from '../context/request-context.mjs'
 import { problem } from '../errors/problem.mjs'
 import { adopt, isPromise } from '../internal/promises.mjs'
-import { isLazyBody, ManagedBody } from '../responses/managed-body.mjs'
+import { ManagedBody } from '../responses/managed-body.mjs'
 import { isEventStream } from '../responses/response-headers.mjs'
 import { compileRequestPath } from '../routing/route-path.mjs'
 
@@ -24,7 +24,7 @@ import type { RouteResult } from '../routing/route-result.mjs'
 
 import { compileFinalizer, PrimedGenerator } from './compile-finalizer.mjs'
 import { compileParams } from './compile-params.mjs'
-import { encodeResponse } from './encode-result.mjs'
+import { encodeResponse, ownResult } from './encode-result.mjs'
 import { runGuards } from './run-guards.mjs'
 import { toRouteResult } from './to-route-result.mjs'
 
@@ -62,14 +62,6 @@ export interface CompileOptions {
 }
 
 type Stage = (ctx: RequestContext, input: RouteInput) => MaybePromise<RouteResult>
-
-/** Makes the request the owner of a lazy body, whatever becomes of the result. */
-function own(result: RouteResult, ctx: RequestContext): RouteResult {
-  if (result.kind !== 'json' && isLazyBody(result.body)) {
-    ctx.ownBody(result.body)
-  }
-  return result
-}
 
 /**
  * Compiles one route into a function from an adapter's `RouteInput` to the
@@ -241,11 +233,12 @@ function encoded(inner: Stage, encoders: ReadonlyMap<string, ResponseEncoder>): 
       if (encoder === undefined) {
         return result
       }
-      const accept = (value: unknown) =>
-        own(
-          toRouteResult(value, () => `The encoder of "${result.kind}" responses`),
-          ctx,
-        )
+      const accept = (value: unknown) => {
+        const encoded = toRouteResult(value, () => `The encoder of "${result.kind}" responses`)
+        // Whatever becomes of it, the request closes its body.
+        ownResult(encoded, ctx)
+        return encoded
+      }
       const answer = adopt<unknown>(encoder(result, ctx))
       return isPromise(answer) ? answer.then(accept) : accept(answer)
     }
@@ -277,7 +270,10 @@ function intercepted(inner: Stage, interceptor: Interceptor, errors: ErrorPipeli
     }
     const accept = (value: unknown): RouteResult => {
       settled = true
-      return own(toRouteResult(value, name, INTERCEPTOR_ADVICE), ctx)
+      const result = toRouteResult(value, name, INTERCEPTOR_ADVICE)
+      // A result that an outer interceptor drops is closed with the request.
+      ownResult(result, ctx)
+      return result
     }
     const refuse = (error: unknown): never => {
       settled = true
