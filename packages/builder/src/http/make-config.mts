@@ -1,3 +1,5 @@
+import { toQueryText } from '../shared/query-text.mjs'
+
 import type { AbstractRequestConfig } from './client.mjs'
 import type { BaseEndpointOptions, EndpointResponseKind } from './endpoint-options.mjs'
 
@@ -113,40 +115,6 @@ export function makeConfig(
   }
 }
 
-/**
- * Serializes a non-binary value for inclusion in FormData.
- *
- * - null becomes an empty string
- * - Dates (and anything with `toISOString`) become ISO strings
- * - Objects with `toJSON` use it; other objects are JSON stringified
- * - Primitives are converted to strings
- */
-function serializeFormDataValue(value: unknown): string {
-  if (value == null) {
-    return ''
-  }
-  if (typeof value === 'string') {
-    return value
-  }
-  if (typeof value === 'bigint' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-  if (value instanceof Date) {
-    return value.toISOString()
-  }
-  if (typeof value === 'object') {
-    if ('toISOString' in value && typeof value.toISOString === 'function') {
-      return value.toISOString()
-    }
-    if ('toJSON' in value && typeof value.toJSON === 'function') {
-      const jsonValue = value.toJSON()
-      return typeof jsonValue === 'string' ? jsonValue : JSON.stringify(jsonValue)
-    }
-    return JSON.stringify(value)
-  }
-  return String(value)
-}
-
 /** Appends one field value: binary data as-is, everything else serialized. */
 function appendFormDataValue(formData: FormData, key: string, value: unknown): void {
   if (typeof File !== 'undefined' && value instanceof File) {
@@ -154,7 +122,7 @@ function appendFormDataValue(formData: FormData, key: string, value: unknown): v
   } else if (value instanceof Blob) {
     formData.append(key, value)
   } else {
-    formData.append(key, serializeFormDataValue(value))
+    formData.append(key, toQueryText(value))
   }
 }
 
@@ -165,7 +133,7 @@ function appendFormDataValue(formData: FormData, key: string, value: unknown): v
  * - `File` and `Blob` values are appended as binary parts
  * - Arrays are appended once per item under the same key
  * - `undefined` fields are left out; `null` becomes an empty string
- * - Other values are serialized with `serializeFormDataValue`
+ * - Other values are written by `toQueryText`, as in a query string
  */
 export function makeFormData(data: unknown): FormData {
   if (data instanceof FormData) {

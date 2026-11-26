@@ -243,6 +243,16 @@ describe('declareWebSocket', () => {
       expect(handle.url).toBe('/ws?since=2024-01-02T03%3A04%3A05.678Z&tag=urgent&tag=bug')
     })
 
+    it('should write an object as JSON instead of [object Object]', () => {
+      const chatSocket = declareWebSocket({ url: '/ws', querySchema: passthrough() })
+
+      const handle = chatSocket({ params: { filter: { role: 'admin' } } })
+
+      expect(new URL(handle.url, 'ws://localhost').searchParams.get('filter')).toBe(
+        '{"role":"admin"}',
+      )
+    })
+
     it('should append to a query string the URL template already has', () => {
       const chatSocket = createWebSocketHandler({ baseUrl: 'wss://api.example.com' })({
         url: '/ws/$roomId?v=2',

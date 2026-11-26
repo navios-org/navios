@@ -23,6 +23,7 @@
 ### Fixed
 
 - **`eventSourceBuilder` stops listening to an event whose last handler unsubscribed.** The listener stayed on the client, and `provideClient` attached one to the next client too, for every event that ever had a handler.
+- **Object query values of `declareWebSocket` and `declareEventSource`** are written as JSON (or what their `toJSON` returns), as a multipart field is, instead of `[object Object]`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

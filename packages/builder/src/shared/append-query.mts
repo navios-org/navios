@@ -1,3 +1,5 @@
+import { toQueryText } from './query-text.mjs'
+
 /**
  * Appends query parameters to a URL.
  *
@@ -5,9 +7,9 @@
  * connection from a URL template plus a validated query object.
  *
  * - `undefined` and `null` values are skipped, also inside arrays.
- * - A `Date` is written as `toISOString()`.
  * - An array is written once per item, repeating the key (`tag=a&tag=b`).
- * - Everything else is written as `String(value)`.
+ * - Every value is written by {@link toQueryText}: a `Date` as ISO string, an
+ *   object as JSON, the rest as `String(value)`, as in a multipart body.
  * - A URL that already has a query string is continued with `&`, and a
  *   `#fragment` stays at the end.
  */
@@ -24,7 +26,7 @@ export function appendQuery(
     if (value === undefined || value === null) {
       return
     }
-    searchParams.append(key, value instanceof Date ? value.toISOString() : String(value))
+    searchParams.append(key, toQueryText(value))
   }
   for (const [key, value] of Object.entries(query)) {
     if (Array.isArray(value)) {
