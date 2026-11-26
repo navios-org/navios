@@ -44,6 +44,7 @@
     "@navios/builder": "workspace:^",
     "@navios/http": "workspace:^",
     "@tanstack/react-query": "^5.108.4",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19.3.0",
     "jsdom": "^31.0.1",
