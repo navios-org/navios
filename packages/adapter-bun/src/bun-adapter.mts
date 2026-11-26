@@ -141,8 +141,8 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
         return send(this.context.errors.unexpected(bodyTooLarge()))
       }
     } else if (request.body !== null) {
-      // A body of unknown length (chunked transfer encoding, or `inject()`)
-      // is counted while it is read.
+      // A body of unknown length, sent with chunked transfer encoding, is
+      // counted while it is read. One of `inject()` has a declared length.
       limitBody(request, this.bodyLimit)
     } else {
       isEmpty = true

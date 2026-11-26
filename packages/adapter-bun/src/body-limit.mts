@@ -6,10 +6,10 @@ export const DEFAULT_BODY_LIMIT = 128 * 1024 * 1024
 const READERS = ['text', 'json', 'bytes', 'arrayBuffer', 'blob', 'formData', 'clone'] as const
 
 /**
- * Limits the body of `request`, which has no declared length (chunked transfer
- * encoding, or `inject()`). Reading it fails with a 413 as soon as more than
- * `limit` bytes have arrived, whoever reads it: the pipeline, or a handler
- * through `ctx.raw.request`.
+ * Limits the body of `request`, which has no declared length: it is sent with
+ * chunked transfer encoding (one of `inject()` always has a length). Reading
+ * it fails with a 413 as soon as more than `limit` bytes have arrived, whoever
+ * reads it: the pipeline, or a handler through `ctx.raw.request`.
  *
  * The request stays the one that Bun knows, with its `params` and `cookies`
  * and for `server.requestIP()`; what reads its body is replaced.
