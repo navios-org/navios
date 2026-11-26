@@ -9,7 +9,7 @@ You never write a cache key by hand. Every query builds its keys from the endpoi
 ## The key shape
 
 ```
-[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]
+[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]
 ```
 
 `key` builds one:
@@ -29,7 +29,7 @@ usersQuery.key()
 - **The endpoint comes first.** The method and the URL template, not the bound URL, identify it. `/users` is one segment, so it is never a prefix of `/users/$userId`, and `GET /users` never collides with `POST /users`.
 - **The inputs come last**, as one object with `urlParams`, `params` and `data`. Empty parts are dropped. `signal`, `headers` and `timeout` never enter the key.
 - **URL parameter values are stringified**, so `42` and `'42'` are the same entry, as they are the same URL.
-- **Markers keep the forms of an endpoint apart**: `'with-response'` for queries declared with `withResponse: true`, `'infinite'` for infinite queries.
+- **Markers keep the forms of an endpoint apart**: `'with-response'` for queries declared with `withResponse: true`, `'infinite'` for infinite queries, `{ keyBy }` for [shared entries](#shared-entries).
 
 Inputs go into the key as you passed them, before validation. `usersQuery.use()` and `usersQuery.use({ params: { page: 1 } })` are two entries even when the schema's default makes them the same request.
 
@@ -83,6 +83,65 @@ const user = queryClient.getQueryData(userQuery.key({ urlParams: { userId } }))
 ```
 
 Keys are tagged with the type of the data stored under them, which is why `getQueryData` above is typed. For plain reads and writes, the [cache helpers](/docs/builder/react-query/queries#cache-helpers) are shorter.
+
+## Shared entries
+
+By default every input identifies an entry, so every search, filter and page has one of its own. `keyBy` says which inputs identify the entry. The ones it leaves out are **shared**: every component using the entry sees the result for the values sent last.
+
+```tsx
+// userSchema from the React Query quick start
+const searchUsers = client.query({
+  method: 'GET',
+  url: '/users',
+  querySchema: z.object({ q: z.string(), role: z.string().optional() }),
+  responseSchema: z.array(userSchema),
+  keyBy: { params: false },
+})
+
+function SearchBox() {
+  const [q, setQ] = useState('')
+  searchUsers.use({ params: { q } }) // sends q: the entry refetches for everyone
+  return <input value={q} onChange={(event) => setQ(event.target.value)} />
+}
+
+function ResultCount() {
+  const { data } = searchUsers.use() // the result of the last search
+  return <span>{data?.length ?? 0} users</span>
+}
+```
+
+| `keyBy`                | Entries                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `{ params: false }`    | One per URL; the query params are shared. `urlParams` and `data` can be left out the same way |
+| `{ params: ['role'] }` | One per `role`; the other query params are shared. Field lists work for object parts          |
+| `false`                | One for the endpoint                                                                          |
+
+Part and field names are checked against the endpoint's schemas.
+
+### Sending and reading
+
+- **A call that has a shared input sends it.** That is `use`, `useSuspense`, `fetch`, `prefetch` and `ensure`; a hook sends on mount and whenever the value changes. When the entry's data came from other values, it refetches, and every component on the entry gets the new result.
+- **"Has" means the property is there**, even as `undefined`: `{ params: { q: undefined } }` clears `q`. A part left out with `false` is replaced as a whole. With a field list, each field is its own shared input, so a call replaces the fields it has and keeps the others.
+- **A call without them reads the entry.** It shows the entry as it is, and any request it causes (mount, window focus, invalidation) uses the values sent last, or none if nothing was sent yet. Add `enabled: false` to a component that should only show what others sent.
+- **A disabled hook sends nothing**: with `enabled: false`, or with `skipToken` as its args.
+- **`fetch` and `ensure` that send new values fetch**, however fresh the entry is.
+
+The options a call returns, `key`, `invalidate`, `getData` and `setData` take only the inputs that identify the entry; a shared input there is a compile error. Options cannot react when a value changes, so they use the values sent last: send from a hook or from `fetch`.
+
+```ts
+searchUsers.key() // ['GET', '/users', { keyBy: 'params:false' }]
+await searchUsers.fetch(queryClient, { params: { q: 'ada' } }) // sends q, fetches
+await searchUsers.invalidate(queryClient) // refetches with q: 'ada'
+```
+
+### What to know
+
+- Shared values are kept per `QueryClient` and per entry. They go away with the entry: after `gcTime` without observers, `removeQueries` or `clear`.
+- Until the request for new values resolves, the entry holds the previous result, as in a background refetch: `isFetching` is `true`, `isPending` is not, and `useSuspense` does not suspend again. Show the change with `isFetching`.
+- A request that resolves after the shared values changed is made again with the new ones, so the entry never shows a result for values nobody holds anymore. One that fails or is cancelled (`cancelQueries`, an optimistic update, the last component unmounting) leaves the entry's data for the values it had, so the next call that sends the new values fetches them.
+- Data that arrived without a request of this `QueryClient` (`hydrate`, `setData`) is trusted to match the first values sent; a later change fetches. Shared values do not travel with `dehydrate`, so the components that send them on the server send them in the browser too. Hydrating over an entry that already has shared values keeps them until a component sends new ones.
+- The `{ keyBy }` marker, the rule as a string (`'params:false'`, `'params:["role"]'`), keeps shared entries apart from a declaration of the same endpoint without `keyBy`, and two declarations with different rules apart from each other. The whole-endpoint key of a declaration without `keyBy` still reaches them.
+- Infinite queries and mutations do not take `keyBy`: an infinite query's params are its first page, and a mutation key has no inputs.
 
 ## Prefix and suffix
 

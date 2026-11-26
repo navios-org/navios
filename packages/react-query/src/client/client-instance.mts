@@ -8,6 +8,7 @@ import type {
 } from '@navios/builder'
 
 import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
+import type { KeyBy } from '../endpoint/key-by.mjs'
 import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 import type {
   MutationObject,
@@ -52,10 +53,12 @@ type MutationSettingsFor<
 type QuerySettingsFor<
   Options extends BaseEndpointOptions,
   WithResponse extends boolean,
+  TKeyBy,
 > = QuerySettings<
   MaybeWithResponse<EndpointData<Options>, WithResponse>,
   EndpointFailure<Options>,
-  WithResponse
+  WithResponse,
+  TKeyBy
 >
 
 /**
@@ -84,16 +87,34 @@ export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
    * const { data, error } = getUser.use({ urlParams: { userId } })
    * ```
    */
-  query<const Options extends BaseEndpointOptions, const WithResponse extends boolean = false>(
-    input: Inline<Options, QuerySettingsFor<WithBuilderErrors<Options, Errors>, WithResponse>>,
+  query<
+    const Options extends BaseEndpointOptions,
+    const WithResponse extends boolean = false,
+    const TKeyBy extends KeyBy<Options> | undefined = undefined,
+  >(
+    input: Inline<
+      Options,
+      QuerySettingsFor<WithBuilderErrors<Options, Errors>, WithResponse, TKeyBy>
+    >,
   ): QueryObject<
     WithBuilderErrors<Options, Errors>,
-    MaybeWithResponse<EndpointData<Options>, WithResponse>
+    MaybeWithResponse<EndpointData<Options>, WithResponse>,
+    EndpointFailure<WithBuilderErrors<Options, Errors>>,
+    TKeyBy
   >
-  query<const Options extends BaseEndpointOptions, const WithResponse extends boolean = false>(
+  query<
+    const Options extends BaseEndpointOptions,
+    const WithResponse extends boolean = false,
+    const TKeyBy extends KeyBy<Options> | undefined = undefined,
+  >(
     endpoint: EndpointHandler<Options>,
-    options?: QuerySettingsFor<Options, WithResponse>,
-  ): QueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>>
+    options?: QuerySettingsFor<Options, WithResponse, TKeyBy>,
+  ): QueryObject<
+    Options,
+    MaybeWithResponse<EndpointData<Options>, WithResponse>,
+    EndpointFailure<Options>,
+    TKeyBy
+  >
 
   /**
    * Creates an infinite query. The endpoint must have a `querySchema`; each

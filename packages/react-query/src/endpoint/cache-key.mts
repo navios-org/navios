@@ -1,5 +1,9 @@
 import type { BaseEndpointOptions } from '@navios/builder'
 
+import { INPUT_PARTS, isPlainObject, keyByMarker, keyedPart, normalizeKeyBy } from './key-by.mjs'
+
+import type { AnyKeyBy, InputPart, KeyRule } from './key-by.mjs'
+
 /**
  * Extra segments placed around an endpoint's identity in every cache key.
  */
@@ -8,14 +12,6 @@ export type KeyOptions = {
   keyPrefix?: readonly unknown[]
   /** Segments placed right after `[method, url]`. */
   keySuffix?: readonly unknown[]
-}
-
-const INPUT_KEYS = ['urlParams', 'params', 'data'] as const
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null) return false
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
 }
 
 function withoutUndefined(value: Record<string, unknown>): Record<string, unknown> {
@@ -75,10 +71,41 @@ export function normalizeKeyValue(value: unknown): unknown {
 }
 
 /**
+ * The key form of one input part: URL param values are stringified (so
+ * `{ id: 1 }` and `{ id: '1' }` are one entry, as they are one URL) and other
+ * values go through {@link normalizeKeyValue}. Returns `undefined` for an
+ * empty part.
+ */
+export function normalizeInputPart(part: InputPart, value: unknown): unknown {
+  if (value === undefined || value === null) return undefined
+  if (!isPlainObject(value)) return normalizeKeyValue(value)
+  const normalized =
+    part === 'urlParams'
+      ? Object.fromEntries(Object.entries(withoutUndefined(value)).map(([k, v]) => [k, String(v)]))
+      : (normalizeKeyValue(value) as Record<string, unknown>)
+  return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+function pickInputsBy(
+  args: unknown,
+  rule: KeyRule | undefined,
+): Record<string, unknown> | undefined {
+  if (!isPlainObject(args)) return undefined
+  const inputs: Record<string, unknown> = {}
+
+  for (const part of INPUT_PARTS) {
+    const value = normalizeInputPart(part, keyedPart(args[part], rule?.[part] ?? true))
+    if (value !== undefined) inputs[part] = value
+  }
+
+  return Object.keys(inputs).length > 0 ? inputs : undefined
+}
+
+/**
  * Reduces call arguments to the inputs that identify a request.
  *
  * - Only `urlParams`, `params` and `data` are kept; `signal`, `headers` and
- *   `timeout` never affect the key.
+ *   `timeout` never affect the key. With `keyBy`, only the inputs it keeps.
  * - URL param values are stringified, so `{ id: 1 }` and `{ id: '1' }` are
  *   the same entry (they produce the same URL).
  * - Empty parts are dropped, so `{}` and `{ params: {} }` are the same entry.
@@ -87,35 +114,14 @@ export function normalizeKeyValue(value: unknown): unknown {
  *
  * Returns `undefined` when nothing is left.
  */
-export function pickInputs(args: unknown): Record<string, unknown> | undefined {
-  if (!isPlainObject(args)) return undefined
-  const inputs: Record<string, unknown> = {}
-
-  for (const key of INPUT_KEYS) {
-    let value = args[key]
-    if (value === undefined || value === null) continue
-    if (isPlainObject(value)) {
-      if (key === 'urlParams') {
-        value = Object.fromEntries(
-          Object.entries(withoutUndefined(value)).map(([k, v]) => [k, String(v)]),
-        )
-      } else {
-        value = normalizeKeyValue(value)
-      }
-      if (Object.keys(value as object).length === 0) continue
-    } else {
-      value = normalizeKeyValue(value)
-    }
-    inputs[key] = value
-  }
-
-  return Object.keys(inputs).length > 0 ? inputs : undefined
+export function pickInputs(args: unknown, keyBy?: AnyKeyBy): Record<string, unknown> | undefined {
+  return pickInputsBy(args, normalizeKeyBy(keyBy))
 }
 
 /**
  * Builds cache keys for one endpoint.
  *
- * Shape: `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]`
+ * Shape: `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]`
  *
  * The endpoint's identity comes first and its inputs last, so React Query's
  * prefix matching gives three scopes:
@@ -129,13 +135,15 @@ export function pickInputs(args: unknown): Record<string, unknown> | undefined {
  *
  * The method is part of the key, so `GET /users` and `POST /users` never
  * collide. Infinite queries carry an `'infinite'` marker and never share an
- * entry with the plain query of the same endpoint.
+ * entry with the plain query of the same endpoint. A `keyBy` that leaves
+ * inputs out adds a `{ keyBy }` segment, for the same reason.
  */
 export function createKeyBuilder(
   config: BaseEndpointOptions,
-  options: KeyOptions & { withResponse?: boolean } = {},
+  options: KeyOptions & { withResponse?: boolean; keyBy?: AnyKeyBy } = {},
   isInfinite = false,
 ) {
+  const rule = normalizeKeyBy(options.keyBy)
   const base: readonly unknown[] = [
     ...(options.keyPrefix ?? []),
     config.method,
@@ -143,14 +151,17 @@ export function createKeyBuilder(
     ...(options.keySuffix ?? []),
     ...(options.withResponse ? ['with-response'] : []),
     ...(isInfinite ? ['infinite'] : []),
+    ...(rule ? [keyByMarker(rule)] : []),
   ]
 
   return {
     /** Key prefix shared by every entry of this endpoint. */
     base,
+    /** How each input part takes part in the key; `undefined` when all of them do. */
+    rule,
     /** Key for the given (full or partial) args. */
     key(args?: unknown): readonly unknown[] {
-      const inputs = pickInputs(args)
+      const inputs = pickInputsBy(args, rule)
       return inputs ? [...base, inputs] : base
     },
     /** Key used by a hook whose args are `skipToken`. Never fetched. */

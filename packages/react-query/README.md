@@ -67,17 +67,18 @@ function UserCard({ userId }: { userId: string }) {
 
 ## What you get
 
-| Need                                       | How                                                      | Docs                                                                                        |
-| ------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `useQuery` and `useSuspenseQuery`          | `query.use(args)`, `query.useSuspense(args)`             | [Queries](https://navios.tech/docs/builder/react-query/queries)                             |
-| Paginated and endless lists                | `client.infiniteQuery`                                   | [Infinite queries](https://navios.tech/docs/builder/react-query/infinite-queries)           |
-| Mutations with typed callbacks             | `client.mutation`, `invalidates`, `useContext`           | [Mutations](https://navios.tech/docs/builder/react-query/mutations)                         |
-| Optimistic UI with rollback                | the `optimistic` setting                                 | [Optimistic updates](https://navios.tech/docs/builder/react-query/optimistic-updates)       |
-| Cache keys you never write by hand         | `query.key(args)`, `query.invalidate(queryClient, args)` | [Keys and invalidation](https://navios.tech/docs/builder/react-query/keys-and-invalidation) |
-| Typed errors in components and boundaries  | `error.kind`, `error.status`, `error.body`               | [Errors](https://navios.tech/docs/builder/react-query/errors)                               |
-| File uploads and downloads                 | `body: 'multipart'`, `response: 'blob'`                  | [Uploads and downloads](https://navios.tech/docs/builder/react-query/uploads-and-downloads) |
-| Server rendering, per-request HTTP clients | `query.prefetch`, `setHttpClient`                        | [SSR and prefetching](https://navios.tech/docs/builder/react-query/ssr)                     |
-| Status and headers next to the data        | `withResponse: true`                                     | [Queries](https://navios.tech/docs/builder/react-query/queries)                             |
+| Need                                       | How                                                      | Docs                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `useQuery` and `useSuspenseQuery`          | `query.use(args)`, `query.useSuspense(args)`             | [Queries](https://navios.tech/docs/builder/react-query/queries)                                     |
+| Paginated and endless lists                | `client.infiniteQuery`                                   | [Infinite queries](https://navios.tech/docs/builder/react-query/infinite-queries)                   |
+| Mutations with typed callbacks             | `client.mutation`, `invalidates`, `useContext`           | [Mutations](https://navios.tech/docs/builder/react-query/mutations)                                 |
+| Optimistic UI with rollback                | the `optimistic` setting                                 | [Optimistic updates](https://navios.tech/docs/builder/react-query/optimistic-updates)               |
+| Cache keys you never write by hand         | `query.key(args)`, `query.invalidate(queryClient, args)` | [Keys and invalidation](https://navios.tech/docs/builder/react-query/keys-and-invalidation)         |
+| One entry for a search box or a filter bar | `keyBy: { params: false }`                               | [Shared entries](https://navios.tech/docs/builder/react-query/keys-and-invalidation#shared-entries) |
+| Typed errors in components and boundaries  | `error.kind`, `error.status`, `error.body`               | [Errors](https://navios.tech/docs/builder/react-query/errors)                                       |
+| File uploads and downloads                 | `body: 'multipart'`, `response: 'blob'`                  | [Uploads and downloads](https://navios.tech/docs/builder/react-query/uploads-and-downloads)         |
+| Server rendering, per-request HTTP clients | `query.prefetch`, `setHttpClient`                        | [SSR and prefetching](https://navios.tech/docs/builder/react-query/ssr)                             |
+| Status and headers next to the data        | `withResponse: true`                                     | [Queries](https://navios.tech/docs/builder/react-query/queries)                                     |
 
 Every TanStack Query option is still available on the hooks; this package only removes the parts you would otherwise write by hand.
 
