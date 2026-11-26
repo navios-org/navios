@@ -322,6 +322,44 @@ describe('eventSourceBuilder', () => {
       expect(handler).toHaveBeenCalledTimes(1)
     })
 
+    it('should stop listening to an event when its last handler unsubscribes', () => {
+      const sse = eventSourceBuilder()
+      const client = createMockClient()
+      sse.provideClient(client)
+
+      const onTyping = sse.defineEvent({ eventName: 'typing' })
+      const first = onTyping(vi.fn())
+      const second = onTyping(vi.fn())
+
+      first()
+      expect(client.offMock).not.toHaveBeenCalled()
+
+      second()
+      expect(client.offMock).toHaveBeenCalledWith('typing', expect.any(Function))
+      expect(client.handlers.get('typing')?.size).toBe(0)
+
+      // A client provided later is not listened to for the event either
+      const next = createMockClient()
+      sse.provideClient(next)
+      expect(next.onMock).not.toHaveBeenCalled()
+    })
+
+    it('should listen again when an event gets a handler after its last one left', () => {
+      const sse = eventSourceBuilder()
+      const client = createMockClient()
+      sse.provideClient(client)
+
+      const onTyping = sse.defineEvent({ eventName: 'typing', payloadSchema: typingSchema })
+      onTyping(vi.fn())()
+
+      const handler = vi.fn()
+      onTyping(handler)
+      simulateEvent(client, 'typing', { userId: 'u1' })
+
+      expect(client.onMock).toHaveBeenCalledTimes(2)
+      expect(handler).toHaveBeenCalledExactlyOnceWith({ userId: 'u1' })
+    })
+
     it('should support multiple handlers for same event', () => {
       const sse = eventSourceBuilder()
       const client = createMockClient()

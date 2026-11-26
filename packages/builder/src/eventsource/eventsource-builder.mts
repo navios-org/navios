@@ -233,10 +233,16 @@ export function eventSourceBuilder(
         setupEventListener(eventName)
       }
 
-      // Return unsubscribe function
+      // The last handler of an event takes the client's listener with it, so
+      // neither this client nor the next one is listened to for nothing
       return () => {
         subscribed = false
-        handlers?.delete(wrappedHandler)
+        const current = eventHandlers.get(eventName)
+        if (!current?.delete(wrappedHandler) || current.size > 0) return
+        eventHandlers.delete(eventName)
+        const listener = registeredListeners.get(eventName)
+        registeredListeners.delete(eventName)
+        if (listener) client?.off(eventName, listener)
       }
     }
 

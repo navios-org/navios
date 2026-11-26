@@ -16,6 +16,10 @@
 
 - **`AbstractRequestConfig` matches axios**: `responseType` is `'json' | 'text' | 'blob' | 'stream'`, the values the builder sets, and `signal` is `AbortSignal` (a `null` call signal is left out). An axios instance is now a `Client` without `as unknown as Client`. A client that typed its config parameter with `'arrayBuffer'` / `'formData'` or a `null` signal still fits.
 
+### Fixed
+
+- **`eventSourceBuilder` stops listening to an event whose last handler unsubscribed.** The listener stayed on the client, and `provideClient` attached one to the next client too, for every event that ever had a handler.
+
 ## [2.0.0-alpha.0] - 2026-11-26
 
 2.0 reworks how endpoints are declared, called and how they fail. There is one way to declare an endpoint, two ways to call it, and one error type.
