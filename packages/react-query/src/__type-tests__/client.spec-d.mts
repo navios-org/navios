@@ -371,3 +371,84 @@ describe('client.mutation', () => {
     expectTypeOf(upload.endpoint).toEqualTypeOf(uploadEndpoint)
   })
 })
+
+describe('TanStack options on a declaration', () => {
+  test('are typed, with callbacks typed from the endpoint', () => {
+    const getReport = client.query({
+      method: 'GET',
+      url: '/reports/$id',
+      responseSchema: userSchema,
+      errorSchema: { 404: z.object({ message: z.string() }) },
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      retry: (count, error) => {
+        expectTypeOf(count).toEqualTypeOf<number>()
+        expectTypeOf(error.kind).toEqualTypeOf<EndpointError['kind']>()
+        return error.kind === 'network' && count < 3
+      },
+      enabled: (query) => {
+        expectTypeOf(query.state.data).toEqualTypeOf<User | undefined>()
+        return true
+      },
+    })
+    expectTypeOf(getReport.use({ urlParams: { id: 1 } }).data).toEqualTypeOf<User | undefined>()
+
+    client.query(getUserEndpoint, { staleTime: 1000, gcTime: Infinity, keyPrefix: ['users'] })
+    client.infiniteQuery({
+      method: 'GET',
+      url: '/feed',
+      querySchema: z.object({ page: z.number() }),
+      responseSchema: z.array(userSchema),
+      getNextPageParam: (_last, _pages, param) => ({ page: param.page + 1 }),
+      staleTime: 30_000,
+      maxPages: 5,
+    })
+  })
+
+  test('leave select to the call site', () => {
+    client.query(getUserEndpoint, {
+      // @ts-expect-error select belongs to the call site
+      select: (user: User) => user.name,
+    })
+  })
+})
+
+describe('a builder with shared error schemas', () => {
+  const sharedApi = builder({
+    errorSchema: { 401: z.object({ error: z.object({ message: z.string() }) }) },
+  })
+  const sharedClient = declareClient({ api: sharedApi })
+
+  test('types the errors of inline declarations with them', () => {
+    const getMe = sharedClient.query({
+      method: 'GET',
+      url: '/me',
+      responseSchema: userSchema,
+      errorSchema: { 404: z.object({ message: z.string() }) },
+    })
+    const error = getMe.use().error
+    if (error?.kind === 'http' && error.status === 401) {
+      expectTypeOf(error.body).toEqualTypeOf<{ error: { message: string } }>()
+    }
+    if (error?.kind === 'http' && error.status === 404) {
+      expectTypeOf(error.body).toEqualTypeOf<{ message: string }>()
+    }
+
+    sharedClient.mutation({
+      method: 'POST',
+      url: '/sessions',
+      responseSchema: z.any(),
+      onError: (failure) => {
+        if (failure.kind === 'http') expectTypeOf(failure.status).toEqualTypeOf<401>()
+      },
+    })
+  })
+
+  test('types endpoints declared on the builder the same way', () => {
+    const getMe = sharedClient.query(
+      sharedApi.declareEndpoint({ method: 'GET', url: '/me', responseSchema: userSchema }),
+    )
+    type Failure = NonNullable<ReturnType<typeof getMe.use>['error']>
+    expectTypeOf<Extract<Failure, { kind: 'http' }>['status']>().toEqualTypeOf<401>()
+  })
+})

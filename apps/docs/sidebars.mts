@@ -123,6 +123,7 @@ const builder: Entry[] = [
       'builder/guides/downloads-and-streams',
       'builder/guides/navios-server',
       'builder/guides/organizing',
+      'builder/guides/mocking',
       'builder/guides/testing',
     ],
     { collapsed: false },

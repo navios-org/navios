@@ -3,10 +3,24 @@ import type {
   EndpointHandler,
   NoUnknownOptions,
   RequireResponseSchema,
+  WithBuilderErrors,
 } from './endpoint-handler.mjs'
 import type { BaseEndpointOptions } from './endpoint-options.mjs'
+import type { ErrorSchemaRecord } from './error-schema.mjs'
 
-export interface BuilderInstance {
+/**
+ * A builder, from `builder(config)`.
+ *
+ * @template Errors - The shared error schemas of `builder({ errorSchema })`;
+ *   `{}` when there are none
+ */
+export interface BuilderInstance<Errors extends ErrorSchemaRecord = {}> {
+  /**
+   * The error schemas every endpoint of this builder shares, as given to
+   * `builder({ errorSchema })`; `{}` when there are none.
+   */
+  readonly errorSchema: Errors
+
   /**
    * Sets or replaces the HTTP client used by every endpoint declared on this
    * builder. Meant for application start-up; prefer `builder({ client })`.
@@ -25,7 +39,7 @@ export interface BuilderInstance {
    * client. Endpoints declared on the returned builder use that client;
    * endpoints already declared on this builder are not affected.
    */
-  withClient(client: Client): BuilderInstance
+  withClient(client: Client): BuilderInstance<Errors>
 
   /**
    * Declares a type-safe API endpoint.
@@ -69,5 +83,5 @@ export interface BuilderInstance {
    */
   declareEndpoint<const Options extends BaseEndpointOptions>(
     options: Options & RequireResponseSchema<Options> & NoUnknownOptions<Options>,
-  ): EndpointHandler<Options>
+  ): EndpointHandler<WithBuilderErrors<Options, Errors>>
 }

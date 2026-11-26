@@ -47,6 +47,31 @@ const { data: name } = userQuery.use(
 // name: string | undefined
 ```
 
+### Options for every use
+
+Options that belong to the endpoint rather than to one screen can be set where the query is declared. Every use of the query gets them: its hooks, the options its call returns, and `fetch`, `prefetch` and `ensure`. A call site still wins.
+
+```ts
+export const getReport = client.query({
+  method: 'POST',
+  url: '/reports/run',
+  requestSchema: reportRequestSchema,
+  responseSchema: reportSchema,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  refetchOnWindowFocus: false,
+})
+
+getReport.use({ data: request }) // staleTime: Infinity
+getReport.use({ data: request }, { staleTime: 0 }) // the call site wins
+```
+
+With an endpoint declared on the builder, they are the second argument: `client.query(getReportEndpoint, { staleTime: Infinity })`. Callbacks among them are typed from the endpoint: `retry: (count, error) => error.kind === 'network'`.
+
+Every `useQuery` option is accepted except `select`, `initialData` and `initialDataUpdatedAt`, which stay at the call site: `select` would change the data type of the query and of every helper, and initial data belongs to one set of arguments. `fetch`, `prefetch` and `ensure` run outside a component, so they use only the options that apply there, such as `staleTime`, `gcTime` and `retry`.
+
+To set options for a whole group of queries instead, give them a common `keyPrefix` and use TanStack's `queryClient.setQueryDefaults(['reports'], { staleTime: Infinity })`.
+
 ## Waiting for an input
 
 When an argument is not known yet, pass TanStack's `skipToken` in place of the arguments. The query stays idle and the arguments stay fully typed, with no placeholder values.

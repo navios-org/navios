@@ -35,32 +35,47 @@ export type PageParam<Options extends InfiniteEndpointOptions> = InferSchemaInpu
   Options['querySchema']
 >
 
-/** Pagination settings for an infinite query. */
+/**
+ * Settings of an infinite query: pagination, the key options, `withResponse`
+ * and the query's TanStack {@link InfiniteQueryDefaults}.
+ */
 export type InfiniteQuerySettings<
   Options extends InfiniteEndpointOptions,
   TPage = EndpointData<Options>,
   WithResponse extends boolean = boolean,
-> = SurfaceOptions<WithResponse> & {
-  /**
-   * Returns the query params for the next page, or `undefined` / `null` when
-   * there are no more pages. The returned object is merged over the call's
-   * `params`.
-   */
-  getNextPageParam: (
-    lastPage: TPage,
-    allPages: TPage[],
-    lastPageParam: PageParam<Options>,
-    allPageParams: PageParam<Options>[],
-  ) => PageParam<Options> | undefined | null
-  getPreviousPageParam?: (
-    firstPage: TPage,
-    allPages: TPage[],
-    firstPageParam: PageParam<Options>,
-    allPageParams: PageParam<Options>[],
-  ) => PageParam<Options> | undefined | null
-  /** Defaults to the call's `params`. */
-  initialPageParam?: PageParam<Options>
-}
+  TError = EndpointFailure<Options>,
+> = SurfaceOptions<WithResponse> &
+  InfiniteQueryDefaults<TPage, TError, PageParam<Options>> & {
+    /**
+     * Returns the query params for the next page, or `undefined` / `null` when
+     * there are no more pages. The returned object is merged over the call's
+     * `params`.
+     */
+    getNextPageParam: (
+      lastPage: TPage,
+      allPages: TPage[],
+      lastPageParam: PageParam<Options>,
+      allPageParams: PageParam<Options>[],
+    ) => PageParam<Options> | undefined | null
+    getPreviousPageParam?: (
+      firstPage: TPage,
+      allPages: TPage[],
+      firstPageParam: PageParam<Options>,
+      allPageParams: PageParam<Options>[],
+    ) => PageParam<Options> | undefined | null
+    /** Defaults to the call's `params`. */
+    initialPageParam?: PageParam<Options>
+  }
+
+/**
+ * TanStack options an infinite query declaration sets for every use of it;
+ * options given at a call site win. As for `QueryDefaults`, `select` and
+ * initial data are left to the call site.
+ */
+export type InfiniteQueryDefaults<TPage, TError, TPageParam> = Omit<
+  InfiniteQueryHookOptions<TPage, TError, TPageParam, InfiniteData<TPage, TPageParam>>,
+  'select' | 'initialData' | 'initialDataUpdatedAt'
+>
 
 export type InfiniteQueryHookOptions<TPage, TError, TPageParam, TSelected> = Omit<
   UseInfiniteQueryOptions<

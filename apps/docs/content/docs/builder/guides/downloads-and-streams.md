@@ -35,19 +35,19 @@ function saveBlob(blob: Blob, filename: string) {
 }
 ```
 
-To use the filename the server suggests, call `.safe()` and read the `Content-Disposition` header:
+To use the filename the server suggests, call `.safe()` and read it with `getFilename`:
 
 ```ts
-import { getHeader } from '@navios/builder'
+import { getFilename } from '@navios/builder'
 
 const res = await downloadInvoice.safe({ urlParams: { invoiceId: '2026-001' } })
 
 if (res.ok) {
-  const disposition = getHeader(res.response, 'content-disposition')
-  const filename = disposition?.match(/filename="?([^";]+)"?/)?.[1] ?? 'invoice.pdf'
-  saveBlob(res.data, filename)
+  saveBlob(res.data, getFilename(res.response) ?? 'invoice.pdf')
 }
 ```
+
+`getFilename` reads `Content-Disposition`. It prefers `filename*` (`filename*=UTF-8''r%C3%A9sum%C3%A9.pdf`, the form for names outside ASCII) over `filename`, unquotes the name, and removes any directory part, so a server cannot make you save `../../x`. It returns `null` when there is no name. In react-query, pass it the `response` that `withResponse: true` delivers.
 
 A download that takes a body is declared the same way, with a `requestSchema`:
 

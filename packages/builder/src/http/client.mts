@@ -1,3 +1,5 @@
+import type { BaseEndpointOptions } from './endpoint-options.mjs'
+
 /**
  * Supported HTTP methods for API requests.
  */
@@ -48,18 +50,46 @@ export interface AbstractRequestConfig {
   data?: unknown
   /** Additional request headers */
   headers?: Record<string, string>
-  /** AbortSignal for request cancellation */
-  signal?: AbortSignal | null
+  /** AbortSignal for request cancellation. Absent when the call has none. */
+  signal?: AbortSignal
   /** Request timeout in milliseconds (recognised by axios, @navios/http, etc.) */
   timeout?: number
   /**
    * Expected response body type. Set by the builder from the endpoint's
    * `response` option (`'blob'`, `'text'`, `'stream'`, and `'text'` for
    * `'void'`, whose body is discarded); absent for JSON.
+   *
+   * Only values that axios, `@navios/http` and `fetch` wrappers all spell the
+   * same way are used, so an axios instance is a {@link Client} as it is.
    */
-  responseType?: 'json' | 'text' | 'blob' | 'arrayBuffer' | 'formData' | 'stream'
+  responseType?: 'json' | 'text' | 'blob' | 'stream'
   /** Client-specific keys merged in from the endpoint's `clientOptions`. */
   [key: string]: unknown
+}
+
+/**
+ * What the builder tells a {@link Client} about the call behind a request,
+ * as the second argument of `request`.
+ *
+ * Clients that only send requests ignore it (axios and `@navios/http` do).
+ * It is for clients that answer per endpoint, such as the mock client of
+ * `@navios/builder/mock`.
+ */
+export interface ClientRequestContext {
+  /**
+   * The declaration of the endpoint that makes the request: the same object
+   * as the handler's `config`, so it can be compared by identity.
+   */
+  readonly endpoint: BaseEndpointOptions
+  /** The call's arguments, as the caller passed them. */
+  readonly args: {
+    readonly urlParams?: Record<string, unknown>
+    readonly params?: Record<string, unknown>
+    readonly data?: unknown
+    readonly headers?: Record<string, string>
+    readonly signal?: AbortSignal | null
+    readonly timeout?: number
+  }
 }
 
 /**
@@ -88,7 +118,12 @@ export interface Client {
    * Makes an HTTP request.
    *
    * @param config - Request configuration
+   * @param context - The endpoint and arguments of the call; most clients
+   *   ignore it
    * @returns A promise that resolves to the HTTP response
    */
-  request: <T = unknown>(config: AbstractRequestConfig) => Promise<AbstractResponse<T>>
+  request: <T = unknown>(
+    config: AbstractRequestConfig,
+    context?: ClientRequestContext,
+  ) => Promise<AbstractResponse<T>>
 }

@@ -23,6 +23,8 @@ The contract is deliberately loose:
 
 `config` contains `method`, `url` (with URL parameters bound), `params`, `data`, `headers`, `signal`, `timeout`, `responseType`, and whatever the endpoint put in `clientOptions`.
 
+`request` also receives a second argument, `{ endpoint, args }`: the declaration of the calling endpoint (the same object as `handler.config`) and the arguments as the caller passed them. A client that only sends requests ignores it. It lets a client answer per endpoint, as [the mock client](/docs/builder/guides/mocking) does.
+
 ## Choosing a client
 
 **`@navios/http`** is a small client built on `fetch` with an axios-like API. It is what these docs use.
@@ -38,7 +40,7 @@ export const API = builder({
 
 [The Navios HTTP client](#the-navios-http-client) below describes it.
 
-**axios** instances satisfy the contract as they are.
+**axios** instances satisfy the contract as they are, without a cast.
 
 ```ts
 import axios from 'axios'

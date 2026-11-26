@@ -1,4 +1,9 @@
-import type { BaseEndpointOptions, BuilderInstance, EndpointHandler } from '@navios/builder'
+import type {
+  BaseEndpointOptions,
+  BuilderInstance,
+  EndpointHandler,
+  ErrorSchemaRecord,
+} from '@navios/builder'
 
 import { makeMutation } from '../mutation/make-mutation.mjs'
 import { makeInfiniteQuery } from '../query/make-infinite-query.mjs'
@@ -11,8 +16,17 @@ import type { ClientInstance } from './client-instance.mjs'
 /**
  * Options for creating a client instance.
  */
-export type ClientOptions = {
-  api: BuilderInstance
+export type ClientOptions<Errors extends ErrorSchemaRecord = {}> = {
+  /**
+   * The builder whose endpoints the client uses. Its shared `errorSchema`
+   * types the errors of inline declarations too.
+   */
+  api: BuilderInstance<Errors>
+  /**
+   * Key segments for every query and mutation of this client. They are
+   * placed before a declaration's own `keyPrefix` and `keySuffix`, which
+   * add to them rather than replace them.
+   */
   defaults?: KeyOptions
 }
 
@@ -61,7 +75,9 @@ function splitInline(config: Record<string, unknown>) {
  * Creates a client for declaring type-safe queries and mutations.
  *
  * @param options.api - The builder whose endpoints the client uses
- * @param options.defaults - `keyPrefix` / `keySuffix` applied to every key
+ * @param options.defaults - `keyPrefix` / `keySuffix` applied to every key, around
+ *   the segments a query or mutation declares itself:
+ *   `[...defaults.keyPrefix, ...keyPrefix, method, url, ...defaults.keySuffix, ...keySuffix]`
  *
  * @example
  * ```ts
@@ -75,15 +91,36 @@ function splitInline(config: Record<string, unknown>) {
  * })
  * ```
  */
-export function declareClient({ api, defaults = {} }: ClientOptions): ClientInstance {
+export function declareClient<Errors extends ErrorSchemaRecord>(
+  options: ClientOptions<Errors>,
+): ClientInstance<Errors>
+// Last, so that `ReturnType<typeof declareClient>` is the plain `ClientInstance`
+export function declareClient(options: ClientOptions): ClientInstance
+export function declareClient({
+  api,
+  defaults = {},
+}: ClientOptions<ErrorSchemaRecord>): ClientInstance<ErrorSchemaRecord> {
+  /**
+   * The client's `defaults` go around every declaration's own key segments:
+   * `[...defaults.keyPrefix, ...keyPrefix]` and `[...defaults.keySuffix, ...keySuffix]`.
+   */
+  function withDefaults(surface: Record<string, unknown>) {
+    const own = surface as KeyOptions
+    return {
+      ...surface,
+      keyPrefix: [...(defaults.keyPrefix ?? []), ...(own.keyPrefix ?? [])],
+      keySuffix: [...(defaults.keySuffix ?? []), ...(own.keySuffix ?? [])],
+    }
+  }
+
   function resolve(input: unknown, options: Record<string, unknown> | undefined) {
     if (isEndpointHandler(input)) {
-      return { endpoint: input, surface: { ...defaults, ...options } }
+      return { endpoint: input, surface: withDefaults({ ...options }) }
     }
     const { endpointOptions, surface } = splitInline(input as Record<string, unknown>)
     return {
       endpoint: api.declareEndpoint(endpointOptions) as unknown as AnyHandler,
-      surface: { ...defaults, ...surface, ...options },
+      surface: withDefaults({ ...surface, ...options }),
     }
   }
 
@@ -100,5 +137,5 @@ export function declareClient({ api, defaults = {} }: ClientOptions): ClientInst
       const { endpoint, surface } = resolve(input, options)
       return makeMutation(endpoint, surface as never)
     },
-  } as unknown as ClientInstance
+  } as unknown as ClientInstance<ErrorSchemaRecord>
 }

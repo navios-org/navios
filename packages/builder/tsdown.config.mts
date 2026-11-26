@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.mts',
     socket: 'src/socket/index.mts',
     eventsource: 'src/eventsource/index.mts',
+    mock: 'src/mock/index.mts',
   },
   outDir: 'lib',
   format: ['esm', 'cjs'],

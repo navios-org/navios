@@ -25,10 +25,11 @@ describe('makeConfig', () => {
     })
 
     it('should forward per-call headers and signal', () => {
+      const signal = new AbortController().signal
       const config = makeConfig(
         {
           headers: { Authorization: 'Bearer token' },
-          signal: null,
+          signal,
         } as any,
         {
           method: 'GET',
@@ -39,7 +40,17 @@ describe('makeConfig', () => {
       )
 
       expect(config.headers).toEqual({ Authorization: 'Bearer token' })
-      expect(config.signal).toBeNull()
+      expect(config.signal).toBe(signal)
+    })
+
+    it('should leave out a null signal, which clients such as axios do not accept', () => {
+      const config = makeConfig(
+        { signal: null } as any,
+        { method: 'GET', url: '/users', responseSchema } as any,
+        '/users',
+      )
+
+      expect('signal' in config).toBe(false)
     })
   })
 

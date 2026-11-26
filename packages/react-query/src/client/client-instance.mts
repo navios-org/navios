@@ -1,12 +1,13 @@
 import type {
   BaseEndpointOptions,
   EndpointHandler,
+  ErrorSchemaRecord,
   NoUnknownOptions,
   RequireResponseSchema,
+  WithBuilderErrors,
 } from '@navios/builder'
 
 import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
-import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
 import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 import type {
   MutationObject,
@@ -18,7 +19,7 @@ import type {
   InfiniteQueryObject,
   InfiniteQuerySettings,
 } from '../query/infinite-query-object.mjs'
-import type { QueryObject } from '../query/query-object.mjs'
+import type { QueryObject, QuerySettings } from '../query/query-object.mjs'
 
 /**
  * An inline endpoint declaration plus surface-specific fields.
@@ -48,13 +49,25 @@ type MutationSettingsFor<
   WithResponse
 >
 
+type QuerySettingsFor<
+  Options extends BaseEndpointOptions,
+  WithResponse extends boolean,
+> = QuerySettings<
+  MaybeWithResponse<EndpointData<Options>, WithResponse>,
+  EndpointFailure<Options>,
+  WithResponse
+>
+
 /**
  * The client returned by `declareClient`.
  *
  * Each method accepts either an inline endpoint declaration or an endpoint
  * already declared with `api.declareEndpoint`.
+ *
+ * @template Errors - The shared error schemas of the client's builder, which
+ *   inline declarations get as well
  */
-export interface ClientInstance {
+export interface ClientInstance<Errors extends ErrorSchemaRecord = {}> {
   /**
    * Creates a query.
    *
@@ -72,11 +85,14 @@ export interface ClientInstance {
    * ```
    */
   query<const Options extends BaseEndpointOptions, const WithResponse extends boolean = false>(
-    input: Inline<Options, SurfaceOptions<WithResponse>>,
-  ): QueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>>
+    input: Inline<Options, QuerySettingsFor<WithBuilderErrors<Options, Errors>, WithResponse>>,
+  ): QueryObject<
+    WithBuilderErrors<Options, Errors>,
+    MaybeWithResponse<EndpointData<Options>, WithResponse>
+  >
   query<const Options extends BaseEndpointOptions, const WithResponse extends boolean = false>(
     endpoint: EndpointHandler<Options>,
-    options?: SurfaceOptions<WithResponse>,
+    options?: QuerySettingsFor<Options, WithResponse>,
   ): QueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>>
 
   /**
@@ -100,10 +116,14 @@ export interface ClientInstance {
       InfiniteQuerySettings<
         Options,
         MaybeWithResponse<EndpointData<Options>, WithResponse>,
-        WithResponse
+        WithResponse,
+        EndpointFailure<WithBuilderErrors<Options, Errors>>
       >
     >,
-  ): InfiniteQueryObject<Options, MaybeWithResponse<EndpointData<Options>, WithResponse>>
+  ): InfiniteQueryObject<
+    WithBuilderErrors<Options, Errors> & InfiniteEndpointOptions,
+    MaybeWithResponse<EndpointData<Options>, WithResponse>
+  >
   infiniteQuery<
     const Options extends InfiniteEndpointOptions,
     const WithResponse extends boolean = false,
@@ -135,9 +155,17 @@ export interface ClientInstance {
     TContext = unknown,
     const WithResponse extends boolean = false,
   >(
-    input: Inline<Options, MutationSettingsFor<Options, TOnMutateResult, TContext, WithResponse>>,
+    input: Inline<
+      Options,
+      MutationSettingsFor<
+        WithBuilderErrors<Options, Errors>,
+        TOnMutateResult,
+        TContext,
+        WithResponse
+      >
+    >,
   ): MutationObject<
-    Options,
+    WithBuilderErrors<Options, Errors>,
     TOnMutateResult,
     MaybeWithResponse<EndpointData<Options>, WithResponse>
   >

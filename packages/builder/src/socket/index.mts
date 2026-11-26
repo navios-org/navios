@@ -9,6 +9,7 @@ export type {
   MessageParser,
   SendOptions,
   SocketBuilderConfig,
+  SocketTopicTransport,
   SubscribeOptions,
 } from './socket-options.mjs'
 export type {

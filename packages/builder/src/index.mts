@@ -1,10 +1,16 @@
 // HTTP endpoint builder
 export { builder } from './http/builder.mjs'
-export type { BuilderConfig } from './http/builder-config.mjs'
+export type { BuilderConfig, EndpointErrorContext } from './http/builder-config.mjs'
 export type { BuilderInstance } from './http/builder-instance.mjs'
 
 // HTTP client contract
-export type { AbstractRequestConfig, AbstractResponse, Client, HttpMethod } from './http/client.mjs'
+export type {
+  AbstractRequestConfig,
+  AbstractResponse,
+  Client,
+  ClientRequestContext,
+  HttpMethod,
+} from './http/client.mjs'
 
 // Endpoint declaration
 export type {
@@ -15,7 +21,11 @@ export type {
   EndpointResponseKind,
   SuccessSchemaRecord,
 } from './http/endpoint-options.mjs'
-export type { ErrorSchemaRecord, InferErrorSchemaOutput } from './http/error-schema.mjs'
+export type {
+  ErrorSchemaRecord,
+  InferErrorSchemaOutput,
+  MergeErrorSchemas,
+} from './http/error-schema.mjs'
 export type {
   EndpointCallArgs,
   EndpointCallOptions,
@@ -31,6 +41,7 @@ export type {
   InferSuccessOutput,
   NoUnknownOptions,
   RequireResponseSchema,
+  WithBuilderErrors,
 } from './http/endpoint-handler.mjs'
 
 // Request
@@ -39,7 +50,8 @@ export type { ClientRequestArgs, RequestBase, ServerRequestArgs } from './http/r
 // Response
 export type { SafeResult, SafeResultErr, SafeResultOk } from './http/safe-result.mjs'
 export type { ResponseMeta } from './http/response-meta.mjs'
-export { getCookie, getHeader, getRetryAfterMs } from './http/response-headers.mjs'
+export { getCookie, getFilename, getHeader, getRetryAfterMs } from './http/response-headers.mjs'
+export type { HeaderSource } from './http/response-headers.mjs'
 
 // Errors
 export { EndpointError, isEndpointError, isHttpError } from './http/endpoint-error.mjs'

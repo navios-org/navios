@@ -15,7 +15,7 @@ function declareClient(options: ClientOptions): ClientInstance
 | `ClientOptions` field | Type              | Description                                                        |
 | --------------------- | ----------------- | ------------------------------------------------------------------ |
 | `api`                 | `BuilderInstance` | The builder that inline declarations are declared on               |
-| `defaults`            | `KeyOptions`      | `keyPrefix` / `keySuffix` applied to every key made by this client |
+| `defaults`            | `KeyOptions`      | `keyPrefix` / `keySuffix` applied to every key made by this client, before the segments of each query or mutation |
 
 ## Client methods
 
@@ -34,11 +34,13 @@ client.mutation({ ...endpointOptions, ...settings })
 
 | Method          | Options type                      | Returns               | Notes                                                    |
 | --------------- | --------------------------------- | --------------------- | -------------------------------------------------------- |
-| `query`         | [`SurfaceOptions`](#shared-options) | [`QueryObject`](#query-object) | Any endpoint                                    |
+| `query`         | [`QuerySettings`](#query-settings) | [`QueryObject`](#query-object) | Any endpoint                                    |
 | `infiniteQuery` | [`InfiniteQuerySettings`](#infinite-query-settings) | [`InfiniteQueryObject`](#infinite-query-object) | The endpoint must have a `querySchema` |
 | `mutation`      | [`MutationSettings`](#mutation-settings) | [`MutationObject`](#mutation-object) | Any endpoint, including multipart and blob |
 
-Unknown keys in an inline declaration are compile errors. Options given to a method override the client's `defaults`.
+Unknown keys in an inline declaration are compile errors. A method's `keyPrefix` and `keySuffix` are added after the client's `defaults`, never in place of them.
+
+`declareClient({ api })` takes the type of the builder's shared `errorSchema` (`builder({ errorSchema })`), so inline declarations have the same typed errors as endpoints declared on the builder.
 
 ## Shared options
 
@@ -51,6 +53,10 @@ Unknown keys in an inline declaration are compile errors. Options given to a met
 | `withResponse` | `boolean`            | `false` | Deliver [`DataWithResponse`](#withresponse-and-datawithresponse) instead of the bare data        |
 
 Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-response'?, 'infinite'?, inputs?]`, where `inputs` is `{ urlParams?, params?, data? }`. Mutation keys are `[...keyPrefix, method, url, ...keySuffix]`. See [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation).
+
+## Query settings
+
+`QuerySettings<TData, TError>` is `SurfaceOptions` plus `QueryDefaults<TData, TError>`: every `useQuery` option except `queryKey`, `queryFn`, `select`, `initialData` and `initialDataUpdatedAt`. They apply to every use of the query, under the options of a call site. `fetch`, `prefetch` and `ensure` use those that apply outside a component. See [Options for every use](/docs/builder/react-query/queries#options-for-every-use).
 
 ## Query object
 
@@ -74,7 +80,7 @@ See [Queries](/docs/builder/react-query/queries).
 
 ## Infinite query settings
 
-`InfiniteQuerySettings<Options, TPage>` is `SurfaceOptions` plus:
+`InfiniteQuerySettings<Options, TPage>` is `SurfaceOptions`, `InfiniteQueryDefaults` (every `useInfiniteQuery` option except the ones the query owns, `select`, `initialData` and `initialDataUpdatedAt`) and:
 
 | Setting                | Type                                                                                              | Description                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -169,7 +175,7 @@ function getHttpClient(queryClient: QueryClient): Client | undefined
 The functions behind the client methods, for use without a client instance. They take an existing endpoint only, and no client `defaults` are applied.
 
 ```ts
-function makeQuery(endpoint: EndpointHandler<Options>, options?: SurfaceOptions): QueryObject<Options>
+function makeQuery(endpoint: EndpointHandler<Options>, options?: QuerySettings): QueryObject<Options>
 
 function makeInfiniteQuery(
   endpoint: EndpointHandler<Options>,

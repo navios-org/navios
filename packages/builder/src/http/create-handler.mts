@@ -29,6 +29,12 @@ export interface HandlerRequest {
   timeout?: number
 }
 
+/** What one call has got to, for the context of the `onError` hook. */
+interface Attempt {
+  /** The request config, once one was built. */
+  request: AbstractRequestConfig | null
+}
+
 /** Loosely-typed per-call options, as the runtime sees them. */
 export interface HandlerCallOptions {
   client?: Client
@@ -142,26 +148,35 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
   const sendOutput = context.config.send === 'output'
   const urlParamNames = options.urlParamsSchema ? getUrlParamNames(url) : []
 
-  function fail(init: Omit<EndpointErrorInit, 'endpoint'>): SafeResult<never, EndpointError> {
+  function fail(
+    attempt: Attempt,
+    init: Omit<EndpointErrorInit, 'endpoint'>,
+  ): SafeResult<never, EndpointError> {
     const error = new EndpointError({ ...init, endpoint })
-    callErrorHook(context.config.onError, error, 'Navios-API')
+    callErrorHook(context.config.onError, error, 'Navios-API', { request: attempt.request })
     return { ok: false, data: null, error, response: error.response }
   }
 
-  async function failHttp(response: AbstractResponse<unknown>, cause: unknown) {
+  async function failHttp(attempt: Attempt, response: AbstractResponse<unknown>, cause: unknown) {
     const meta = toResponseMeta(response)
     const status = response.status
     const schema = errorSchema?.[status]
 
     if (!schema) {
-      return fail({ kind: 'http-unknown', status, body: response.data, response: meta, cause })
+      return fail(attempt, {
+        kind: 'http-unknown',
+        status,
+        body: response.data,
+        response: meta,
+        cause,
+      })
     }
 
     const parsed = await validate(schema, response.data)
     if (parsed.ok) {
-      return fail({ kind: 'http', status, body: parsed.value, response: meta, cause })
+      return fail(attempt, { kind: 'http', status, body: parsed.value, response: meta, cause })
     }
-    return fail({
+    return fail(attempt, {
       kind: 'response-validation',
       status,
       body: response.data,
@@ -222,10 +237,11 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     request?: HandlerRequest | null,
     callOptions?: HandlerCallOptions | null,
   ): Promise<SafeResult<unknown, EndpointError>> {
+    const attempt: Attempt = { request: null }
     try {
-      return await execute(request ?? {}, callOptions ?? {})
+      return await execute(attempt, request ?? {}, callOptions ?? {})
     } catch (cause) {
-      return fail({
+      return fail(attempt, {
         kind: 'network',
         message: `${method} ${url} failed: ${cause instanceof Error ? cause.message : 'unexpected error'}`,
         cause,
@@ -234,6 +250,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
   }
 
   async function execute(
+    attempt: Attempt,
     request: HandlerRequest,
     callOptions: HandlerCallOptions,
   ): Promise<SafeResult<unknown, EndpointError>> {
@@ -242,7 +259,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     try {
       client = callOptions.client ?? context.getClient()
     } catch (cause) {
-      return fail({
+      return fail(attempt, {
         kind: 'config',
         message: cause instanceof Error ? cause.message : undefined,
         cause,
@@ -260,7 +277,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     }
     const invalid = invalidParts(parts)
     if (invalid) {
-      return fail({ kind: 'request-validation', ...invalid })
+      return fail(attempt, { kind: 'request-validation', ...invalid })
     }
 
     let config: AbstractRequestConfig
@@ -284,8 +301,9 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
           }
       const validated = { ...request, ...sent } as HandlerRequest
       config = makeConfig(validated, options, bindUrlParams(url, validated))
+      attempt.request = config
     } catch (cause) {
-      return fail({
+      return fail(attempt, {
         kind: 'config',
         message: cause instanceof Error ? `${method} ${url}: ${cause.message}` : undefined,
         cause,
@@ -295,16 +313,16 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     // 3. Send it.
     let response: AbstractResponse<unknown>
     try {
-      response = await client.request(config)
+      response = await client.request(config, { endpoint: options, args: request })
     } catch (cause) {
       const errorResponse = getResponse(cause)
       if (errorResponse && !isSuccessStatus(errorResponse.status)) {
-        return failHttp(errorResponse, cause)
+        return failHttp(attempt, errorResponse, cause)
       }
       if (errorResponse && !request.signal?.aborted) {
         // The server answered with a success status and the client still
         // rejected: it could not read the body as what the endpoint expects.
-        return fail({
+        return fail(attempt, {
           kind: 'response-validation',
           status: errorResponse.status,
           body: errorResponse.data,
@@ -320,17 +338,17 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
       const unsendable =
         options.body === 'multipart' ? undefined : serializationError(config.data, cause)
       if (unsendable) {
-        return fail({
+        return fail(attempt, {
           kind: 'config',
           message: `${method} ${url}: the body cannot be serialised: ${unsendable.message}`,
           cause,
         })
       }
-      return fail({ kind: classifyTransportFailure(cause, request.signal), cause })
+      return fail(attempt, { kind: classifyTransportFailure(cause, request.signal), cause })
     }
 
     if (typeof response !== 'object' || response === null) {
-      return fail({
+      return fail(attempt, {
         kind: 'network',
         message: `${method} ${url} failed: the HTTP client resolved without a response`,
         cause: response,
@@ -339,7 +357,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
 
     // 4. The builder, not the client, decides what counts as success.
     if (!isSuccessStatus(response.status)) {
-      return failHttp(response, undefined)
+      return failHttp(attempt, response, undefined)
     }
 
     // 5. Shape the body.
@@ -353,7 +371,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
 
     const success = successSchema(response.status)
     if ('unexpected' in success) {
-      return fail({
+      return fail(attempt, {
         kind: 'response-validation',
         status: response.status,
         body: response.data,
@@ -372,7 +390,7 @@ export function createHandler(options: BaseEndpointOptions, context: BuilderCont
     if (parsed.ok) {
       return { ok: true, data: parsed.value, error: null, response: meta }
     }
-    return fail({
+    return fail(attempt, {
       kind: 'response-validation',
       status: response.status,
       body: response.data,

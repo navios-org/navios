@@ -8,10 +8,9 @@ import { createCaller } from '../endpoint/create-caller.mjs'
 import { callOptionsFor } from '../endpoint/http-client.mjs'
 
 import type { MaybeWithResponse } from '../endpoint/create-caller.mjs'
-import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
 import type { EndpointData, EndpointFailure } from '../endpoint/types.mjs'
 
-import type { QueryObject } from './query-object.mjs'
+import type { QueryObject, QuerySettings } from './query-object.mjs'
 
 function noop() {}
 
@@ -41,17 +40,25 @@ export function makeQuery<
   const WithResponse extends boolean = false,
 >(
   endpoint: EndpointHandler<Options>,
-  options: SurfaceOptions<WithResponse> = {},
+  options: QuerySettings<
+    MaybeWithResponse<EndpointData<Options>, WithResponse>,
+    EndpointFailure<Options>,
+    WithResponse
+  > = {},
 ): QueryObject<
   Options,
   MaybeWithResponse<EndpointData<Options>, WithResponse>,
   EndpointFailure<Options>
 > {
-  const keys = createKeyBuilder(endpoint.config, options, false)
-  const call = createCaller(endpoint as never, options.withResponse)
+  const { keyPrefix, keySuffix, withResponse, ...declared } = options
+  // The declaration's TanStack options, under whatever a call site passes
+  const defaults = declared as LooseOptions
+  const keys = createKeyBuilder(endpoint.config, { keyPrefix, keySuffix, withResponse }, false)
+  const call = createCaller(endpoint as never, withResponse)
 
   const build = (args?: LooseArgs, overrides?: LooseOptions) =>
     queryOptions({
+      ...defaults,
       queryKey: keys.key(args),
       queryFn: ({ signal, client }) => call({ signal, ...args }, callOptionsFor(client)),
       ...overrides,
@@ -64,7 +71,7 @@ export function makeQuery<
   query.use = (args?: LooseArgs | typeof skipToken, overrides?: LooseOptions) =>
     useQuery(
       (args === skipToken
-        ? { ...overrides, queryKey: keys.skipped(), queryFn: skipToken }
+        ? { ...defaults, ...overrides, queryKey: keys.skipped(), queryFn: skipToken }
         : build(args, overrides)) as never,
     )
 

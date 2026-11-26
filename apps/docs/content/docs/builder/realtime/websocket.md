@@ -4,7 +4,7 @@ title: WebSocket
 
 # WebSocket
 
-`@navios/builder/socket` gives messages the same treatment `declareEndpoint` gives HTTP calls: you declare a topic and its schemas once, and get a typed function that validates what it sends and what it receives. It works over the standard `WebSocket`, and over any object with the same few methods.
+`@navios/builder/socket` gives messages the same treatment `declareEndpoint` gives HTTP calls: you declare a topic and its schemas once, and get a typed function that validates what it sends and what it receives. It works over the standard `WebSocket`, over a [Socket.IO](#socketio) client, and over any object with the same few methods.
 
 ## WebSocket or SSE?
 
@@ -31,7 +31,7 @@ export const socket = socketBuilder()
 socket.provideClient(connect())
 ```
 
-`provideClient` accepts a handle from [`declareWebSocket`](#the-connection), or [anything with the same methods](#another-transport). Sending before a client is provided fails with a `NaviosError`; subscriptions made before are attached when the client arrives.
+`provideClient` accepts a handle from [`declareWebSocket`](#the-connection), a [Socket.IO client](#socketio), or [anything with the same methods](#another-transport). Sending before a client is provided fails with a `NaviosError`; subscriptions made before are attached when the client arrives.
 
 Calling `provideClient` again moves every subscription to the new connection and leaves the old one open. Pass `{ closePrevious: true }` to close it, or close it yourself. Providing the same client again does nothing.
 
@@ -201,7 +201,58 @@ The client of a socket builder is an object with three methods, described by the
 - `emit(topic, frame)` sends a frame. With a method `sendRaw(topic, frame)` the builder calls that instead.
 - `on(event, listener)` and `off(event, listener)` add and remove listeners. The builder listens to `message`, called with every incoming frame; to `disconnect`, after which it gives up waiting for acknowledgements; and, while it waits for one, to `__navios_ack:<ackId>`.
 
-Socket.IO is not supported: a stock Socket.IO client neither sends nor receives these frames.
+A client whose events are the topics themselves, like Socket.IO, uses [`topics: 'events'`](#socketio) instead of these frames.
+
+## Socket.IO
+
+Socket.IO gives every topic its own event, and an acknowledgement is a callback passed with the message. `topics: 'events'` makes the builder speak that way, so a Socket.IO client is passed to `provideClient` as it is:
+
+```ts title="socket.ts"
+import { socketBuilder } from '@navios/builder/socket'
+import { io } from 'socket.io-client'
+
+export const socket = socketBuilder({ topics: 'events' })
+
+socket.provideClient(io('https://chat.example.com', { auth: { token } }))
+```
+
+Send and subscribe functions are declared as before. What travels differs:
+
+| Builder                              | Socket.IO                                    |
+| ------------------------------------ | -------------------------------------------- |
+| `send(payload)`                      | `socket.emit(topic, payload)`                |
+| `send(payload)` with an `ackSchema`  | `socket.emit(topic, payload, (ack) => …)`    |
+| A subscription to `topic`            | `socket.on(topic, (payload) => …)`           |
+| A send waiting for its acknowledgement rejects with kind `transport` | on `disconnect` |
+
+The builder listens to a topic's event only while the topic has subscribers, and moves those listeners when you call `provideClient` again. An event's first argument is its payload; further arguments are ignored. The server answers an acknowledgement by calling the callback it receives:
+
+```ts title="server.ts"
+io.on('connection', (client) => {
+  client.on('room.create', async (payload, ack) => {
+    const room = await rooms.create(payload.name)
+    ack({ roomId: room.id })
+  })
+})
+```
+
+`ackTimeout` still applies; Socket.IO's own `socket.timeout()` is not needed.
+
+### Converting the payload
+
+`formatMessage` and `parseMessage` still run, around the payload alone: `formatMessage(topic, payload)` returns what is emitted, and `parseMessage(data, event)` receives an event's argument with its name. A backend that speaks snake_case, behind a UI that speaks camelCase:
+
+```ts
+const socket = socketBuilder({
+  topics: 'events',
+  formatMessage: (_topic, payload) => toSnakeCase(payload),
+  parseMessage: (data, event) => ({ topic: event, payload: toCamelCase(data) }),
+})
+```
+
+`parseMessage` decodes acknowledgements too. Return `null` to drop a message; the topic you return is where it is delivered, so one event can also be routed to another topic.
+
+`topics: 'events'` works with a `declareWebSocket` handle as well, which sends `[topic, payload]` frames either way, but not for acknowledgements: a WebSocket cannot carry a callback, so a send with an `ackSchema` fails with kind `transport`. Keep the default `topics: 'envelope'` for a plain WebSocket server.
 
 ## Errors
 

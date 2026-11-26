@@ -8,7 +8,7 @@ import type {
   EndpointResponseKind,
   SuccessSchemaRecord,
 } from './endpoint-options.mjs'
-import type { ErrorSchemaRecord } from './error-schema.mjs'
+import type { ErrorSchemaRecord, MergeErrorSchemas } from './error-schema.mjs'
 import type { ClientRequestArgs } from './request-args.mjs'
 import type { SafeResult } from './safe-result.mjs'
 
@@ -67,6 +67,20 @@ export type InferSuccessOutput<R extends SuccessSchemaRecord> = {
 export type InferEndpointError<Options extends BaseEndpointOptions> = EndpointErrorOf<
   Options['errorSchema'] extends ErrorSchemaRecord ? Options['errorSchema'] : undefined
 >
+
+/**
+ * The options of an endpoint as a builder with shared error schemas declares
+ * it: `errorSchema` is the builder's, merged under the endpoint's own. On a
+ * builder without shared schemas it is `Options` unchanged.
+ */
+export type WithBuilderErrors<
+  Options extends BaseEndpointOptions,
+  Errors extends ErrorSchemaRecord,
+> = [keyof Errors] extends [never]
+  ? Options
+  : Omit<Options, 'errorSchema'> & {
+      readonly errorSchema: MergeErrorSchemas<Errors, Options['errorSchema']>
+    }
 
 /** What `endpoint.safe(args)` resolves to. */
 export type InferEndpointSafeResult<Options extends BaseEndpointOptions> = SafeResult<

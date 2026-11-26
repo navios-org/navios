@@ -9,6 +9,7 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query'
 
+import type { SurfaceOptions } from '../endpoint/surface-options.mjs'
 import type {
   ArgsWith,
   EndpointArgs,
@@ -26,6 +27,31 @@ export type QueryHookOptions<TData, TError, TSelected = TData> = Omit<
   UseQueryOptions<TData, TError, TSelected, TaggedKey<TData, TError>>,
   'queryKey' | 'queryFn'
 >
+
+/**
+ * TanStack options a query declaration sets for every use of the query: its
+ * hooks, the options its call returns, and `fetch` / `prefetch` / `ensure`
+ * (which use what applies outside a component: `staleTime`, `gcTime`,
+ * `retry`, `meta`, ...). Options given at a call site win.
+ *
+ * `select`, `initialData` and `initialDataUpdatedAt` are left to the call
+ * site: `select` would change the query's data type, and initial data
+ * belongs to one set of arguments.
+ */
+export type QueryDefaults<TData, TError> = Omit<
+  QueryHookOptions<TData, TError>,
+  'select' | 'initialData' | 'initialDataUpdatedAt'
+>
+
+/**
+ * Options of `client.query` and `makeQuery`: the key options, `withResponse`
+ * and the query's TanStack {@link QueryDefaults}.
+ */
+export type QuerySettings<
+  TData,
+  TError,
+  WithResponse extends boolean = boolean,
+> = SurfaceOptions<WithResponse> & QueryDefaults<TData, TError>
 
 /**
  * Every TanStack `useSuspenseQuery` option except the two this library owns.

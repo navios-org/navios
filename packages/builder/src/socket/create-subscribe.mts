@@ -32,6 +32,10 @@ export interface CreateSubscribeContext {
   topicHandlers: Map<string, Set<(payload: unknown) => void>>
   /** Listens to the client, once there is one. */
   setupGlobalListener: () => void
+  /** Called when a topic gets its first subscriber (`topics: 'events'` listens per topic). */
+  listenTopic?: (topic: string) => void
+  /** Called when a topic loses its last subscriber. */
+  unlistenTopic?: (topic: string) => void
 }
 
 /**
@@ -46,7 +50,8 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
   context: CreateSubscribeContext,
 ): SubscribeHandler<Options> {
   const { topic, payloadSchema } = options
-  const { connectionUrl, config, topicHandlers, setupGlobalListener } = context
+  const { connectionUrl, config, topicHandlers, setupGlobalListener, listenTopic, unlistenTopic } =
+    context
 
   const handler = ((userHandler: (payload: unknown) => void): Unsubscribe => {
     let subscribed = true
@@ -100,6 +105,7 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
     }
     handlers.add(wrappedHandler)
     setupGlobalListener()
+    listenTopic?.(topic)
 
     // Return unsubscribe function
     return () => {
@@ -109,6 +115,7 @@ export function createSubscribeHandler<Options extends SubscribeOptions>(
         currentHandlers.delete(wrappedHandler)
         if (currentHandlers.size === 0) {
           topicHandlers.delete(topic)
+          unlistenTopic?.(topic)
         }
       }
     }
@@ -144,7 +151,7 @@ export function createGlobalMessageHandler(
   return (data: unknown) => {
     let parsed: ReturnType<MessageParser>
     try {
-      parsed = parseMessage(data)
+      parsed = parseMessage(data, 'message')
     } catch (cause) {
       // It must not reach the client, whose emitter would pass it on as uncaught
       reportSocketError(config.onError, {
@@ -170,6 +177,52 @@ export function createGlobalMessageHandler(
     }
 
     // Registered handlers validate, isolate and report on their own; they never throw.
+    dispatch(
+      () => topicHandlers.get(topic),
+      (handler) => handler(payload),
+    )
+  }
+}
+
+/** The parser of `topics: 'events'`: the event is the topic, its argument the payload. */
+const parseEvent: MessageParser = (data, event) => ({ topic: event, payload: data })
+
+/**
+ * Creates the listener of one topic's event for `topics: 'events'`. It reads
+ * the event's first argument, runs `parseMessage` on it and delivers the
+ * payload to the subscribers of the topic it returns.
+ *
+ * @internal
+ */
+export function createTopicEventListener(
+  config: SocketBuilderConfig,
+  event: string,
+  topicHandlers: Map<string, Set<(payload: unknown) => void>>,
+  connectionUrl: () => string | undefined,
+): (...args: unknown[]) => void {
+  const parseMessage = config.parseMessage ?? parseEvent
+
+  return (...args: unknown[]) => {
+    const data = args[0]
+    let parsed: ReturnType<MessageParser>
+    try {
+      parsed = parseMessage(data, event)
+    } catch (cause) {
+      // It must not reach the client, whose emitter would pass it on as uncaught
+      reportSocketError(config.onError, {
+        kind: 'transport',
+        topic: event,
+        url: connectionUrl(),
+        message: 'parseMessage threw; the message was skipped',
+        rawData: data,
+        cause,
+      })
+      return
+    }
+    if (!parsed) {
+      return
+    }
+    const { topic, payload } = parsed
     dispatch(
       () => topicHandlers.get(topic),
       (handler) => handler(payload),

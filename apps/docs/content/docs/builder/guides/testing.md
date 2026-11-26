@@ -6,7 +6,30 @@ title: Testing
 
 Because a builder talks to the network only through its HTTP client, tests replace the client. No request interception or global mocking is needed, and the full pipeline — input validation, response validation, error classification — still runs.
 
-## A fake client
+## The mock client
+
+`createMockClient` from `@navios/builder/mock` answers per endpoint, with typed handlers, and records the calls it answered:
+
+```ts
+import { createMockClient } from '@navios/builder/mock'
+import { expect, it } from 'vitest'
+
+import { getUser } from '../src/api/users'
+
+it('returns the user', async () => {
+  const mocks = createMockClient()
+  mocks.on(getUser, ({ urlParams }) => ({ id: String(urlParams.userId), name: 'Ada', email: 'ada@example.com' }))
+
+  const user = await getUser({ urlParams: { userId: '42' } }, { client: mocks })
+
+  expect(user.name).toBe('Ada')
+  expect(mocks.calls(getUser)[0]?.request.url).toBe('/users/42')
+})
+```
+
+[Developing against mocks](/docs/builder/guides/mocking) describes it in full: other statuses, headers, `once`, latency. The rest of this page builds a fake by hand, for tests that key on the exact request instead of the endpoint.
+
+## A fake client of your own
 
 A client is an object with one method, so a fake is a few lines. This one answers from a list of routes and records what it was asked.
 

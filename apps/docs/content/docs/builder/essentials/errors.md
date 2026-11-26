@@ -73,6 +73,39 @@ if (!res.ok) {
 
 An error body that does not match its schema is reported as `response-validation`, because the server broke the contract.
 
+### Shared across a backend
+
+Most backends send the same error body from every route for some statuses: 401 when the session expired, 403, 500. Declare those once on the builder:
+
+```ts
+const apiError = z.object({
+  error: z.object({ message: z.string(), type: z.string(), detail: z.string().optional() }),
+})
+
+export const API = builder({
+  client,
+  errorSchema: { 401: apiError, 403: apiError, 500: apiError },
+})
+```
+
+Every endpoint of the builder gets them, under its own `errorSchema`: an endpoint adds statuses, and its entry wins for a status both declare.
+
+```ts
+export const getUser = API.declareEndpoint({
+  method: 'GET',
+  url: '/users/$userId',
+  responseSchema: userSchema,
+  errorSchema: { 404: z.object({ message: z.string() }) },
+})
+
+const res = await getUser.safe({ urlParams: { userId } })
+if (!res.ok && res.error.kind === 'http' && res.error.status === 401) {
+  res.error.body.error.message // string, from the builder's schema
+}
+```
+
+`getUser.config.errorSchema` holds the merged record, and `API.errorSchema` the builder's. A client of `@navios/react-query` declared on the builder types the errors of its inline declarations the same way.
+
 ## In a catch block
 
 A caught value is `unknown`, so the typing above is lost. Two guards bring it back.
@@ -129,6 +162,21 @@ export const API = builder({
 ```
 
 It cannot change the outcome of a call. An exception thrown inside it is caught and logged.
+
+Its second argument holds the request that was sent, for logs that need the bound URL or the query rather than the URL template in `error.endpoint`. It is `null` when the call failed before a request was built: invalid input, no client, a URL parameter that cannot be bound.
+
+```ts
+export const API = builder({
+  client,
+  onError: (error, { request }) => {
+    if (error.kind === 'response-validation') {
+      console.error(`Unexpected response from ${request?.method} ${request?.url}`, error.issues)
+    }
+  },
+})
+```
+
+The request is not part of the error, because its headers may carry credentials. Log only the fields you need from it.
 
 `error.toJSON()` returns a plain object without `cause`, with headers flattened to a record and `set-cookie` left out. Its `issues` never contain the validated values. It is safe to pass to `JSON.stringify`, a logger, or across a server boundary.
 
