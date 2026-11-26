@@ -35,7 +35,11 @@ export function runStep<T>(
       if (--running === 0) {
         // On runtimes that implement the storage with async hooks, it would
         // go on costing something for every promise of the process.
-        storage.disable()
+        try {
+          storage.disable()
+        } catch {
+          // workerd has the method, which throws: its storage costs nothing.
+        }
       }
     }
   })

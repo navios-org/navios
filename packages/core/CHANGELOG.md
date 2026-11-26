@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An application starts in `workerd`**, the runtime of Cloudflare Workers. `AsyncLocalStorage.disable()` throws there, which failed every lifecycle step, and the logger imported `util` without the `node:` prefix, which a Worker's bundle does not resolve.
 - **A schema that answers with a thenable that is not a native promise**, such as a promise of another realm, is refused by `AttributeFactory.createAttribute` and `provideConfig` as one that answers with a promise is. It was taken for a result without issues, so the value was `undefined`.
 
 ## [2.0.0-alpha.0] - 2026-11-26
