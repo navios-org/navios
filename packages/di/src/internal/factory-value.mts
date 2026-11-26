@@ -29,14 +29,7 @@ export function factoryValue(root: RootHost, raw: FactoryInjectionToken<any, any
   }
   assertLive(root)
   const entry = createEntry(
-    createRecord(
-      raw.token,
-      'function',
-      InjectableScope.Singleton,
-      undefined,
-      raw.factory,
-      undefined,
-    ),
+    createRecord('function', InjectableScope.Singleton, undefined, raw.factory, undefined),
     raw.token,
     null,
     undefined,

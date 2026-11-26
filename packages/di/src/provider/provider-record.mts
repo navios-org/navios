@@ -19,7 +19,6 @@ export interface PlanEntry {
  * How to produce the value for a token.
  */
 export interface ProviderRecord {
-  token: InjectionToken<any, any>
   kind: ProviderKind
   /** `class`: the class to instantiate. `factory`: the `@Factory` class. */
   target: ClassType | undefined
@@ -50,12 +49,11 @@ export interface ProviderInfo {
 }
 
 export function createRecord(
-  token: InjectionToken<any, any>,
   kind: ProviderKind,
   scope: InjectableScope,
   target: ClassType | undefined,
   fn: ProviderRecord['fn'],
   value: unknown,
 ): ProviderRecord {
-  return { token, kind, target, fn, value, scope, plan: null }
+  return { kind, target, fn, value, scope, plan: null }
 }

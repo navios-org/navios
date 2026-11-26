@@ -97,7 +97,7 @@ export function storeValue(
     )
   }
   const entry = createEntry(
-    createRecord(token, 'value', scope, undefined, undefined, value),
+    createRecord('value', scope, undefined, undefined, value),
     token,
     key,
     args,

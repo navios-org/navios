@@ -104,7 +104,7 @@ function register(
   scope: InjectableScope,
   token: InjectionToken<any, any>,
 ): InjectionToken<any, any> {
-  setDefaultProvider(token, createRecord(token, kind, scope, target, undefined, undefined))
+  setDefaultProvider(token, createRecord(kind, scope, target, undefined, undefined))
   attachToken(target, token)
   return token
 }
