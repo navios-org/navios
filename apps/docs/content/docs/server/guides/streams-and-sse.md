@@ -92,7 +92,7 @@ async *tailLogs({ params }: HandlerParams<typeof tailLogs>, ctx: RequestContext)
 
 - `this` inside the generator is the controller, so injected services are available.
 - Headers must be set before the first `yield`. Once a chunk has been written the status and headers are on the wire.
-- A stream whose content type is set to `text/event-stream` is not held back until its first chunk. Its headers are those set before the generator first waits for something.
+- A stream whose content type is set to `text/event-stream` is not held back until its first chunk. Its headers are those set before the generator first waits for something, and the Bun adapter opens it with an empty comment, as it does a stream of `sseStream()`.
 - A handler may also return any `AsyncIterable` or a web `ReadableStream` it got from elsewhere, such as the body of an upstream `fetch`.
 
 ### When a stream ends early
