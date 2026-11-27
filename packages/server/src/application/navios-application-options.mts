@@ -17,10 +17,11 @@ export type ApplicationEnvironment = RegisteredEnvironment extends HttpAdapterEn
  * Options of an HTTP application: the application's own, and those of its
  * HTTP transport. `transports` are the transports beside HTTP; they share the
  * application's modules and container, and `listen()` starts them.
+ *
+ * `guards`, `interceptors` and `errorMappers` are what the application starts
+ * with: `guard()`, `intercept()` and `mapError()` add to them.
  */
 export interface NaviosApplicationOptions<
   Env extends HttpAdapterEnvironment = ApplicationEnvironment,
 >
-  extends
-    ApplicationOptions,
-    Omit<HttpTransportOptions<Env>, 'listen' | 'errorMappers' | 'interceptors'> {}
+  extends ApplicationOptions, Omit<HttpTransportOptions<Env>, 'listen'> {}

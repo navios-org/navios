@@ -139,10 +139,11 @@ What decides the outcome:
 | The request ends with                                            | Transaction  |
 | ---------------------------------------------------------------- | ------------ |
 | A value or `reply()` returned by the handler, whatever its status | Committed    |
-| Anything thrown by a guard, validation or the handler            | Rolled back  |
+| Anything thrown by validation or the handler                     | Rolled back  |
 | A response body that fails its schema                            | Rolled back  |
+| A guard that denies or throws                                    | Never opened |
 
-An error rolls back because `next()` rejects with it, and it is turned into a response only after the interceptor has exited. A handler that returns `reply(404, ...)` or `reply(409, ...)` commits; throw an `HttpException` when an error status must also undo the work.
+An error rolls back because `next()` rejects with it, and it is turned into a response only after the interceptor has exited. Guards run before an interceptor attached with `@UseInterceptors`, so a request that one of them stops never reaches it and no transaction is opened. A handler that returns `reply(404, ...)` or `reply(409, ...)` commits; throw an `HttpException` when an error status must also undo the work.
 
 The transaction is committed before the response is written, so a client that receives a success can rely on it.
 

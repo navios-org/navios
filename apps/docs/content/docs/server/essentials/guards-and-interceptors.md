@@ -82,7 +82,7 @@ export class AdminController {
 - A guard class that appears at more than one level runs once, at its first position.
 - The first guard that denies or throws stops the request. Later guards do not run.
 - On a class, place `@UseGuards` above `@Controller` or `@Module`.
-- Guards of the application, which also cover modules that plugins add, are the `guards` option of [`NaviosFactory.create`](/docs/server/essentials/application#options).
+- Guards of the application, which also cover modules that plugins add, are the `guards` option of [`NaviosFactory.create`](/docs/server/essentials/application#options), followed by those added with `app.guard(GuardClass)`, which must be called before `init()`.
 
 A class listed as a guard must be `@Injectable()` and have a `canActivate` method, or `init()` fails.
 
@@ -184,7 +184,7 @@ export class ProfileController {
 - Interceptors of the application run around the guards; those of the other three levels run behind them. A class that is attached at both runs around them.
 - Within one level the first interceptor given is the outermost.
 - An interceptor class that appears at more than one level runs once.
-- `app.intercept()` must be called before `init()`.
+- `app.intercept()` must be called before `init()`. The `interceptors` option of [`NaviosFactory.create`](/docs/server/essentials/application#options) takes the same classes, and they run outside those that `app.intercept()` adds.
 - An interceptor does not run for a request that matches no route.
 
 ## Which one to use

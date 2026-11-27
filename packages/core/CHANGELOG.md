@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- **`@navios/core/transport` exports less.** A transport that imports these from it, `@navios/commander` included, changes the import:
+- **`@navios/core/transport` exports less.** A transport that imports these from it changes the import:
   - `hasModuleMetadata` is removed; `getModuleMetadata` throws for a class that is not a module.
   - The types that `@navios/core` exports are no longer exported a second time: `Transport`, `TransportFactory`, `TransportInstance`, `Guard`, `GuardClass`, `Interceptor`, `InterceptorClass`, `ExecutionContext`, `HandlerInfo`, `AttributeMap`, `ClassType` and `LoggerService`. Import them from `@navios/core`. `TransportDefinition` and `TransportHost` stay.
+- **`RegisterProviderOptions` is no longer exported**, as `@navios/di` no longer has the type.
 - **`isLogLevel` is removed** from `@navios/core`. `filterLogLevels` reads levels from a setting, and throws for one that does not exist.
 - **`BasicExecutionContextInit` has no `signal`**, which no transport passed: the signal of a `BasicExecutionContext` is its own and never aborts.
 - **`HandlerInfo.module` is a `ClassType`**, no longer `| null`: every transport sets it.
@@ -25,11 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`moduleClasses(node, entry)`** in `@navios/core/transport`: the classes a module lists under an option of a transport, once each. Something that is not a class fails with the module and the option, as an import cycle between files leaves `undefined` behind.
 - **`classMetadata(key, what, decorator)`** in `@navios/core/transport`: `define`, `get` and `has` for what a class decorator stores on a class. Only the class itself carries it, not a subclass, and `get` throws `Users is not a controller. Make sure it is decorated with @Controller.` for a class without it.
 - **`ownMetadata(metadata, key, create)` and `requireMetadata(context)`** in `@navios/core/transport`, for decorators that keep their own entries in decorator metadata: the entry of this class, created from what its parent has, and the metadata of a context that has to have one.
+- **`disposeScope(scope)`** in `@navios/core/transport`, re-exported from `@navios/di/internal` as `constructedInstances` is: a transport ends the scope of a context of its own without depending on `@navios/di`.
 - **`settledWithin(work, ms)` and `MAX_DELAY_MS`** in `@navios/core/transport`: whether a promise settles within `ms`, for a transport's `stop(timeoutMs)`. A longer time than a timer takes is cut to `MAX_DELAY_MS`.
 
 ### Fixed
 
 - **An application starts in `workerd`**, the runtime of Cloudflare Workers. `AsyncLocalStorage.disable()` throws there, which failed every lifecycle step, and the logger imported `util` without the `node:` prefix, which a Worker's bundle does not resolve.
+- **A Worker with a compatibility date before 2025-09-15 starts.** Importing `@navios/core` needed `node:os`, which `workerd` has from that date only, so the Worker failed at start-up with `No such module "node:os"`; the module is now asked for when a signal ends process 1, and the exit code is the same. The logger called `process.on()`, which the `process` of an earlier date does not have, so every request was a 500; it waits for the exit of the process only where there is one.
 - **A schema that answers with a thenable that is not a native promise**, such as a promise of another realm, is refused by `AttributeFactory.createAttribute` and `provideConfig` as one that answers with a promise is. It was taken for a result without issues, so the value was `undefined`.
 
 ## [2.0.0-alpha.0] - 2026-11-26

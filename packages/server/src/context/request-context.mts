@@ -1,10 +1,13 @@
-import { ExecutionContextToken, PlainContextKey } from '@navios/core'
-import { needsScope, runInContext } from '@navios/core/transport'
-import { DIError, DIErrorCode } from '@navios/di'
-import { disposeScope } from '@navios/di/internal'
+import { DIError, DIErrorCode, ExecutionContextToken, PlainContextKey } from '@navios/core'
+import { disposeScope, needsScope, runInContext } from '@navios/core/transport'
 
-import type { ContextValue, ExecutionContext } from '@navios/core'
-import type { AnyInjectableType, Container, ScopedContainer } from '@navios/di'
+import type {
+  AnyInjectableType,
+  Container,
+  ContextValue,
+  ExecutionContext,
+  ScopedContainer,
+} from '@navios/core'
 
 import { parseCookies } from '../decoding/parse-cookies.mjs'
 import { readParts } from '../decoding/read-parts.mjs'

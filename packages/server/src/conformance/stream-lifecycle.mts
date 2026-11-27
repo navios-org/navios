@@ -1,7 +1,6 @@
 import { connect } from 'node:net'
 
-import { registerModule } from '@navios/core'
-import { inject, InjectableScope, registerInjectable } from '@navios/di'
+import { inject, InjectableScope, registerInjectable, registerModule } from '@navios/core'
 
 import { NaviosFactory } from '../application/navios-factory.mjs'
 import { registerController } from '../controllers/controller.mjs'

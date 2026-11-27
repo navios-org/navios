@@ -1,5 +1,5 @@
 import type { BaseEndpointOptions, ServerRequestArgs } from '@navios/builder'
-import type { InferInput, StandardSchemaV1 } from '@navios/di'
+import type { InferInput, StandardSchemaV1 } from '@navios/core'
 
 import type { RequestContext } from '../context/request-context.mjs'
 import type { CustomResult } from '../responses/custom-result.mjs'

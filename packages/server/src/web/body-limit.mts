@@ -11,9 +11,16 @@ const READERS = ['text', 'json', 'bytes', 'arrayBuffer', 'blob', 'formData', 'cl
  * The request stays the one that the runtime knows, for what it keeps by it
  * (the `params` and `server.requestIP()` of Bun); what reads its body is
  * replaced.
+ *
+ * A GET or HEAD request is left as it is, as is one without a body: a web
+ * `Request` of those methods cannot have a body, so there is none to put in
+ * its place, and the pipeline reads no body of theirs.
  */
 export function limitBody(request: Request, limit: number): void {
-  const body = request.body!
+  const { body, method } = request
+  if (body === null || method === 'GET' || method === 'HEAD') {
+    return
+  }
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
   let size = 0
   // Bun leaves the url relative when the request names no valid host.

@@ -1,7 +1,6 @@
-import { InjectableScope, registerInjectable } from '@navios/di'
+import { InjectableScope, registerInjectable } from '@navios/core'
 
-import type { AttributeValue, GuardClass, InterceptorClass } from '@navios/core'
-import type { ClassType } from '@navios/di'
+import type { AttributeValue, ClassType, GuardClass, InterceptorClass } from '@navios/core'
 
 import { assertStandardDecorator } from '../internal/standard-decorator.mjs'
 

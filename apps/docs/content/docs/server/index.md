@@ -47,7 +47,7 @@ Return a user without `email`, or answer with a status the declaration does not 
 | `@navios/adapter-xml`     | [XML responses](/docs/server/adapters/xml) written as JSX                         |
 | `@navios/jwt`             | [Signing and verifying JSON Web Tokens](/docs/server/guides/authentication)       |
 | `@navios/schedule`        | [Cron jobs](/docs/server/guides/scheduled-jobs)                                   |
-| `@navios/microservice`    | [Message handlers](/docs/server/guides/other-transports#messages) on a queue      |
+| `@navios/microservice`    | [Message handlers](/docs/server/guides/other-transports#messages) on a queue. Not published yet |
 | `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes      |
 | `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                   |
 

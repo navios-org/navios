@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from '@navios/di'
+import type { StandardSchemaV1 } from '@navios/core'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

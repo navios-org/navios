@@ -21,8 +21,6 @@ export default defineConfig({
     '@navios/core/transport',
     '@navios/core/testing',
     '@navios/core/legacy-compat',
-    '@navios/di',
-    '@navios/di/legacy-compat',
     '@navios/builder',
   ],
   dts: { tsconfig: 'tsconfig.dts.json' },

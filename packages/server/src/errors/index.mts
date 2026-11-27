@@ -18,10 +18,14 @@ export {
   ForbiddenException,
   HttpException,
   InternalServerErrorException,
+  MethodNotAllowedException,
   NotFoundException,
+  PayloadTooLargeException,
+  ServiceUnavailableException,
   TooManyRequestsException,
   UnauthorizedException,
   UnprocessableEntityException,
+  UnsupportedMediaTypeException,
 } from './http-exception.mjs'
 export { problem } from './problem.mjs'
 export type { ProblemDetails } from './problem.mjs'

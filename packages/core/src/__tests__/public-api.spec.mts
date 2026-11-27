@@ -70,6 +70,7 @@ describe('the exports of', () => {
         'constructedInstances',
         'defineTransport',
         'describeHandlerClass',
+        'disposeScope',
         'executeChain',
         'getModuleMetadata',
         'handlerChain',

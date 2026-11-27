@@ -1,5 +1,4 @@
-import { registerModule } from '@navios/core'
-import { registerInjectable } from '@navios/di'
+import { registerInjectable, registerModule } from '@navios/core'
 
 import { NaviosFactory } from '../application/navios-factory.mjs'
 import { registerController } from '../controllers/controller.mjs'

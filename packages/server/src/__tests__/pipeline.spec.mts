@@ -1,5 +1,4 @@
-import { createContextKey } from '@navios/core'
-import { inject, Injectable, InjectableScope } from '@navios/di'
+import { createContextKey, inject, Injectable, InjectableScope } from '@navios/core'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 

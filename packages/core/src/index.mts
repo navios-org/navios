@@ -51,7 +51,6 @@ export type {
   ProviderInput,
   RegisterFactoryOptions,
   RegisterInjectableOptions,
-  RegisterProviderOptions,
   ResolvedInstance,
   StandardSchemaIssue,
   StandardSchemaV1,

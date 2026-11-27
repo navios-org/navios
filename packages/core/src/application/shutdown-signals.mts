@@ -1,5 +1,3 @@
-import { constants } from 'node:os'
-
 import { outsideSteps } from './lifecycle-step.mjs'
 
 interface Closable {
@@ -100,10 +98,40 @@ async function receive(signal: NodeJS.Signals, registry: SignalRegistry): Promis
   }
 }
 
+/**
+ * The numbers that are the same on every platform, for a runtime that has no
+ * `node:os` to ask.
+ */
+const SIGNAL_NUMBERS: Partial<Record<NodeJS.Signals, number>> = {
+  SIGHUP: 1,
+  SIGINT: 2,
+  SIGQUIT: 3,
+  SIGABRT: 6,
+  SIGKILL: 9,
+  SIGALRM: 14,
+  SIGTERM: 15,
+}
+
+/**
+ * The number of a signal. `node:os` is asked for when a signal has arrived
+ * and not imported: workerd has no such module before the compatibility date
+ * 2025-09-15, and a Worker that never gets a signal must still load.
+ */
+function signalNumber(signal: NodeJS.Signals): number | undefined {
+  let numbers: Partial<Record<string, number>> | undefined
+  try {
+    numbers = process.getBuiltinModule?.('node:os')?.constants.signals
+  } catch {
+    // The runtime does not have it.
+  }
+  return numbers?.[signal] ?? SIGNAL_NUMBERS[signal]
+}
+
 function endProcess(signal: NodeJS.Signals): void {
   if (process.pid === 1) {
     // The first process of a container gets no signal that it does not handle.
-    process.exit(128 + constants.signals[signal])
+    const number = signalNumber(signal)
+    process.exit(number === undefined ? 1 : 128 + number)
   } else {
     process.kill(process.pid, signal)
   }

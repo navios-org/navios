@@ -1,4 +1,4 @@
-import type { StandardSchemaIssue } from '@navios/di'
+import type { StandardSchemaIssue } from '@navios/core'
 
 import { resumeStacks, suspendStacks } from './client-error-stacks.mjs'
 

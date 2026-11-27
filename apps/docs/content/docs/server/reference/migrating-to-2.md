@@ -27,8 +27,10 @@ For an HTTP application the change is the package name:
 
 ```diff
 - npm install @navios/core
-+ npm install @navios/server@next
++ npm install @navios/server@next @navios/core@next
 ```
+
+`@navios/core` is a peer dependency of `@navios/server` and of its plugins, so that they share one copy of it. `@navios/di` comes with `@navios/core`.
 
 ```diff
 - import { Controller, inject, Injectable, Module, NaviosFactory } from '@navios/core'
@@ -51,7 +53,7 @@ Packages that do not need HTTP depend on `@navios/core` alone: `@navios/jwt`, `@
 | `app.setGlobalPrefix(prefix)`                                                                  | the `globalPrefix` application option                                                                           |
 | `app.init()` before `app.listen()`                                                             | `app.listen()` initialises the application                                                                      |
 | `app.dispose()`                                                                                | `app.close()`. `dispose()` remains as an alias.                                                                 |
-| Fastify schema validation, `fastify-type-provider-zod`                                         | not used. Validation happens in `@navios/server`, the same on both adapters.                                                |
+| Fastify schema validation, `fastify-type-provider-zod`                                         | not used. Validation happens in `@navios/server`, the same on every adapter.                                                |
 | response validation off by default on Bun                                                      | on by default on every adapter (`validateResponses: 'always'`)                                                  |
 | `validateResponses: true` or `false` | `'always'` (the default) or `'never'` |
 | `app.configure(options)` | the options of the adapter factory |
@@ -173,7 +175,7 @@ These are the DI changes that show up in server code. [DI's migration page](/doc
 | 1.x                                                                  | 2.0                                                                                                                                  |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `schedulerService.register(Service)` started the jobs                | give the application `transports: [scheduleTransport()]`; jobs start with `app.start()` or `app.listen()`, and not with `app.init()` |
-| registering in a module's `onModuleInit`                             | `@Module({ jobs: [Service] })`, or `scheduleTransport({ services: [Service] })`. Registering there still works                       |
+| registering in a module's `onModuleInit`                             | `@Module({ jobs: [Service] })`, or `scheduleTransport({ jobs: [Service] })`. Registering there still works                       |
 | jobs kept running until `stopAll()`                                  | `app.close()` stops every job and waits for runs in progress, at most `shutdownTimeout`                                              |
 | runs of one job could overlap                                        | a tick that finds the job running is skipped; `@Cron(expression, { overlap: 'allow' })` gives the old behaviour                      |
 | `startAll()`, `stopAll()`                                            | `start()`, which leaves `disabled` jobs alone, and `stop()`                                                                          |
@@ -407,7 +409,7 @@ Services that used to inject the request-scoped service now take the value as an
 + }
 ```
 
-The declarations carry the kind: `response: 'stream'` on `exportCsv` and `body: 'multipart'` on `upload`. Multipart `data` contains strings and `File` objects on both adapters. See [Streams and server-sent events](/docs/server/guides/streams-and-sse) and [File uploads](/docs/server/guides/file-uploads).
+The declarations carry the kind: `response: 'stream'` on `exportCsv` and `body: 'multipart'` on `upload`. Multipart `data` contains strings and `File` objects on every adapter. See [Streams and server-sent events](/docs/server/guides/streams-and-sse) and [File uploads](/docs/server/guides/file-uploads).
 
 ## Plugins
 

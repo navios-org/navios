@@ -1,4 +1,4 @@
-import type { InferInput, StandardSchemaV1 } from '@navios/di'
+import type { InferInput, StandardSchemaV1 } from '@navios/core'
 
 import { ResponseValidationError } from '../errors/validation-error.mjs'
 

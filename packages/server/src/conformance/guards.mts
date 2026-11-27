@@ -1,7 +1,9 @@
-import { registerModule } from '@navios/core'
-import { AttributeFactory } from '@navios/core'
-import { createContextKey } from '@navios/core'
-import { registerInjectable } from '@navios/di'
+import {
+  AttributeFactory,
+  createContextKey,
+  registerInjectable,
+  registerModule,
+} from '@navios/core'
 
 import { registerRequestValue } from '../context/request-value.mjs'
 import { registerController } from '../controllers/controller.mjs'

@@ -8,6 +8,10 @@ An application is a module tree, one DI container and the *transports* through w
 
 `NaviosFactory.create` builds an application whose transport is HTTP. Underneath it is `createApplication` from `@navios/core`, which takes any list of transports:
 
+:::info
+`@navios/microservice` and `@navios/queues`, which the examples of this page use for messages, are not published to npm yet. [`@navios/schedule`](/docs/server/guides/scheduled-jobs) is.
+:::
+
 ```ts
 import { createApplication } from '@navios/core'
 import { messageTransport } from '@navios/microservice'
@@ -103,7 +107,7 @@ export class ApiKeyGuard implements Guard {
 
 ## Messages
 
-`@navios/microservice` handles messages declared with `messageBuilder()` from `@navios/queues`:
+`@navios/microservice` handles messages declared with `messageBuilder()` from `@navios/queues`. Neither package is published yet:
 
 ```ts
 import { Module } from '@navios/core'

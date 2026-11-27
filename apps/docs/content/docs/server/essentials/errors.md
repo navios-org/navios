@@ -63,10 +63,14 @@ The subclasses, each with a default message:
 | `UnauthorizedException`        | 401    |
 | `ForbiddenException`           | 403    |
 | `NotFoundException`            | 404    |
+| `MethodNotAllowedException`    | 405    |
 | `ConflictException`            | 409    |
+| `PayloadTooLargeException`     | 413    |
+| `UnsupportedMediaTypeException` | 415    |
 | `UnprocessableEntityException` | 422    |
 | `TooManyRequestsException`     | 429    |
 | `InternalServerErrorException` | 500    |
+| `ServiceUnavailableException`  | 503    |
 
 ## Mapping domain errors
 
@@ -150,7 +154,7 @@ A request that fails [validation](/docs/server/essentials/controllers#validation
 }
 ```
 
-- `source` is the part of the request that failed: `urlParams`, `query` or `body`.
+- `source` is the part of the request that failed: `urlParams`, `query`, `body`, `headers` or `cookies`. The last two occur only for a declaration that carries a [`headersSchema` or a `cookiesSchema`](/docs/server/essentials/controllers#validation).
 - `errors` has one entry per issue reported by the schema library, with the issue's path joined by dots and its message unchanged.
 - A body that is not valid JSON is reported the same way, with `source: 'body'` and an empty `path`.
 

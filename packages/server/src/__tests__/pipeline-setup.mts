@@ -1,4 +1,4 @@
-import { Container } from '@navios/di'
+import { Container } from '@navios/core'
 
 import { LiveRequests } from '../context/live-requests.mjs'
 import { ErrorPipeline } from '../errors/error-pipeline.mjs'

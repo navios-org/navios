@@ -1,4 +1,4 @@
-import { InjectionToken, registerInjectable } from '@navios/di'
+import { InjectionToken, registerInjectable } from '@navios/core'
 
 import type { EndpointReply } from '../responses/reply.mjs'
 import type { RouteResult } from '../routing/route-result.mjs'

@@ -1,5 +1,5 @@
+import type { ClassType } from '@navios/core'
 import type { ModuleNode } from '@navios/core/transport'
-import type { ClassType } from '@navios/di'
 
 import { joinPaths } from '../routing/join-paths.mjs'
 

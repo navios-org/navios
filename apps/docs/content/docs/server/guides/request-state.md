@@ -187,11 +187,11 @@ async getPlan(_params: HandlerParams<typeof getPlan>, ctx: RequestContext) {
 ```
 
 - `ctx.use(Token)` resolves synchronously. It throws when the service or one of its dependencies has an asynchronous `onServiceInit`; use `await ctx.resolve(Token)` for those.
-- The first `ctx.use()` or `ctx.resolve()` of a request creates its DI scope. A request that calls neither has no scope and pays nothing for one.
-- The scope is disposed after the response has been sent, which runs `onServiceDestroy`. After that point `ctx.use()` and `ctx.resolve()` throw.
+- The first `ctx.use()` or `ctx.resolve()` of a request for a service that is not a singleton creates its DI scope. A request that asks for singletons only, or for nothing, has no scope and pays nothing for one.
+- The scope is disposed after the response has been sent, which runs `onServiceDestroy`. After that point `ctx.use()` and `ctx.resolve()` throw for a service that is not a singleton; a singleton still resolves.
 
 :::warning
-A request-scoped service cannot be injected into a singleton. Controllers, guards, interceptors and request values are singletons, so `inject(AuditTrail)` in any of them fails at `init()` with a scope mismatch error that names the path. Reach the service with `ctx.use()` instead.
+A request-scoped service cannot be injected into a singleton. Controllers, guards, interceptors and request values are singletons, so `inject(AuditTrail)` in any of them fails with a scope mismatch error that names the path: at `init()` in a controller, a guard, an interceptor or a request value [listed in `requestValues`](#listing-values-in-a-module), and at the first `ctx.get()` in a request value that is not listed. Reach the service with `ctx.use()` instead.
 :::
 
 Scopes themselves are explained in [Scopes](/docs/di/essentials/scopes).

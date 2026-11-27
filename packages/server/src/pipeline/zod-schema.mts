@@ -1,4 +1,4 @@
-import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/di'
+import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/core'
 
 export interface ZodPayload {
   value: unknown

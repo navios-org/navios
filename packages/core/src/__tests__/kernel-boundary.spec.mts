@@ -53,6 +53,12 @@ describe('@navios/core', () => {
     )
   })
 
+  // Importing it is all a Worker does with what only a process needs, and
+  // workerd has no `node:os` before the compatibility date 2025-09-15.
+  it.each(entries)('%s does not import node:os', (entry) => {
+    expect(reach(entry).packages).not.toContain('node:os')
+  })
+
   it('has no HTTP type in its sources', () => {
     const offenders = entries
       .flatMap((entry) => reach(entry).files)

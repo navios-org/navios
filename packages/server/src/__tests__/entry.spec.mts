@@ -28,18 +28,22 @@ describe('the main entry', () => {
       'InternalServerErrorException',
       'InternalServerErrorResponder',
       'InternalServerErrorResponderToken',
+      'MethodNotAllowedException',
       'NaviosApplication',
       'NaviosFactory',
       'NotFoundException',
       'NotFoundResponder',
       'NotFoundResponderToken',
+      'PayloadTooLargeException',
       'RequestContext',
       'RequestContextToken',
       'RequestValue',
       'ResponseValidationError',
+      'ServiceUnavailableException',
       'TooManyRequestsException',
       'UnauthorizedException',
       'UnprocessableEntityException',
+      'UnsupportedMediaTypeException',
       'ValidationError',
       'ValidationErrorResponder',
       'ValidationErrorResponderToken',
@@ -54,6 +58,25 @@ describe('the main entry', () => {
       'result',
       'sse',
       'sseStream',
+    ])
+  })
+
+  it('has an exception for each status the framework answers with itself', () => {
+    const statuses = [
+      server.MethodNotAllowedException,
+      server.PayloadTooLargeException,
+      server.UnsupportedMediaTypeException,
+      server.ServiceUnavailableException,
+    ].map((Exception) => {
+      const error = new Exception()
+      expect(error).toBeInstanceOf(server.HttpException)
+      return [error.statusCode, error.message]
+    })
+    expect(statuses).toEqual([
+      [405, 'Method Not Allowed'],
+      [413, 'Payload Too Large'],
+      [415, 'Unsupported Media Type'],
+      [503, 'Service Unavailable'],
     ])
   })
 

@@ -324,6 +324,13 @@ describe('a process that receives SIGTERM', () => {
     expect([signal, code]).toEqual([null, 143])
   }, 15_000)
 
+  it('exits with the same code when the runtime has no node:os', async () => {
+    const { signal, code, out } = await run('process-1-without-os')
+
+    expect(out).toContain('closed')
+    expect([signal, code]).toEqual([null, 143])
+  }, 15_000)
+
   it('ends at once on a second signal', async () => {
     const { signal, out } = await run('hung-hook', 200)
 

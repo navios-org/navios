@@ -64,6 +64,22 @@ describe('limitBody', () => {
     limitBody(request, 1)
     expect(request.bodyUsed).toBe(false)
   })
+
+  // A runtime may hand over a GET with `transfer-encoding: chunked`, which a
+  // `Request` of its own cannot be built for.
+  it.each(['GET', 'HEAD'])('leaves a %s request as it is, body or not', async (method) => {
+    const request = post('0123456789')
+    Object.defineProperty(request, 'method', { value: method })
+    const { body } = request
+    limitBody(request, 1)
+    expect(request.body).toBe(body)
+    expect(await request.text()).toBe('0123456789')
+
+    const empty = new Request('http://app.example/items', { method })
+    limitBody(empty, 1)
+    expect(empty.body).toBeNull()
+    expect(await empty.text()).toBe('')
+  })
 })
 
 describe('toWebHeaders', () => {

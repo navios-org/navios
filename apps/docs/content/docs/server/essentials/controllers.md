@@ -191,7 +191,7 @@ Both directions are validated against the declaration, with whichever Standard S
 
 **Requests.** URL parameters (when the declaration has a `urlParamsSchema`), then the query, then the body. A declaration that carries a `cookiesSchema` or a `headersSchema` has its cookies validated before the URL parameters and its headers between the query and the body. The body is read from the connection only after guards have passed and the earlier parts are valid. A failure answers 400 with a [validation error body](/docs/server/essentials/errors#validation-errors) and the handler does not run.
 
-Headers and cookies are not validated: `declareEndpoint` has no schema option for them, so read them from [`ctx.headers` and `ctx.cookies`](/docs/server/essentials/request-context#request-data). `@navios/server` does validate a `headersSchema` and a `cookiesSchema` when a declaration's `config` carries them, reporting failures with `source: 'headers'` or `'cookies'`, but the handler types do not include the results.
+Headers and cookies are validated only when a declaration's `config` carries a `headersSchema` or a `cookiesSchema`; `declareEndpoint` has no schema option of its own for them. A failure is reported with `source: 'headers'` or `'cookies'`. The handler types do not include the results, so read the values from [`ctx.headers` and `ctx.cookies`](/docs/server/essentials/request-context#request-data).
 
 **Responses.** A JSON body is validated against the schema for its status before it is sent. This removes fields the schema does not declare, which keeps internal fields such as a password hash from leaking. A body that does not match its schema is a 500, and the error is logged. `text`, `blob` and `stream` responses are not validated.
 
