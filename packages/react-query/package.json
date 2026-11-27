@@ -17,6 +17,7 @@
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "sideEffects": false,
   "main": "./lib/index.cjs",
   "module": "./lib/index.mjs",
   "typings": "./lib/index.d.mts",

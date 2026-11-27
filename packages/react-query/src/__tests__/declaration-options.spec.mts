@@ -50,7 +50,13 @@ describe('TanStack options on a query declaration', () => {
     })
     expect(overridden).toMatchObject({ staleTime: 0, gcTime: Infinity })
     expect(plain).not.toHaveProperty('keyPrefix')
-    expect(plain.queryKey).toEqual(['reporting', 'GET', '/reports/$id', { urlParams: { id: '1' } }])
+    expect(plain.queryKey).toEqual([
+      'reporting',
+      'GET',
+      '/reports/$id',
+      'query',
+      { urlParams: { id: '1' } },
+    ])
   })
 
   it('passes them to the hooks, including a query disabled with skipToken', () => {

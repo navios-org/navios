@@ -21,11 +21,22 @@ export type CacheHelpers<Options extends BaseEndpointOptions, TData, TError, TKe
   /**
    * Cache key for the given args.
    *
-   * - no args: prefix of every entry of this endpoint
+   * - no args: prefix of every entry of this query
    * - partial args: prefix of every entry that matches them
    * - full args: the exact key
+   *
+   * It only matches entries of this declaration's form (plain, infinite,
+   * `withResponse`), which all hold `TData`. For every form of the endpoint,
+   * use {@link CacheHelpers.endpointKey | endpointKey}.
    */
   key: (args?: PartialKeyedInputs<Options, TKeyBy>) => TaggedKey<TData, TError>
+
+  /**
+   * Key prefix of every entry of the endpoint: plain, infinite and
+   * `withResponse` alike. The entries hold data of different shapes, so use it
+   * to invalidate, cancel or remove, not to read or write data.
+   */
+  endpointKey: readonly unknown[]
 
   /** Reads the cached data for these args. */
   getData: (
@@ -41,9 +52,10 @@ export type CacheHelpers<Options extends BaseEndpointOptions, TData, TError, TKe
   ) => TData | undefined
 
   /**
-   * Invalidates entries of this endpoint: all of them without args, the
-   * matching ones with partial args. Pass `{ exact: true }` to hit one entry.
-   * A shared entry refetches with the shared inputs sent last.
+   * Invalidates entries of this endpoint: all of them, of every form, without
+   * args; with partial args the matching ones of this query. Pass
+   * `{ exact: true }` to hit one entry. A shared entry refetches with the
+   * shared inputs sent last.
    */
   invalidate: (
     queryClient: QueryClient,
@@ -71,6 +83,8 @@ export function attachCacheHelpers<Options extends BaseEndpointOptions>(
 ): void {
   query.key = (args?: LooseArgs) => keys.key(args)
 
+  query.endpointKey = keys.endpoint
+
   query.getData = (queryClient: QueryClient, args?: LooseArgs) =>
     queryClient.getQueryData(keys.key(args))
 
@@ -78,7 +92,7 @@ export function attachCacheHelpers<Options extends BaseEndpointOptions>(
     queryClient.setQueryData(keys.key(args), updater as never)
 
   query.invalidate = (queryClient: QueryClient, args?: LooseArgs, filters?: LooseOptions) =>
-    queryClient.invalidateQueries({ ...filters, queryKey: keys.key(args) })
+    queryClient.invalidateQueries({ ...filters, queryKey: keys.scope(args) })
 
   query.endpoint = endpoint
 }

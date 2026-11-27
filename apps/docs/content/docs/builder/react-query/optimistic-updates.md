@@ -31,11 +31,11 @@ Everything is typed: `variables` from the mutation's endpoint, `current` from th
 
 When `mutate` is called, for each update:
 
-1. Fetches of the entry that are in flight are cancelled, so a late response cannot overwrite the optimistic value.
+1. Fetches of the entry that are in flight are cancelled, so a late response cannot overwrite the optimistic value. Only that entry: other entries of the endpoint keep loading.
 2. The entry is replaced with `update(current, variables)`.
 3. Your own `onMutate` runs, then the request is sent.
 4. If the mutation fails, the update is undone.
-5. When the mutation settles, the entry is invalidated so the server's state replaces the guess.
+5. When the mutation settles, the entry, and no other, is invalidated so the server's state replaces the guess.
 
 Rollback is tracked per cache entry, not per mutation. When two mutations are pending on one entry and the first fails, only its change is removed: the entry is rebuilt from the last real value plus the update that is still pending.
 

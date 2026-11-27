@@ -30,7 +30,16 @@ const handle = teamEvents({ urlParams: { teamId: '7' } })
 
 Both schemas must validate synchronously, because the connection opens synchronously. The arguments can be left out when none is required. `params` are validated even then, so that the defaults and required fields of `querySchema` apply. Here the schema's output becomes the query string: `undefined` and `null` are skipped, a `Date` is written as an ISO string, and an array repeats its key for each item.
 
-When several streams share a host, `createEventSourceHandler({ baseUrl, onError })` returns a `declareEventSource` with the base URL applied.
+When several streams share a host, `createEventSourceHandler({ baseURL, onError })` returns a `declareEventSource` with the base URL applied. `baseURL` and `url` are joined with exactly one slash, and a `url` with a scheme of its own is used as it is.
+
+Connecting with arguments that cannot be used throws a `ConnectionError`, and no stream is opened. Its `kind` is one of the two an HTTP call has for the same mistakes:
+
+| `kind`               | When                                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `request-validation` | `urlParamsSchema` or `querySchema` rejected the arguments. `issues` lists `{ message, path?, part }`, with `part` `'urlParams'` or `'params'` |
+| `config`             | A URL parameter is missing, empty, `.` or `..`, or has no form in a URL; a schema validates asynchronously; the runtime has no `EventSource` |
+
+A `ConnectionError` is a `NaviosError` with `kind`, `url` (the URL template), `issues` and `cause` (what the schema library reported, or what was thrown). `isConnectionError(value)` from `@navios/builder/eventsource` is the type guard. It is thrown to the caller and not passed to `onError`.
 
 ### Another EventSource class
 
@@ -41,7 +50,7 @@ import { createEventSourceHandler } from '@navios/builder/eventsource'
 import { EventSource } from 'eventsource'
 
 const declareEventSource = createEventSourceHandler({
-  baseUrl: 'https://api.example.com',
+  baseURL: 'https://api.example.com',
   EventSource,
 })
 ```

@@ -27,6 +27,13 @@ export type { SocketClient } from './socket-client.mjs'
 // Errors
 export { SocketError, isSocketError } from './socket-error.mjs'
 export type { SocketErrorInit, SocketErrorKind } from './socket-error.mjs'
+export { ConnectionError, isConnectionError } from '../shared/realtime.mjs'
+export type {
+  ConnectionErrorInit,
+  ConnectionErrorKind,
+  ConnectionIssue,
+  ConnectionPart,
+} from '../shared/realtime.mjs'
 
 // WebSocket wrapper
 export { createWebSocketHandler, declareWebSocket } from './declare-websocket.mjs'

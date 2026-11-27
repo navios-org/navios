@@ -42,12 +42,14 @@ describe('client.query', () => {
       expect(getUser({ urlParams: { userId: 42 }, params: { expand: 'team' } }).queryKey).toEqual([
         'GET',
         '/users/$userId',
+        'query',
         { urlParams: { userId: '42' }, params: { expand: 'team' } },
       ])
-      expect(getUser.key()).toEqual(['GET', '/users/$userId'])
+      expect(getUser.key()).toEqual(['GET', '/users/$userId', 'query'])
       expect(getUser.key({ urlParams: { userId: 42 } })).toEqual([
         'GET',
         '/users/$userId',
+        'query',
         { urlParams: { userId: '42' } },
       ])
     })
@@ -63,6 +65,7 @@ describe('client.query', () => {
       expect(search({ data: { q: 'a' } }).queryKey).toEqual([
         'POST',
         '/users/search',
+        'query',
         { data: { q: 'a' } },
       ])
       expect(search({ data: { q: 'a' } }).queryKey).not.toEqual(
@@ -85,12 +88,13 @@ describe('client.query', () => {
         responseSchema: z.any(),
       })
 
-      expect(list().queryKey).toEqual(['GET', '/users'])
-      expect(list({ params: {} }).queryKey).toEqual(['GET', '/users'])
-      expect(list({ params: { page: undefined } }).queryKey).toEqual(['GET', '/users'])
+      expect(list().queryKey).toEqual(['GET', '/users', 'query'])
+      expect(list({ params: {} }).queryKey).toEqual(['GET', '/users', 'query'])
+      expect(list({ params: { page: undefined } }).queryKey).toEqual(['GET', '/users', 'query'])
       expect(list({ headers: { a: 'b' }, timeout: 5, signal: null }).queryKey).toEqual([
         'GET',
         '/users',
+        'query',
       ])
     })
 
@@ -176,6 +180,7 @@ describe('client.query', () => {
         'GET',
         '/users/$id',
         'v2',
+        'query',
         { urlParams: { id: '1' } },
       ])
     })
@@ -200,9 +205,9 @@ describe('client.query', () => {
       })
       const plain = client.query(endpoint)
 
-      expect(scoped.key()).toEqual(['core', 'tenant-1', 'GET', '/users/$id', 'v1', 'beta'])
-      expect(inline.key()).toEqual(['core', 'admin', 'GET', '/users', 'v1'])
-      expect(plain.key()).toEqual(['core', 'GET', '/users/$id', 'v1'])
+      expect(scoped.key()).toEqual(['core', 'tenant-1', 'GET', '/users/$id', 'v1', 'beta', 'query'])
+      expect(inline.key()).toEqual(['core', 'admin', 'GET', '/users', 'v1', 'query'])
+      expect(plain.key()).toEqual(['core', 'GET', '/users/$id', 'v1', 'query'])
     })
   })
 
@@ -251,7 +256,7 @@ describe('client.query', () => {
       })
 
       const options = list({ params: { page: 'x' as never } })
-      expect(options.queryKey).toEqual(['GET', '/users', { params: { page: 'x' } }])
+      expect(options.queryKey).toEqual(['GET', '/users', 'query', { params: { page: 'x' } }])
       await expect(
         list.fetch(ctx.queryClient, { params: { page: 'x' as never } }),
       ).rejects.toMatchObject({ kind: 'request-validation' })
@@ -385,7 +390,7 @@ describe('client.query', () => {
 
       expect(hooks.useQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          queryKey: ['GET', '/users/$userId', { urlParams: { userId: '1' } }],
+          queryKey: ['GET', '/users/$userId', 'query', { urlParams: { userId: '1' } }],
           staleTime: 5000,
           enabled: false,
           select,
@@ -403,7 +408,7 @@ describe('client.query', () => {
       getUser.use(skipToken)
 
       expect(hooks.useQuery).toHaveBeenCalledWith({
-        queryKey: ['GET', '/users/$userId', 'skipped'],
+        queryKey: ['GET', '/users/$userId', 'query', 'skipped'],
         queryFn: skipToken,
       })
     })
@@ -412,7 +417,7 @@ describe('client.query', () => {
       const list = ctx.client.query({ method: 'GET', url: '/users', responseSchema: z.any() })
       list.useSuspense()
       expect(hooks.useSuspenseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: ['GET', '/users'] }),
+        expect.objectContaining({ queryKey: ['GET', '/users', 'query'] }),
       )
     })
   })
@@ -462,6 +467,7 @@ describe('client.query', () => {
         'GET',
         '/users/$userId',
         'with-response',
+        'query',
         { urlParams: { userId: '1' } },
       ])
       expect(plain.getData(ctx.queryClient, args)).toBeUndefined()
@@ -535,6 +541,7 @@ describe('client.infiniteQuery', () => {
     expect(plain({ params: { page: 1 } }).queryKey).toEqual([
       'GET',
       '/items',
+      'query',
       { params: { page: 1 } },
     ])
   })
@@ -552,6 +559,42 @@ describe('client.infiniteQuery', () => {
     const next = options.getNextPageParam(data.pages[0]!, data.pages, data.pageParams[0]!, [])
     expect(next).toEqual({ page: 2, size: 10 })
     expect(infinite.getData(ctx.queryClient, { params: { page: 1, size: 10 } })).toEqual(data)
+  })
+
+  it('lets getNextPageParam return only what changes, and read the rest', async () => {
+    const seen: unknown[] = []
+    const infinite = ctx.client.infiniteQuery({
+      method: 'GET',
+      url: '/items',
+      querySchema: z.object({ page: z.number(), size: z.number() }),
+      responseSchema: pageSchema,
+      getNextPageParam: (lastPage, _pages, lastParam, allParams) => {
+        seen.push({ lastParam, allParams })
+        return lastPage.next === null ? undefined : { page: lastParam.page + 1 }
+      },
+    })
+    const args = { params: { page: 1, size: 10 } }
+
+    const data = await ctx.queryClient.infiniteQuery({ ...infinite(args), pages: 2 })
+
+    expect(ctx.http.calls.map((call) => call.params)).toEqual([
+      { page: 1, size: 10 },
+      { page: 2, size: 10 },
+    ])
+    expect(data.pageParams).toEqual([{ page: 1, size: 10 }, { page: 2 }])
+    infinite(args).getNextPageParam(
+      data.pages[1]!,
+      data.pages,
+      data.pageParams[1]!,
+      data.pageParams,
+    )
+    expect(seen.at(-1)).toEqual({
+      lastParam: { page: 2, size: 10 },
+      allParams: [
+        { page: 1, size: 10 },
+        { page: 2, size: 10 },
+      ],
+    })
   })
 
   it('honours an explicit initialPageParam', () => {

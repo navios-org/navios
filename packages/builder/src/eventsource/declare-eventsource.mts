@@ -51,7 +51,7 @@ function parseData(text: string): unknown {
  * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const declareEventSource = createEventSourceHandler({
- *   baseUrl: 'https://api.example.com',
+ *   baseURL: 'https://api.example.com',
  * })
  *
  * const chatEvents = declareEventSource({
@@ -75,7 +75,7 @@ export function createEventSourceHandler(config: CreateEventSourceHandlerConfig 
   ): EventSourceHandler<Options> {
     return declareConnection(
       options,
-      config.baseUrl,
+      config.baseURL,
       () => config.EventSource ?? globalThis.EventSource,
       '[Navios-EventSource]: this runtime has no EventSource. Pass one to createEventSourceHandler({ EventSource })',
       (EventSourceImpl, fullUrl) =>

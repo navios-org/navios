@@ -6,7 +6,7 @@ A small HTTP client on top of `fetch`, with an API that follows axios. It is the
 
 - It is small and has no dependencies
 - It uses `fetch` everywhere, so it behaves the same in browsers, Node.js, Bun and edge runtimes, and passes options such as `cache` and Next.js' `next` through
-- Interceptors, `baseURL`, default headers and errors for error statuses work as you know them from axios
+- Interceptors, `baseURL`, default headers and errors for error statuses work as you know them from axios, with one difference: request interceptors run in the order they were added, where axios runs the one added last first
 
 It is not a replacement for all of axios: there is no `transformRequest`, `auth`, proxy or upload progress.
 
@@ -40,6 +40,15 @@ const client = create({
 const { data } = await client.get<User[]>('/users', { params: { page: 2 } })
 ```
 
+The methods of the default client are also named exports: `get`, `post`, `put`, `patch`, `del` (for `delete`), `head` and `options`.
+
+```ts
+import { get, post } from '@navios/http'
+
+const { data } = await get<User[]>('https://example.com/api/users')
+await post('https://example.com/api/users', { name: 'Ada' })
+```
+
 ## Interceptors
 
 ```ts
@@ -62,7 +71,7 @@ client.interceptors.response.use(
 )
 ```
 
-- They run in the order they were added.
+- They run in the order they were added, request interceptors too. axios runs request interceptors in reverse, the one added last first, so check the order when you move a client over.
 - Request interceptors run before `params` and `data` are serialized, so they can change both. They get a shallow copy of a plain object or array, so changing it in place does not change what the caller passed. `config.headers` lists names in lower case, and takes them in any.
 - What an interceptor returns takes the place of the config or the response. Returning nothing keeps it.
 - A rejected handler receives every failure before it: error statuses, network errors, and what another interceptor threw. What it returns becomes the result, so rethrow what you do not handle. A rejected handler of a request has to return a config.
@@ -146,6 +155,7 @@ Creates a client.
 - `validateStatus` - Which statuses resolve. The default is 200 to 299
 - `adapter` - A `fetch` to use instead of the global one, like the one from `undici`
 - `URLSearchParams` - An implementation to write `params` with, instead of the global one. A `FormData` body is recognised by its tag, whatever implementation made it
+- `timeout`, `credentials`, `withCredentials` and other `fetch` options (`cache`, `mode`, `redirect`, ...) - Defaults for every request, described under `client.request`. A request's own option wins
 
 ### `client.request(config)`
 
@@ -166,11 +176,21 @@ Plus other `fetch` options.
 
 ### `client.post(url[, data[, config]])`, `client.put`, `client.patch`
 
+### `client.create(config)`
+
+Creates a client that starts from the `defaults` of `client`, as they are when it is called. `config` is merged over them, and headers are merged by name. Interceptors are not copied. `create` imported from the package starts without any defaults.
+
+```ts
+const api = create({ baseURL: 'https://example.com/api', headers: { 'X-App': 'web' } })
+const slow = api.create({ timeout: 60_000 }) // same baseURL and headers
+```
+
 ### `client.defaults`
 
 The configuration of the client. Changes apply to every later request.
 
 ```ts
+client.defaults.timeout = 5000
 client.defaults.headers['X-Tenant'] = 'acme'
 delete client.defaults.headers['x-tenant'] // any case
 ```

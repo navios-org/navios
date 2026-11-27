@@ -9,6 +9,7 @@ import type { EndpointHandler } from '@navios/builder'
 import type { QueryClient } from '@tanstack/react-query'
 
 import { createKeyBuilder } from '../endpoint/cache-key.mjs'
+import { withQuerySignal } from '../endpoint/combine-signals.mjs'
 import { createCaller } from '../endpoint/create-caller.mjs'
 import { callOptionsFor } from '../endpoint/http-client.mjs'
 
@@ -29,7 +30,8 @@ type LooseArgs = { params?: Record<string, unknown>; [key: string]: unknown } | 
  * Creates an {@link InfiniteQueryObject} for an endpoint.
  *
  * Each page calls the endpoint with the page param merged over the call's
- * `params`. The first page param defaults to those `params` themselves.
+ * `params`, so a page param only holds what changes from page to page. The
+ * first page param defaults to those `params` themselves.
  *
  * Infinite queries get their own cache entries: the key carries an
  * `'infinite'` marker, so the same endpoint can also be used as a plain
@@ -39,7 +41,7 @@ type LooseArgs = { params?: Record<string, unknown>; [key: string]: unknown } | 
  * ```ts
  * const listUsers = makeInfiniteQuery(listUsersEndpoint, {
  *   getNextPageParam: (lastPage, _all, lastParam) =>
- *     lastPage.hasMore ? { ...lastParam, page: lastParam.page + 1 } : undefined,
+ *     lastPage.hasMore ? { page: lastParam.page + 1 } : undefined,
  * })
  *
  * const { data, fetchNextPage } = listUsers.use({ params: { page: 1 } })
@@ -71,9 +73,30 @@ export function makeInfiniteQuery<
     return args?.params ?? {}
   }
 
+  type PageParams = Record<string, unknown>
+  type GetPageParam = (
+    page: unknown,
+    allPages: unknown[],
+    pageParam: PageParams,
+    allPageParams: PageParams[],
+  ) => unknown
+
+  /**
+   * Hands the declaration's function the query params each page was requested
+   * with (the cached page param merged over the call's `params`), so it can
+   * read a param it did not return itself.
+   */
+  const withParams = (args: LooseArgs, getPageParam: GetPageParam): GetPageParam => {
+    const merged = (pageParam: PageParams) => ({ ...args?.params, ...pageParam })
+    return (page, allPages, pageParam, allPageParams) =>
+      getPageParam(page, allPages, merged(pageParam), allPageParams.map(merged))
+  }
+
   const pagination = (args: LooseArgs) => ({
-    getNextPageParam: getNextPageParam as never,
-    ...(getPreviousPageParam ? { getPreviousPageParam: getPreviousPageParam as never } : {}),
+    getNextPageParam: withParams(args, getNextPageParam as GetPageParam) as never,
+    ...(getPreviousPageParam
+      ? { getPreviousPageParam: withParams(args, getPreviousPageParam as GetPageParam) as never }
+      : {}),
     initialPageParam: firstPageParam(args),
   })
 
@@ -84,8 +107,7 @@ export function makeInfiniteQuery<
       queryFn: ({ signal, pageParam, client }) =>
         call(
           {
-            signal,
-            ...args,
+            ...withQuerySignal(signal, args),
             params: { ...args?.params, ...(pageParam as Record<string, unknown>) },
           },
           callOptionsFor(client),

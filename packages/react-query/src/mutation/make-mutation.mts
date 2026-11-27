@@ -14,12 +14,16 @@ import { optimisticUpdate } from './optimistic-update.mjs'
 
 import type {
   InvalidateTarget,
+  MutationHookOptions,
   MutationObject,
   MutationSettings,
   MutationVariables,
 } from './mutation-object.mjs'
 import type { PendingUpdate } from './optimistic-registry.mjs'
 import type { OptimisticUpdate } from './optimistic-update.mjs'
+
+/** The options of one use of the hook, as the runtime handles them. */
+type LooseHookOptions = MutationHookOptions<unknown, unknown, unknown, unknown>
 
 function toArray<T>(value: T | readonly T[] | undefined): readonly T[] {
   if (value === undefined) return []
@@ -76,11 +80,19 @@ export function makeMutation<
   // optimistic updates applied in onMutate.
   const applied = new WeakMap<MutationFunctionContext, PendingUpdate[]>()
 
-  const useHook = () => {
+  const useHook = (hookOptions: LooseHookOptions = {}) => {
     const ownContext = (useContext?.() ?? {}) as object
+    const { retry, retryDelay, networkMode, gcTime, meta, throwOnError } = hookOptions
+    // Only what a hook may set, and only when it does
+    const overrides = Object.fromEntries(
+      Object.entries({ retry, retryDelay, networkMode, gcTime, meta, throwOnError }).filter(
+        ([, value]) => value !== undefined,
+      ),
+    )
 
     return useMutation({
       ...rest,
+      ...overrides,
       mutationKey,
       mutationFn: (variables: unknown, context: MutationFunctionContext) =>
         call(variables ?? undefined, callOptionsFor(context.client)),
@@ -91,7 +103,8 @@ export function makeMutation<
           applied.set(context, updates)
           for (const spec of optimisticSpecs) {
             const key = spec.key(variables)
-            await context.client.cancelQueries({ queryKey: key })
+            // Only the entry that is updated: the key may be a prefix of others
+            await context.client.cancelQueries({ queryKey: key, exact: true })
             updates.push(applyOptimisticUpdate(context.client, key, spec, variables))
           }
         }
@@ -106,13 +119,13 @@ export function makeMutation<
       ) => {
         const invalidations = invalidateTargets.map((target) => {
           // A query object is itself callable, so test for its `key` helper first.
-          const queryKey = 'key' in target ? target.key() : target(data, variables)
+          const queryKey =
+            'key' in target ? (target.endpointKey ?? target.key()) : target(data, variables)
           return queryKey ? context.client.invalidateQueries({ queryKey }) : undefined
         })
-        await Promise.all([
-          ...invalidations,
-          onSuccess?.(data, variables, { ...ownContext, ...context, onMutateResult }),
-        ])
+        const callbackContext = { ...ownContext, ...context, onMutateResult }
+        await Promise.all([...invalidations, onSuccess?.(data, variables, callbackContext)])
+        await hookOptions.onSuccess?.(data, variables, callbackContext)
       },
 
       onError: async (
@@ -128,7 +141,9 @@ export function makeMutation<
             update.spec.rollbackOnError ? 'rollback' : 'commit',
           )
         }
-        await onError?.(error, variables, { ...ownContext, ...context, onMutateResult })
+        const callbackContext = { ...ownContext, ...context, onMutateResult }
+        await onError?.(error, variables, callbackContext)
+        await hookOptions.onError?.(error, variables, callbackContext)
       },
 
       onSettled: async (
@@ -144,12 +159,14 @@ export function makeMutation<
           // After a failure this is a no-op: onError already settled it.
           settleOptimisticUpdate(context.client, update, 'commit')
         }
+        const callbackContext = { ...ownContext, ...context, onMutateResult }
         await Promise.all([
           ...updates
             .filter(({ spec }) => spec.invalidateOnSettled)
-            .map(({ key }) => context.client.invalidateQueries({ queryKey: key })),
-          onSettled?.(data, error, variables, { ...ownContext, ...context, onMutateResult }),
+            .map(({ key }) => context.client.invalidateQueries({ queryKey: key, exact: true })),
+          onSettled?.(data, error, variables, callbackContext),
         ])
+        await hookOptions.onSettled?.(data, error, variables, callbackContext)
       },
     })
   }

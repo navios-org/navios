@@ -25,11 +25,18 @@ import type { HookArgsOf, TaggedKey } from './types.mjs'
 export type InfiniteEndpointOptions = BaseEndpointOptions & { querySchema: Schema }
 
 /**
- * The page param: query params merged over the call's `params` for each page.
+ * The query params of one page: the call's `params` with the page param merged
+ * over them.
  */
 export type PageParam<Options extends InfiniteEndpointOptions> = InferSchemaInput<
   Options['querySchema']
 >
+
+/**
+ * A page param as it is returned and cached: the query params that change from
+ * page to page. The rest comes from the call's `params`.
+ */
+export type PartialPageParam<Options extends InfiniteEndpointOptions> = Partial<PageParam<Options>>
 
 /**
  * Settings of an infinite query: pagination, the key options, `withResponse`
@@ -41,26 +48,30 @@ export type InfiniteQuerySettings<
   WithResponse extends boolean = boolean,
   TError = InferEndpointError<Options>,
 > = SurfaceOptions<WithResponse> &
-  InfiniteQueryDefaults<TPage, TError, PageParam<Options>> & {
+  InfiniteQueryDefaults<TPage, TError, PartialPageParam<Options>> & {
     /**
-     * Returns the query params for the next page, or `undefined` / `null` when
-     * there are no more pages. The returned object is merged over the call's
-     * `params`.
+     * Returns the query params that change for the next page, or `undefined` /
+     * `null` when there are no more pages. The returned object is merged over
+     * the call's `params`, so it only has to hold what changes.
+     *
+     * `lastPageParam` and `allPageParams` are the query params the pages were
+     * requested with: the page params merged over the call's `params`.
      */
     getNextPageParam: (
       lastPage: TPage,
       allPages: TPage[],
       lastPageParam: PageParam<Options>,
       allPageParams: PageParam<Options>[],
-    ) => PageParam<Options> | undefined | null
+    ) => PartialPageParam<Options> | undefined | null
+    /** Like `getNextPageParam`, for the page before the first one. */
     getPreviousPageParam?: (
       firstPage: TPage,
       allPages: TPage[],
       firstPageParam: PageParam<Options>,
       allPageParams: PageParam<Options>[],
-    ) => PageParam<Options> | undefined | null
-    /** Defaults to the call's `params`. */
-    initialPageParam?: PageParam<Options>
+    ) => PartialPageParam<Options> | undefined | null
+    /** Merged over the call's `params` for the first page. Defaults to those `params`. */
+    initialPageParam?: PartialPageParam<Options>
   }
 
 /**
@@ -105,13 +116,13 @@ export type InfiniteQueryOptionsResult<TPage, TError, TPageParam> = UseSuspenseI
 
 /**
  * An infinite query bound to one endpoint. Same helpers as {@link QueryObject};
- * the cached value is `InfiniteData<Page, PageParam>`.
+ * the cached value is `InfiniteData<Page, PartialPageParam>`.
  */
 export interface InfiniteQueryObject<
   Options extends InfiniteEndpointOptions,
   TPage = InferEndpointReturn<Options>,
   TError = InferEndpointError<Options>,
-  TPageParam = PageParam<Options>,
+  TPageParam = PartialPageParam<Options>,
   TData = InfiniteData<TPage, TPageParam>,
 > extends CacheHelpers<Options, TData, TError> {
   (

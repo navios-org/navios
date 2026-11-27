@@ -14,6 +14,8 @@
 
 ### Changed
 
+- **Breaking: `baseUrl` of `createWebSocketHandler` and `createEventSourceHandler` is `baseURL`**, as in `@navios/http`. It is joined with the `url` by exactly one slash, whatever slashes either has, and a `url` with a scheme of its own is used as it is; they used to be concatenated.
+- **Breaking: connecting with invalid arguments throws a `ConnectionError`** (`/socket`, `/eventsource`), a `NaviosError` with the kinds an HTTP call has for the same mistakes: `request-validation` when `urlParamsSchema` or `querySchema` rejects them (`issues` with `part`, the schema library's error as `cause`), `config` for a URL parameter that is missing or cannot be part of a URL, an asynchronous schema, and a runtime without the `WebSocket` / `EventSource` class. They threw a `ZodError`, a plain `Error` or a bare `NaviosError`. New exports: `ConnectionError`, `isConnectionError`, and the types `ConnectionErrorInit`, `ConnectionErrorKind`, `ConnectionIssue`, `ConnectionPart`.
 - **`AbstractRequestConfig` matches axios**: `responseType` is `'json' | 'text' | 'blob' | 'stream'`, the values the builder sets, and `signal` is `AbortSignal` (a `null` call signal is left out). An axios instance is now a `Client` without `as unknown as Client`. A client that typed its config parameter with `'arrayBuffer'` / `'formData'` or a `null` signal still fits.
 
 ### Removed

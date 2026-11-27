@@ -3,7 +3,7 @@ import { createInterceptorChain } from '../interceptors/interceptor-manager.mjs'
 import { buildInit } from '../request/build-init.mjs'
 import { buildUrl } from '../request/build-url.mjs'
 import { copyPlain } from '../request/copy-plain.mjs'
-import { headerRecord } from '../request/merge-headers.mjs'
+import { headerRecord, mergeHeaders } from '../request/merge-headers.mjs'
 import { startDeadline } from '../request/start-deadline.mjs'
 import { parseJsonBody, readBody, readErrorBody } from '../response/read-body.mjs'
 
@@ -33,6 +33,10 @@ function abortCode(
   return name === 'AbortError' || signal?.aborted ? 'ERR_CANCELED' : undefined
 }
 
+/**
+ * Creates a client. `create` of a client starts from the `defaults` of that
+ * client, as they are when it is called; its interceptors are not copied.
+ */
 export function create(baseConfig: NaviosConfig = {}): Navios {
   const defaults: NaviosDefaults = {
     validateStatus: (status) => status >= 200 && status < 300,
@@ -140,7 +144,12 @@ export function create(baseConfig: NaviosConfig = {}): Navios {
   }
 
   return {
-    create,
+    create: (config = {}) =>
+      create({
+        ...defaults,
+        ...defined(config),
+        headers: mergeHeaders(defaults.headers, config.headers),
+      }),
     request,
     get: (url, config) => request({ ...config, url, method: 'GET' }),
     post: (url, data, config) => request({ ...config, url, method: 'POST', data }),

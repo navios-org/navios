@@ -125,7 +125,19 @@ onUserRenamed(({ userId, name }) => {
 
 Returning `undefined` for an empty entry leaves it empty, which is what you want: there is no point creating a partial entry that a later fetch would have to correct.
 
-`setData` addresses exactly one entry, the one for the arguments you pass. To change every cached variant of a list, either invalidate the endpoint or use TanStack's `queryClient.setQueriesData` with `usersQuery.key()` as the filter.
+`setData` addresses exactly one entry, the one for the arguments you pass. To change every cached variant of a list, either invalidate the endpoint or use TanStack's `queryClient.setQueriesData` with `usersQuery.key()` as the filter:
+
+```ts
+import type { InferEndpointReturn } from '@navios/builder'
+
+type Users = InferEndpointReturn<typeof usersQuery.endpoint.config>
+
+queryClient.setQueriesData<Users>({ queryKey: usersQuery.key() }, (users) =>
+  users?.map((user) => (user.id === userId ? { ...user, name } : user)),
+)
+```
+
+`key()` matches only the entries of `usersQuery` itself, which all hold a list. An infinite query or a `withResponse` query declared on the same endpoint keeps its entries under another key, so the updater never receives their data.
 
 ## After a reconnect
 

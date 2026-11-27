@@ -340,7 +340,7 @@ The new shape is described in [Keys and invalidation](/docs/builder/react-query/
 
 ### Mutations
 
-Mutation hooks take no arguments, every mutation has a `mutationKey`, and URL params always go to `mutate`. `useKey` is removed.
+Mutation hooks take no URL params (only [options of one component](/docs/builder/react-query/mutations#options-of-one-component)), every mutation has a `mutationKey`, and URL params always go to `mutate`. `useKey` is removed.
 
 ```diff
 - const updateUser = client.mutation({ ...config, useKey: true })
@@ -399,7 +399,7 @@ The helpers are methods of the query object.
 
 ### Infinite queries
 
-The page param is an object of query params, merged over the call's `params`. `initialPageParam` is optional and defaults to those `params`.
+The page param is an object of query params, merged over the call's `params`, so it only holds the ones that change. `initialPageParam` is optional and defaults to those `params`.
 
 ```diff
   const listUsers = client.infiniteQuery({

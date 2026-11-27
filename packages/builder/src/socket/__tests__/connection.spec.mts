@@ -420,7 +420,9 @@ describe('connecting', () => {
 
     expect(withDefault().url).toBe('/ws?room=lobby')
     expect(withDefault({}).url).toBe('/ws?room=lobby')
-    expect(() => (required as unknown as () => void)()).toThrow(z.ZodError)
+    expect(() => (required as unknown as () => void)()).toThrow(
+      expect.objectContaining({ name: 'ConnectionError', kind: 'request-validation' }),
+    )
   })
 
   it('should use the given constructor, with protocols, where there is no global one', () => {

@@ -30,6 +30,10 @@ function withoutUndefined(value: Record<string, unknown>): Record<string, unknow
  * so two different requests would share one cache entry — and throws on a
  * `bigint`. Each of those is replaced by a tagged plain form instead.
  *
+ * A `Date` becomes its ISO string, which is what it hashes as. Left as an
+ * object it would match every other `Date` in a partial key, because TanStack
+ * compares objects by their own keys and a `Date` has none.
+ *
  * A `Blob` has no cheap content identity; it is described by its size and
  * type (plus name and modification time for a `File`).
  */
@@ -38,7 +42,8 @@ export function normalizeKeyValue(value: unknown): unknown {
     return typeof value === 'bigint' ? { $bigint: value.toString() } : value
   }
   if (Array.isArray(value)) return value.map(normalizeKeyValue)
-  if (value instanceof Date) return value
+  // `null` for an invalid date, as `JSON.stringify` writes it
+  if (value instanceof Date) return value.toJSON()
   if (value instanceof URLSearchParams) return { $searchParams: [...value.entries()] }
   if (typeof FormData !== 'undefined' && value instanceof FormData) {
     return { $formData: [...value.entries()].map(([k, v]) => [k, normalizeKeyValue(v)]) }
@@ -121,22 +126,24 @@ export function pickInputs(args: unknown, keyBy?: AnyKeyBy): Record<string, unkn
 /**
  * Builds cache keys for one endpoint.
  *
- * Shape: `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]`
+ * Shape: `[...keyPrefix, method, urlTemplate, ...keySuffix, 'with-response'?, 'query' | 'infinite', { keyBy }?, inputs?]`
  *
- * The endpoint's identity comes first and its inputs last, so React Query's
- * prefix matching gives three scopes:
+ * The endpoint's identity comes first, then the form of the declaration, and
+ * its inputs last, so React Query's prefix matching gives these scopes:
  *
- * - `key()` — every entry of this endpoint, and nothing from another
- *   endpoint (the URL template is one segment, so `/users` is not a prefix
- *   of `/users/$userId`).
+ * - `endpoint` — every entry of this endpoint, whatever its form, and nothing
+ *   from another endpoint (the URL template is one segment, so `/users` is not
+ *   a prefix of `/users/$userId`). The entries hold data of different shapes.
+ * - `key()` — every entry of this form: all of them hold the same type of data.
  * - `key({ urlParams: { userId } })` — every entry for that user, whatever
  *   the query params.
  * - `key(fullArgs)` — exactly one entry.
  *
  * The method is part of the key, so `GET /users` and `POST /users` never
- * collide. Infinite queries carry an `'infinite'` marker and never share an
- * entry with the plain query of the same endpoint. A `keyBy` that leaves
- * inputs out adds a `{ keyBy }` segment, for the same reason.
+ * collide. Every form has a marker of its own (`'query'` or `'infinite'`,
+ * after `'with-response'` for a declaration with `withResponse`), so the key
+ * of one form is never a prefix of another's. A `keyBy` that leaves inputs out
+ * adds a `{ keyBy }` segment, which keeps its entries apart from other rules.
  */
 export function createKeyBuilder(
   config: BaseEndpointOptions,
@@ -144,18 +151,23 @@ export function createKeyBuilder(
   isInfinite = false,
 ) {
   const rule = normalizeKeyBy(options.keyBy)
-  const base: readonly unknown[] = [
+  const endpoint: readonly unknown[] = [
     ...(options.keyPrefix ?? []),
     config.method,
     config.url,
     ...(options.keySuffix ?? []),
+  ]
+  const base: readonly unknown[] = [
+    ...endpoint,
     ...(options.withResponse ? ['with-response'] : []),
-    ...(isInfinite ? ['infinite'] : []),
+    isInfinite ? 'infinite' : 'query',
     ...(rule ? [keyByMarker(rule)] : []),
   ]
 
   return {
-    /** Key prefix shared by every entry of this endpoint. */
+    /** Key prefix shared by every entry of this endpoint, whatever its form. */
+    endpoint,
+    /** Key prefix shared by every entry of this form of the endpoint. */
     base,
     /** How each input part takes part in the key; `undefined` when all of them do. */
     rule,
@@ -163,6 +175,14 @@ export function createKeyBuilder(
     key(args?: unknown): readonly unknown[] {
       const inputs = pickInputsBy(args, rule)
       return inputs ? [...base, inputs] : base
+    },
+    /**
+     * Key for invalidation: like `key` with inputs, and the whole endpoint
+     * without any.
+     */
+    scope(args?: unknown): readonly unknown[] {
+      const inputs = pickInputsBy(args, rule)
+      return inputs ? [...base, inputs] : endpoint
     },
     /** Key used by a hook whose args are `skipToken`. Never fetched. */
     skipped(): readonly unknown[] {
@@ -183,5 +203,5 @@ export function createMutationKey(
   options: KeyOptions = {},
 ): readonly unknown[] {
   return createKeyBuilder(config, { keyPrefix: options.keyPrefix, keySuffix: options.keySuffix })
-    .base
+    .endpoint
 }

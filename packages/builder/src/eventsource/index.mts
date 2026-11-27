@@ -13,6 +13,13 @@ export type { EventSourceClient } from './eventsource-client.mjs'
 // Errors
 export { EventSourceError, isEventSourceError } from './eventsource-error.mjs'
 export type { EventSourceErrorInit, EventSourceErrorKind } from './eventsource-error.mjs'
+export { ConnectionError, isConnectionError } from '../shared/realtime.mjs'
+export type {
+  ConnectionErrorInit,
+  ConnectionErrorKind,
+  ConnectionIssue,
+  ConnectionPart,
+} from '../shared/realtime.mjs'
 
 // EventSource wrapper
 export { createEventSourceHandler, declareEventSource } from './declare-eventsource.mjs'

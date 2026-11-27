@@ -14,4 +14,7 @@ export type HookArgsOf<Args, Rest extends unknown[]> = [RequiredKeys<Args>] exte
 export type InvalidateFilters = Omit<InvalidateQueryFilters, 'queryKey'>
 
 /** Anything that can produce a cache key: a query or an infinite query. */
-export type AnyQueryObject = { key: (args?: any) => readonly unknown[] }
+export type AnyQueryObject = {
+  key: (args?: any) => readonly unknown[]
+  endpointKey?: readonly unknown[]
+}

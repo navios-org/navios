@@ -389,9 +389,9 @@ function createWebSocketHandler(config?: CreateWebSocketHandlerConfig): typeof d
 | `querySchema`                   | `Schema`   | Validates `params`; must be synchronous                 |
 | `protocols`                     | `string[]` | WebSocket sub-protocols                                 |
 
-`CreateWebSocketHandlerConfig` is `{ baseUrl?: string; WebSocket?: WebSocketConstructor; onError?: (error: SocketError) => void }`. `WebSocket` is the class connections are opened with, by default the global one. `WebSocketConstructor` is a constructor of `WebSocketLike`, the part of a `WebSocket` that is used.
+`CreateWebSocketHandlerConfig` is `{ baseURL?: string; WebSocket?: WebSocketConstructor; onError?: (error: SocketError) => void }`. `WebSocket` is the class connections are opened with, by default the global one. `WebSocketConstructor` is a constructor of `WebSocketLike`, the part of a `WebSocket` that is used.
 
-A `WebSocketHandler<Options>` is called with `InferWebSocketConnectParams<Options>` (`urlParams` and `params`, as declared) and returns a `WebSocketSocketHandle`. The argument can be left out when nothing in it is required.
+A `WebSocketHandler<Options>` is called with `InferWebSocketConnectParams<Options>` (`urlParams` and `params`, as declared) and returns a `WebSocketSocketHandle`. The argument can be left out when nothing in it is required. Invalid arguments throw a [`ConnectionError`](#socket-errors-and-types). `baseURL` and `url` are joined with exactly one slash.
 
 | Member                         | Description                                                                  |
 | ------------------------------ | ---------------------------------------------------------------------------- |
@@ -423,6 +423,24 @@ function isSocketError(error: unknown): error is SocketError
 | `cause`             | `unknown`                               | What the schema library reported, or the thrown value |
 | `toJSON()`          | `() => object`                          | Plain object without `cause`                   |
 
+```ts
+class ConnectionError extends NaviosError {
+  constructor(init: ConnectionErrorInit)
+}
+
+function isConnectionError(error: unknown): error is ConnectionError
+```
+
+Thrown when a connection is opened with arguments that cannot be used; nothing is opened. Also exported from `@navios/builder/eventsource`.
+
+| `ConnectionError` field | Type                                      | Description                                                    |
+| ----------------------- | ----------------------------------------- | -------------------------------------------------------------- |
+| `kind`                  | `ConnectionErrorKind`                     | `'request-validation' \| 'config'`                             |
+| `url`                   | `string`                                  | URL template of the declaration                                |
+| `issues`                | `readonly ConnectionIssue[] \| undefined` | `{ message, path?, part }`; `part` is `'urlParams' \| 'params'` |
+| `cause`                 | `unknown`                                 | What the schema library reported, or the thrown value          |
+| `toJSON()`              | `() => object`                            | Plain object without `cause`                                   |
+
 | Export                        | Description                                                                          |
 | ----------------------------- | ------------------------------------------------------------------------------------ |
 | `SocketClient`                | Interface a connection must satisfy: `emit`, `on`, `off`; optional `sendRaw`, `url`, `disconnect`, `close` |
@@ -446,7 +464,7 @@ function declareEventSource(options: DeclareEventSourceOptions): EventSourceHand
 function createEventSourceHandler(config?: CreateEventSourceHandlerConfig): typeof declareEventSource
 ```
 
-`EventSourceBuilderConfig` is `{ onError?: (error: EventSourceError) => void }`. `CreateEventSourceHandlerConfig` is `{ baseUrl?: string; EventSource?: EventSourceConstructor; onError?: (error: EventSourceError) => void }`. `EventSource` is the class connections are opened with, by default the global one. `EventSourceConstructor` is a constructor of `EventSourceLike`, the part of an `EventSource` that is used.
+`EventSourceBuilderConfig` is `{ onError?: (error: EventSourceError) => void }`. `CreateEventSourceHandlerConfig` is `{ baseURL?: string; EventSource?: EventSourceConstructor; onError?: (error: EventSourceError) => void }`. `EventSource` is the class connections are opened with, by default the global one. `EventSourceConstructor` is a constructor of `EventSourceLike`, the part of an `EventSource` that is used.
 
 | `EventSourceBuilderInstance` member | Signature                                       | Description                                                     |
 | ----------------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
@@ -469,7 +487,7 @@ type EventHandler<Options> = ((
 ) => EventUnsubscribe) & { config: Options }
 ```
 
-An `EventSourceHandler<Options>` is called with `InferEventSourceConnectParams<Options>`, which can be left out when nothing in it is required, and returns an `EventSourceHandle`. Its members are listed on the [Server-Sent Events](/docs/builder/realtime/server-sent-events) page.
+An `EventSourceHandler<Options>` is called with `InferEventSourceConnectParams<Options>`, which can be left out when nothing in it is required, and returns an `EventSourceHandle`. Invalid arguments throw a `ConnectionError`, the class [described for sockets](#socket-errors-and-types), which this entry point exports with `isConnectionError` as well. `baseURL` and `url` are joined with exactly one slash. Its members are listed on the [Server-Sent Events](/docs/builder/realtime/server-sent-events) page.
 
 ### EventSource errors and types
 
