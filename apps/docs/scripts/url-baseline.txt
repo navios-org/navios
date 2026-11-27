@@ -187,6 +187,7 @@
 /docs/server/reference/legacy-decorators
 /docs/server/reference/migrating-to-2
 /docs/server/reference/migrating-from-nestjs
+/docs/server/performance
 /docs/di/quick-start
 /docs/di/how-it-works
 /docs/di/essentials/services

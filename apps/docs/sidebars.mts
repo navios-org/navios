@@ -55,6 +55,7 @@ const server: Entry[] = [
   'server/',
   'server/quick-start',
   'server/request-lifecycle',
+  'server/performance',
   group(
     'Essentials',
     [

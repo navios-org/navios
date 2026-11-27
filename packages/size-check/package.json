@@ -10,8 +10,10 @@
     "@navios/adapter-bun": "workspace:^",
     "@navios/adapter-fastify": "workspace:^",
     "@navios/adapter-srvx": "workspace:^",
+    "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/di": "workspace:^",
-    "@navios/server": "workspace:^"
+    "@navios/server": "workspace:^",
+    "srvx": "^1.0.8"
   }
 }

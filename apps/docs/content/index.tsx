@@ -7,8 +7,9 @@ import type { ReactNode } from 'react'
 import styles from '../theme/home.module.css'
 
 const githubUrl = 'https://github.com/navios-org/navios'
+const benchmarkUrl = 'https://github.com/navios-org/navios-benchmark'
 const installCommand =
-  'npm install @navios/server@next @navios/adapter-fastify@next @navios/builder@next fastify zod'
+  'npm install @navios/server@next @navios/core@next @navios/adapter-fastify@next @navios/builder@next fastify zod'
 
 const heroCode = `@Controller()
 export class UserController {
@@ -59,7 +60,11 @@ function InstallCommand() {
       <span className={styles.installPrompt} aria-hidden="true">
         $
       </span>
-      <code>{installCommand}</code>
+      <code>
+        {installCommand.split(' ').map((word, index) => (
+          <span key={index}>{word} </span>
+        ))}
+      </code>
       <button type="button" className={styles.installCopy} onClick={copy}>
         {copied ? 'Copied' : 'Copy'}
       </button>
@@ -217,13 +222,14 @@ const features: Feature[] = [
   {
     title: 'Adapter-agnostic',
     description:
-      'Run on Fastify or Bun with the same codebase. Switch runtimes without changing your application code.',
+      'Three adapters run the same application code: Fastify on Node.js, Bun.serve on Bun, and srvx on Cloudflare Workers, AWS Lambda and Deno.',
     link: '/docs/server/adapters/fastify',
     size: 'wide',
     extra: (
       <div className={styles.chips}>
-        <span className={styles.chip}>Fastify</span>
+        <span className={styles.chip}>Fastify · Node.js</span>
         <span className={styles.chip}>Bun</span>
+        <span className={styles.chip}>srvx · Workers, Lambda, Deno</span>
       </div>
     ),
     icon: (
@@ -371,7 +377,7 @@ const comparison: { feature: string; cells: [Cell, Cell, Cell] }[] = [
   { feature: 'TypeScript native', cells: [yes(), yes(), no()] },
   { feature: 'Shared client/server types', cells: [yes(), no(), no()] },
   { feature: 'ES decorators (TC39)', cells: [yes(), no('Legacy'), no()] },
-  { feature: 'Bun support', cells: [yes(), partial('Limited'), yes()] },
+  { feature: 'Adapter for Bun.serve', cells: [yes(), no(), no()] },
   { feature: 'Built-in validation', cells: [yes('Standard Schema'), yes('class-validator'), no()] },
   { feature: 'Bundle size', cells: [yes('Small'), partial('Large'), yes('Minimal')] },
   { feature: 'DI flexibility', cells: [yes('Hierarchical'), partial('Module-bound'), no()] },
@@ -417,6 +423,112 @@ function Comparison() {
   )
 }
 
+type Bar = { name: string; value: number; ours?: boolean }
+
+// Thousands of requests per second on the mixed workload, from RESULTS.md of the benchmark.
+const throughput: { runtime: string; bars: Bar[] }[] = [
+  {
+    runtime: 'Node.js',
+    bars: [
+      { name: 'node:http, no framework', value: 89.9 },
+      { name: 'Fastify + Zod', value: 85.2 },
+      { name: 'Navios 2 / Fastify', value: 81.8, ours: true },
+      { name: 'NestJS / Node adapter', value: 60.6 },
+      { name: 'NestJS / Fastify', value: 58.4 },
+    ],
+  },
+  {
+    runtime: 'Bun',
+    bars: [
+      { name: 'Bun.serve, no framework', value: 166 },
+      { name: 'Elysia', value: 144 },
+      { name: 'Navios 2 / Bun', value: 136, ours: true },
+      { name: 'Hono', value: 129 },
+      { name: 'NestJS / Node adapter, run by Bun', value: 78.6 },
+    ],
+  },
+]
+
+const throughputScale = Math.max(
+  ...throughput.flatMap((group) => group.bars.map((bar) => bar.value)),
+)
+
+const stats = [
+  {
+    value: '35 to 45 %',
+    text: 'more requests per second than NestJS 12 on its Node adapter, on Node.js, in most scenarios. On a 31 KB response the two are within the noise.',
+  },
+  {
+    value: '87 %',
+    text: 'of the throughput of node:http is kept on Fastify. Plain Fastify with the same Zod schemas keeps 92 %, NestJS on its Node adapter 63 %.',
+  },
+  {
+    value: '80 %',
+    text: 'of the throughput of Bun.serve is kept on Bun. Hono keeps 79 %, Elysia 88 %.',
+  },
+  {
+    value: '35 ms',
+    text: 'from spawning the process to the first answer on Bun, 132 ms on Node.js. NestJS takes 176 to 191 ms on Node.js.',
+  },
+]
+
+function Performance() {
+  return (
+    <section className={styles.section}>
+      <SectionHeading
+        title="Performance"
+        subtitle="Requests per second on a mixed API workload, next to the libraries and runtimes underneath"
+      />
+      <div className={styles.perfPanels}>
+        {throughput.map((group) => (
+          <div key={group.runtime} className={styles.perfPanel}>
+            <h3 className={styles.pieceTitle}>{group.runtime}</h3>
+            <ul className={styles.bars}>
+              {group.bars.map((bar) => (
+                <li key={bar.name} className={clsx(styles.bar, bar.ours && styles.barOurs)}>
+                  <span className={styles.barName}>{bar.name}</span>
+                  <span className={styles.barValue}>{bar.value}k</span>
+                  <span className={styles.barTrack} aria-hidden="true">
+                    <span
+                      className={styles.barFill}
+                      style={{ width: `${(bar.value / throughputScale) * 100}%` }}
+                    />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className={styles.stats}>
+        {stats.map((stat) => (
+          <div key={stat.value} className={styles.stat}>
+            <span className={clsx(styles.statValue, styles.gradientText)}>{stat.value}</span>
+            <p className={styles.statText}>{stat.text}</p>
+          </div>
+        ))}
+      </div>
+      <p className={styles.perfCaption}>
+        @navios/server 2.0.0-alpha.0 and NestJS 12.6.0, measured on 2026-11-26 on an Apple M4 Max
+        with Node.js 24.22 and Bun 1.4.5. Medians of 5 rounds with 64 connections; every server
+        validates requests and responses with the same Zod schemas. The mixed workload is 40 %{' '}
+        <code>GET /users/:id</code>, with queries, pages of records, JSON bodies, a guard and
+        errors making up the rest. The bars of both runtimes share one scale. The percentages are
+        geometric means over every scenario but the one that waits for I/O. The srvx adapter was
+        not part of this run.
+      </p>
+      <div className={clsx(styles.buttons, styles.buttonsCentered)}>
+        <Link className={clsx(styles.button, styles.buttonSecondary)} href="/docs/server/performance">
+          All results and how they were measured
+        </Link>
+        <Link className={clsx(styles.button, styles.buttonSecondary)} href={benchmarkUrl}>
+          Benchmark repository
+        </Link>
+      </div>
+    </section>
+  )
+}
+
 const packages = [
   {
     name: '@navios/server',
@@ -445,6 +557,11 @@ const pieces = [
         link: '/docs/server/adapters/fastify',
       },
       { name: 'Bun', description: 'Native Bun HTTP server', link: '/docs/server/adapters/bun' },
+      {
+        name: 'srvx',
+        description: 'Workers, Lambda and Deno',
+        link: '/docs/server/adapters/srvx',
+      },
     ],
   },
   {
@@ -552,6 +669,7 @@ export default function Home(): ReactNode {
         <Features />
         <Walkthrough />
         <Comparison />
+        <Performance />
         <Pieces />
         <ClosingCta />
       </main>
