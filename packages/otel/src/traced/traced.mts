@@ -1,5 +1,6 @@
 import type { ClassType } from '@navios/core'
 
+import { traceMarkedMethod } from './trace-instance.mjs'
 import { getTracedMetadata, markClass } from './traced-metadata.mjs'
 
 import type { TracedOptions } from './traced-metadata.mjs'
@@ -31,9 +32,9 @@ import type { TracedOptions } from './traced-metadata.mjs'
  *   }
  * }
  *
- * // Method-level: traces specific method (requires @Traceable or @Traced on class)
+ * // Method-level: traces that method only. `@Traceable` on the class is
+ * // optional; it gives the spans of the class a name and attributes.
  * @Injectable()
- * @Traceable()
  * class OrderService {
  *   @Traced({ name: 'process-order' })
  *   async processOrder(orderId: string) {
@@ -63,14 +64,22 @@ import type { TracedOptions } from './traced-metadata.mjs'
 export function Traced(options: TracedOptions = {}) {
   return function (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
     if (context.kind === 'method') {
-      // The class must have @Traceable or @Traced to be instrumented.
       const methodName = String(context.name)
-      getTracedMetadata(context).methods.set(methodName, {
+      const metadata = getTracedMetadata(context)
+      metadata.methods.set(methodName, {
         methodName,
         name: options.name,
         attributes: options.attributes,
         enabled: true,
       })
+      // A method decorator does not see its class, and the class may have no
+      // `@Traced` or `@Traceable` that would record it for the plugin. Such
+      // an instance traces the method itself, while it is constructed.
+      if (!context.static && !context.private) {
+        context.addInitializer(function (this: unknown) {
+          traceMarkedMethod(this as object, methodName, metadata)
+        })
+      }
     } else {
       markClass(target, context, options, true)
     }

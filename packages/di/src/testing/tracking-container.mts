@@ -1,9 +1,11 @@
 import { Container } from '../container/container.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { isResolved } from '../internal/lookup.mjs'
+import { argOverrideKey, isResolved } from '../internal/lookup.mjs'
+import { findReady } from '../internal/stored-values.mjs'
 import { BoundInjectionToken } from '../token/injection-token.mjs'
 
 import type { Provider } from '../provider/provide.mjs'
+import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { InjectionToken } from '../token/injection-token.mjs'
 
 import { argsMatch, formatArgs } from './call-tracking.mjs'
@@ -127,21 +129,45 @@ export abstract class TrackingContainer extends Container {
   }
 
   /**
+   * Makes `record` the provider for the args of `bound` alone: the other args
+   * of its token keep the provider they have. Returns the key of the args.
+   * @internal
+   */
+  protected setArgOverride(bound: BoundInjectionToken<any, any>, record: ProviderRecord): string {
+    const key = argOverrideKey(bound)
+    this.argOverrides ??= new Map()
+    let byKey = this.argOverrides.get(bound.token)
+    if (byKey === undefined) {
+      byKey = new Map()
+      this.argOverrides.set(bound.token, byKey)
+    }
+    byKey.set(key, record)
+    return key
+  }
+
+  /**
    * Stores a value bound to a singleton token right away, so that it counts
    * as resolved before the first `get`. A token that needs args has no single
    * address to store the value under, and the value of another scope does not
    * belong in the root; both are served by the provider on resolution
    * instead.
+   *
+   * The value is stored as its provider would store it: unlike one given to
+   * `addInstance()`, it is never destroyed.
    * @internal
    */
   protected storeBoundValue(token: AnyToken, provider: Provider, value: unknown): void {
     if (provider.record.scope !== InjectableScope.Singleton) {
       return
     }
-    if (token instanceof BoundInjectionToken) {
-      this.addInstance(token, value)
-    } else if (provider.token.schema === undefined) {
-      this.addInstance(provider.token, value)
+    const address = token instanceof BoundInjectionToken ? token : provider.token
+    if (address === provider.token && provider.token.schema !== undefined) {
+      return
+    }
+    this.addInstance(address, value)
+    const entry = findReady(this, address, undefined)
+    if (entry !== undefined) {
+      entry.destroyListeners = null
     }
   }
 

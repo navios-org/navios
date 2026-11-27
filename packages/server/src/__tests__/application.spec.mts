@@ -939,6 +939,81 @@ describe('guards of the application', () => {
   })
 })
 
+describe('what the options and the methods of the application add', () => {
+  it('takes guards, interceptors and error mappers either way, those of the options first', async () => {
+    const order: string[] = []
+    class Missing extends Error {}
+    class Gone extends Error {}
+
+    const guard = (name: string) => {
+      @Injectable()
+      class Named implements Guard {
+        canActivate() {
+          order.push(`guard:${name}`)
+          return true
+        }
+      }
+      return Named
+    }
+    const interceptor = (name: string) => {
+      @Injectable()
+      class Named implements Interceptor {
+        intercept(_ctx: RequestContext, next: () => Promise<RouteResult>) {
+          order.push(`interceptor:${name}`)
+          return next()
+        }
+      }
+      return Named
+    }
+
+    @Controller()
+    class Ctl {
+      ping = handler(ping, () => {
+        throw new Missing('missing')
+      })
+      getUser = handler(getUser, () => {
+        throw new Gone('gone')
+      })
+    }
+    @Module({ controllers: [Ctl] })
+    class Root {}
+
+    const app = await createApp(Root, {
+      guards: [guard('option')],
+      interceptors: [interceptor('option')],
+      errorMappers: [[Missing, (error) => reply(404, { message: error.message })]],
+    })
+    expect(app.guard(guard('method'))).toBe(app)
+    app.intercept(interceptor('method'))
+    app.mapError(Gone, (error) => reply(410, { message: error.message }))
+
+    const call = createTestClient(app)
+    expect((await call(ping)).status).toBe(404)
+    expect(order).toEqual([
+      'interceptor:option',
+      'interceptor:method',
+      'guard:option',
+      'guard:method',
+    ])
+    expect((await call(getUser, { urlParams: { id: '1' } })).status).toBe(410)
+  })
+
+  it('refuses a guard once the application is initialised', async () => {
+    @Injectable()
+    class Late implements Guard {
+      canActivate() {
+        return true
+      }
+    }
+    @Module({})
+    class Root {}
+
+    const app = await createApp(Root)
+    await app.init()
+    expect(() => app.guard(Late)).toThrow('[Navios] guard() must be called before init()')
+  })
+})
+
 describe('lifecycle, errors and plugins', () => {
   it('runs bootstrap and shutdown hooks and destroys services on close()', async () => {
     const order: string[] = []

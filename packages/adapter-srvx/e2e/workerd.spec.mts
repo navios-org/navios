@@ -6,7 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // The adapter in workerd, the runtime of Cloudflare Workers: a Worker is
 // bundled as a deployment bundles it, with `srvx` resolved for `workerd`.
-describe('srvx adapter: in workerd', () => {
+// The earliest compatibility date on which `nodejs_compat` gives a Worker the
+// `process` global, and a current one.
+describe.each(['2024-09-23', '2026-01-01'])('srvx adapter: in workerd, %s', (compatibilityDate) => {
   let worker: Miniflare
 
   beforeAll(async () => {
@@ -25,7 +27,7 @@ describe('srvx adapter: in workerd', () => {
     worker = new Miniflare({
       modules: true,
       script: outputFiles[0].text,
-      compatibilityDate: '2026-01-01',
+      compatibilityDate,
       // `@navios/server` imports modules of Node.
       compatibilityFlags: ['nodejs_compat'],
       bindings: { GREETING: 'hello' },

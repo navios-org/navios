@@ -24,6 +24,9 @@
     },
     {
       "path": "../adapter-bun"
+    },
+    {
+      "path": "../adapter-srvx"
     }
   ]
 }

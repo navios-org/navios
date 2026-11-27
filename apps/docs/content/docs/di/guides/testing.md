@@ -143,6 +143,7 @@ How `bind()` differs from `container.provide()`:
 - It may be called after the token was resolved. The existing instance and everything that depends on it are destroyed, and the next resolution uses the new binding. For an [alias](/docs/di/essentials/providers#aliases) that is everything that depends on what it pointed to, which stays itself.
 - `toValue()` of a singleton stores the value at once, so the token counts as resolved. A value for a request-scoped token is served in scopes only, as in production.
 - Instances that an open scope already holds stay as they are.
+- A binding on a [bound token](/docs/di/essentials/tokens#bound-tokens) is for the arguments of that token alone. The other arguments of the underlying token keep their provider, and binding it again destroys only the instance for those arguments. It also applies to `get(token, args)` with the same arguments, which is the same instance.
 - `clear()` destroys all instances and keeps the bindings and the container. Call it in `afterEach` when one container is shared by a whole `describe` block. A container that was disposed with `dispose()` is closed for good.
 
 The dependency graph of what has been resolved can be snapshotted, which catches accidental new dependencies:
@@ -178,7 +179,7 @@ container.expectCalledWith(UserService, 'getUser', ['1'])
 container.expectCallCount(UserService, 'getUser', 1)
 ```
 
-A provider entry has a `token` and at most one of `useValue`, `useClass` and `useFactory`, which is called with the factory context and the arguments. With none of them, a class is registered as itself. What is given is checked against the public members of the token's type, except that any string, number or boolean passes for a literal type: TypeScript infers the list before it looks at the tokens.
+A provider entry has a `token` and at most one of `useValue`, `useClass` and `useFactory`, which is called with the factory context and the arguments. With none of them, a class is registered as itself. A [bound token](/docs/di/essentials/tokens#bound-tokens) needs one of the three, which then applies to its arguments alone; without one the container throws when it is created, since a bound token names arguments and not what to build for them. What is given is checked against the public members of the token's type, except that any string, number or boolean passes for a literal type: TypeScript infers the list before it looks at the tokens.
 
 Instances returned by `get()` and `getSync()`, of the container and of its scopes, are wrapped in a proxy that records every method call, which is what the `expect…` methods read. Only calls made through that returned object are recorded. Calls one service makes on another go to the real injected instance, and calls a service makes to its own methods stay inside it, so assert on those with a spy inside the `useValue` fake. Spies keep working through the proxy.
 

@@ -222,9 +222,14 @@ export class SrvxAdapter implements HttpAdapter<SrvxEnvironment> {
       }
     } else if (!hasBody(request)) {
       isEmpty = true
-    } else if (this.bodyLimit !== Infinity) {
+    } else if (
+      this.bodyLimit !== Infinity &&
+      request.method !== 'GET' &&
+      request.method !== 'HEAD'
+    ) {
       // A body of unknown length, sent with chunked transfer encoding, is
       // counted while it is read. One of `inject()` has a declared length.
+      // Nothing reads the body of a `GET`, which a web request cannot have.
       limitBody(request, this.bodyLimit)
       isLimited = true
     }

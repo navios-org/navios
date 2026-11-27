@@ -96,10 +96,16 @@ describe('keyBy', () => {
         keyBy: { params: false },
       })
 
-      expect(orgUsers.key()).toEqual(['GET', '/orgs/$orgId/users', { keyBy: 'params:false' }])
+      expect(orgUsers.key()).toEqual([
+        'GET',
+        '/orgs/$orgId/users',
+        'query',
+        { keyBy: 'params:false' },
+      ])
       expect(orgUsers.key({ urlParams: { orgId: 1 } })).toEqual([
         'GET',
         '/orgs/$orgId/users',
+        'query',
         { keyBy: 'params:false' },
         { urlParams: { orgId: '1' } },
       ])
@@ -111,6 +117,7 @@ describe('keyBy', () => {
       expect(search.key({ params: { role: 'admin' } })).toEqual([
         'GET',
         '/users',
+        'query',
         { keyBy: 'params:["role"]' },
         { params: { role: 'admin' } },
       ])
@@ -124,7 +131,7 @@ describe('keyBy', () => {
     it('keeps one entry for the endpoint with keyBy: false', () => {
       const search = ctx.client.query({ ...users, keyBy: false })
 
-      expect(search.key()).toEqual(['GET', '/users', { keyBy: false }])
+      expect(search.key()).toEqual(['GET', '/users', 'query', { keyBy: false }])
     })
 
     it('gives the same entry whatever the order of the listed fields', () => {
@@ -134,10 +141,11 @@ describe('keyBy', () => {
     })
 
     it('adds no marker when every input is kept', () => {
-      expect(ctx.client.query({ ...users, keyBy: {} }).key()).toEqual(['GET', '/users'])
+      expect(ctx.client.query({ ...users, keyBy: {} }).key()).toEqual(['GET', '/users', 'query'])
       expect(ctx.client.query({ ...users, keyBy: { params: true } }).key()).toEqual([
         'GET',
         '/users',
+        'query',
       ])
     })
 
@@ -358,13 +366,19 @@ describe('keyBy', () => {
       await byRole.fetch(ctx.queryClient, { params: { role: 'admin' } })
       await byRoleAndSort.fetch(ctx.queryClient, { params: { role: 'admin', sort: 'name' } })
 
-      await byRole.invalidate(ctx.queryClient, undefined, { refetchType: 'none' })
+      const other = byRoleAndSort.key({ params: { role: 'admin', sort: 'name' } })
 
-      expect(
-        ctx.queryClient.getQueryState(
-          byRoleAndSort.key({ params: { role: 'admin', sort: 'name' } }),
-        )?.isInvalidated,
-      ).toBe(false)
+      await ctx.queryClient.invalidateQueries({ queryKey: byRole.key(), refetchType: 'none' })
+      await byRole.invalidate(
+        ctx.queryClient,
+        { params: { role: 'admin' } },
+        { refetchType: 'none' },
+      )
+      expect(ctx.queryClient.getQueryState(other)?.isInvalidated).toBe(false)
+
+      // Without arguments it is the whole endpoint, as for every declaration
+      await byRole.invalidate(ctx.queryClient, undefined, { refetchType: 'none' })
+      expect(ctx.queryClient.getQueryState(other)?.isInvalidated).toBe(true)
     })
   })
 

@@ -7,7 +7,7 @@ Runs a [Navios](https://navios.tech) application on `Bun.serve`. The adapter reg
 ## Install
 
 ```bash
-bun add @navios/adapter-bun@next @navios/server@next @navios/builder@next
+bun add @navios/adapter-bun@next @navios/server@next @navios/core@next @navios/builder@next
 ```
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.

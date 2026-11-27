@@ -49,6 +49,12 @@ export interface RootHost extends HostBase {
    */
   readonly strict: boolean
   decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null
+  /**
+   * Providers for one set of args of a token, by token and args key (`''`
+   * without args). They come before `overrides`. Only the testing containers
+   * set them, for a binding on a bound token.
+   */
+  argOverrides: Map<InjectionToken<any, any>, Map<string, ProviderRecord>> | null
   /** The aliases that something was asked for by. */
   usedAliases: Set<InjectionToken<any, any>> | null
   /** The args that factory tokens computed. */

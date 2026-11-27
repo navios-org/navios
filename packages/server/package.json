@@ -90,12 +90,9 @@
     "publish": "node ../../scripts/assert-stable-version.mjs && yarn npm publish --access public",
     "publish:next": "yarn npm publish --access public --tag next"
   },
-  "dependencies": {
-    "@navios/core": "workspace:*",
-    "@navios/di": "workspace:*"
-  },
   "devDependencies": {
     "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
@@ -103,7 +100,8 @@
     "zod": "^4.6.7"
   },
   "peerDependencies": {
-    "@navios/builder": "workspace:*"
+    "@navios/builder": "workspace:*",
+    "@navios/core": "workspace:*"
   },
   "engines": {
     "node": ">=24"

@@ -12,7 +12,7 @@ npm install @navios/openapi@next
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-`@navios/server` is a peer dependency. The plugin's routes are ordinary Navios routes, so it works the same on every adapter. The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
+`@navios/server` and `@navios/core` of the same version are peer dependencies. The plugin's routes are ordinary Navios routes, so it works with any HTTP adapter; its end-to-end tests run on Fastify, and the example below on Fastify and Bun (`@navios/adapter-srvx` is not covered yet). The example also uses `@navios/adapter-fastify`, `@navios/builder` and `zod`.
 
 ## Example
 
@@ -71,13 +71,13 @@ The document is built once, while the application initialises, and contains ever
 | See what a declaration turns into            | `querySchema`, `responses`, `body: 'multipart'`, `response: 'stream'`, ...                        | [What is documented](https://navios.tech/docs/server/guides/openapi#what-is-documented)                                                 |
 | Zod, ArkType, Valibot or another library     | Standard JSON Schema, or the `toJsonSchema` option                                                | [Schemas](https://navios.tech/docs/server/guides/openapi#schemas)                                                                       |
 | Tags, summaries, security, exclusions        | `ApiTag`, `ApiSummary`, `ApiOperation`, `ApiSecurity`, `ApiDeprecated`, `ApiExclude`, `ApiStream` | [Attributes](https://navios.tech/docs/server/guides/openapi#attributes)                                                                 |
-| Paths, YAML, the Scalar theme, final edits   | `jsonPath`, `disableYaml`, `scalar`, `transformDocument`, ...                                     | [Options](https://navios.tech/docs/server/guides/openapi#options)                                                                       |
+| Paths, YAML, the Scalar theme, final edits   | `jsonPath`, `yaml`, `scalar`, `transformDocument`, ...                                            | [Options](https://navios.tech/docs/server/guides/openapi#options)                                                                       |
 | Write the document to a file in a build step | `generateOpenApiDocument(app.routes(), options)`                                                  | [Generating the document without serving it](https://navios.tech/docs/server/guides/openapi#generating-the-document-without-serving-it) |
 | The building blocks                          | `extractOpenApiMetadata`, `SchemaConverter`, the attribute tokens                                 | [Other exports](https://navios.tech/docs/server/guides/openapi#other-exports)                                                           |
 
 The attributes only describe: `ApiSecurity` does not protect a route, a guard does. Projects that keep `experimentalDecorators` on import the attributes from `@navios/openapi/legacy-compat`; see [Legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators).
 
-[examples/openapi](../../examples/openapi) runs one application on Fastify and on Bun.
+[examples/openapi](../../examples/openapi) runs one application on two of the adapters, Fastify and Bun.
 
 ## Upgrading from 1.x
 

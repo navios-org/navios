@@ -1,5 +1,5 @@
+import { Container, Injectable, InjectableScope, ScopedContainer } from '@navios/core'
 import { enableAsyncContext } from '@navios/core/testing'
-import { Container, Injectable, InjectableScope, ScopedContainer } from '@navios/di'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { currentContext } from '../context/current-request-context.mjs'

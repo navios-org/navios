@@ -46,9 +46,10 @@ function compileIgnoreRoutes(patterns: readonly string[]): ((path: string) => bo
  * Traces HTTP requests: one server span per request that matches a route.
  *
  * The span starts before guards run and ends when the response has finished:
- * after the body was sent, a stream ended, or the client went away. Its
- * status is the final status of the response, including the one an error was
- * mapped to. While the rest of the pipeline runs, the span is the active
+ * after the body was sent, a stream ended, or the client went away. It is
+ * named `{method} {route}` and carries the final status of the response,
+ * including the one an error was mapped to, as `http.response.status_code`;
+ * the span status is `ERROR` for a 5xx and unset otherwise. While the rest of the pipeline runs, the span is the active
  * OpenTelemetry span and is stored on the request context under
  * `RequestSpan`.
  *
@@ -60,7 +61,7 @@ export class OtelHttpInterceptor implements Interceptor {
   private readonly config = inject(OtelConfigToken)
   private readonly ignored = compileIgnoreRoutes(this.config.ignoreRoutes)
   private readonly describe = describedOnce((route: RouteInfo) => ({
-    name: `HTTP ${route.method} ${route.path}`,
+    name: `${route.method} ${route.path}`,
     attributes: {
       [ATTR_HTTP_REQUEST_METHOD]: route.method,
       [ATTR_HTTP_ROUTE]: route.path,
@@ -93,11 +94,11 @@ export class OtelHttpInterceptor implements Interceptor {
     ctx.onFinish(() => {
       const status = ctx.responseStatus ?? 500
       span.setAttribute(ATTR_HTTP_RESPONSE_STATUS_CODE, status)
-      span.setStatus(
-        status >= 400
-          ? { code: SpanStatusCode.ERROR, message: failure ?? `HTTP ${status}` }
-          : { code: SpanStatusCode.OK },
-      )
+      // The HTTP semantic conventions for a server span: a 5xx is an error,
+      // anything else, a 4xx included, leaves the status unset.
+      if (status >= 500) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: failure ?? `HTTP ${status}` })
+      }
       span.end()
     })
 

@@ -1,4 +1,4 @@
-import { InjectableScope, InjectionToken } from '@navios/di'
+import { InjectableScope, InjectionToken } from '@navios/core'
 
 import type { RequestContext } from './request-context.mjs'
 

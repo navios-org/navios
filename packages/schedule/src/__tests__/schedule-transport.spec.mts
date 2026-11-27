@@ -35,7 +35,7 @@ describe('scheduleTransport', () => {
     vi.clearAllMocks()
   })
 
-  it('should run the jobs of modules and of services from start() to close()', async () => {
+  it('should run the jobs of modules and of the jobs option from start() to close()', async () => {
     const calls: string[] = []
 
     @Schedulable()
@@ -65,7 +65,7 @@ describe('scheduleTransport', () => {
 
     app = createApplication(AppModule, {
       logger,
-      transports: [scheduleTransport({ services: [ListedJobs] })],
+      transports: [scheduleTransport({ jobs: [ListedJobs] })],
     })
     await app.init()
     const scheduler = await app.get(SchedulerService)
@@ -85,6 +85,30 @@ describe('scheduleTransport', () => {
     expect(job?.active).toBe(false)
     expect(vi.getTimerCount()).toBe(0)
     expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('should run a job on demand in an application that is initialised and never started', async () => {
+    const calls: string[] = []
+
+    @Schedulable()
+    class ReportJobs {
+      @Cron('0 3 * * *')
+      nightly() {
+        calls.push('nightly')
+      }
+    }
+    @Module({ jobs: [ReportJobs] })
+    class AppModule {}
+
+    app = createApplication(AppModule, { logger, transports: [scheduleTransport()] })
+    await app.init()
+
+    // What a platform scheduler does: the platform keeps the time.
+    const scheduler = await app.get(SchedulerService)
+    await scheduler.getJob(ReportJobs, 'nightly')?.run()
+
+    expect(calls).toEqual(['nightly'])
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('should run the classes a module registers itself', async () => {

@@ -71,11 +71,12 @@ export interface RegisterInjectableOptions {
 
 /**
  * Registers a class as injectable without decorator syntax. `@Injectable`
- * calls this, so both paths behave identically.
+ * calls this, so both paths behave identically. Without a `scope` the class
+ * has the scope its token declares, and is a singleton when that has none.
  */
 export function registerInjectable<T extends ClassType>(
   target: T,
-  { scope = InjectableScope.Singleton, token, schema }: RegisterInjectableOptions = {},
+  { scope, token, schema }: RegisterInjectableOptions = {},
 ): InjectionToken<InstanceType<T>, any> {
   if (schema && token) {
     throw misuse('@Injectable decorator cannot have both a token and a schema')
@@ -90,10 +91,12 @@ export interface RegisterFactoryOptions {
 
 /**
  * Registers a factory class (`create(ctx, args)`) without decorator syntax.
+ * Without a `scope` its products have the scope the token declares, and are
+ * singletons when that has none.
  */
 export function registerFactory(
   target: ClassType,
-  { scope = InjectableScope.Singleton, token }: RegisterFactoryOptions = {},
+  { scope, token }: RegisterFactoryOptions = {},
 ): InjectionToken<any, any> {
   return register(target, 'factory', scope, token ?? new InjectionToken(target))
 }
@@ -101,21 +104,21 @@ export function registerFactory(
 function register(
   target: ClassType,
   kind: 'class' | 'factory',
-  scope: InjectableScope,
+  scope: InjectableScope | undefined,
   token: InjectionToken<any, any>,
 ): InjectionToken<any, any> {
-  setDefaultProvider(token, createRecord(kind, scope, target, undefined, undefined))
+  setDefaultProvider(
+    token,
+    createRecord(
+      kind,
+      scope ?? token.scope ?? InjectableScope.Singleton,
+      target,
+      undefined,
+      undefined,
+    ),
+  )
   attachToken(target, token)
   return token
-}
-
-/**
- * @deprecated `registerProvider()` takes no options: give the scope with the
- * provider, as `{ class, scope }` or `{ factory, scope }`. Kept for packages
- * that re-export it; it will be removed.
- */
-export interface RegisterProviderOptions {
-  scope?: InjectableScope
 }
 
 /**

@@ -17,7 +17,7 @@ export class PendingOutput implements LoggerService {
 
   /** `settleNow` settles for the output that can be had at once. */
   constructor(readonly settleNow: () => void) {
-    if (unsettled.size === 0) {
+    if (unsettled.size === 0 && hasExitEvent) {
       process.on('exit', settleAll)
     }
     unsettled.add(this)
@@ -54,7 +54,7 @@ export class PendingOutput implements LoggerService {
   /** Writes what is held, and everything from here on, to `output`. */
   settle(output: LoggerService): void {
     this.output = output
-    if (unsettled.delete(this) && unsettled.size === 0) {
+    if (unsettled.delete(this) && unsettled.size === 0 && hasExitEvent) {
       process.off('exit', settleAll)
     }
     for (const [level, args] of this.held.splice(0)) {
@@ -76,6 +76,13 @@ export class PendingOutput implements LoggerService {
     this.output[level]?.(message, ...rest)
   }
 }
+
+/**
+ * Whether the runtime tells when the process ends. A Worker with a
+ * compatibility date before 2025-09-15 has a `process` without `on()`, and no
+ * exit to wait for.
+ */
+const hasExitEvent = typeof process.on === 'function'
 
 /** Those whose messages would be lost if the process ended now. */
 const unsettled = new Set<PendingOutput>()

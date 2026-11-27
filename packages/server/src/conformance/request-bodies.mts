@@ -1,4 +1,4 @@
-import { registerInjectable } from '@navios/di'
+import { registerInjectable } from '@navios/core'
 
 import { registerController } from '../controllers/controller.mjs'
 import { handler } from '../handlers/handler.mjs'

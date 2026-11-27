@@ -12,10 +12,11 @@ import './internal/this-copy.mjs'
 export { defineTransport } from './transports/transport.mjs'
 export type { TransportDefinition, TransportHost } from './transports/transport.mjs'
 
-// The container: every object it has built, dependencies before dependents.
+// The container: every object it has built, dependencies before dependents,
+// and the end of a scope that a context of the transport's own created.
 // Re-exported so that a transport reads the copy of @navios/di that core
 // uses, without depending on di itself.
-export { constructedInstances } from '@navios/di/internal'
+export { constructedInstances, disposeScope } from '@navios/di/internal'
 
 // Waiting, but not for ever.
 export { MAX_DELAY_MS, settledWithin } from './transports/settled-within.mjs'

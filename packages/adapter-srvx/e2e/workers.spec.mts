@@ -42,7 +42,8 @@ describe('srvx adapter: a runtime that calls fetch itself', () => {
     const response = await fetch(new Request('https://app.example/users/7'))
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('application/json')
-    expect(await response.json()).toEqual({ id: '7', ip: null })
+    // Without the header of Cloudflare there is no address, which is `undefined`.
+    expect(await response.text()).toBe('{"id":"7"}')
     expect((await fetch(new Request('https://app.example/nowhere'))).status).toBe(404)
   })
 

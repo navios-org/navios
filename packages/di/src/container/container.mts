@@ -7,6 +7,7 @@ import { EntryStatus, isSelfEntry } from '../internal/entry.mjs'
 import { hookOwner } from '../internal/frame.mjs'
 import { assertLive } from '../internal/liveness.mjs'
 import {
+  argRecord,
   baseToken,
   finalRecord,
   hasProvider,
@@ -58,8 +59,13 @@ export interface ContainerOptions {
   logger?: Console | null
 }
 
+/**
+ * What `container.decorate()` takes for the class or token `K`: called with
+ * each new instance and with the token and args it was built for, and returns
+ * what the container hands out in its place.
+ */
 // A condition on `K` for the same reason as in `ProviderInputFor`.
-type DecoratorFor<K> = K extends unknown
+export type InstanceDecoratorFor<K> = K extends unknown
   ? (
       instance: K extends AbstractClassType ? ResolvedInstance<K> : ProvidedFor<K>,
       info: { token: InjectionToken<any, any>; args: unknown },
@@ -88,6 +94,8 @@ export class Container implements IContainer {
   readonly overrides = new Map<InjectionToken<any, any>, ProviderRecord>()
   /** @internal */
   decorators: Map<InjectionToken<any, any>, InstanceDecorator[]> | null = null
+  /** @internal */
+  argOverrides: Map<InjectionToken<any, any>, Map<string, ProviderRecord>> | null = null
   /** @internal */
   usedAliases: Set<InjectionToken<any, any>> | null = null
   /** @internal */
@@ -177,7 +185,7 @@ export class Container implements IContainer {
    */
   decorate<K extends ClassType | InjectionToken<any, any>>(
     token: K,
-    decorator: DecoratorFor<K>,
+    decorator: InstanceDecoratorFor<K>,
   ): void {
     const base = requireToken(token)
     this.assertUnresolved(base, 'decorate()')
@@ -206,7 +214,8 @@ export class Container implements IContainer {
    */
   getProvider(token: AnyInjectableType): ProviderInfo | undefined {
     const base = baseToken(token)
-    const record = base === undefined ? undefined : lookupRecord(this, base)
+    const record =
+      argRecord(this, token) ?? (base === undefined ? undefined : lookupRecord(this, base))
     if (record === undefined) {
       return undefined
     }
@@ -249,7 +258,14 @@ export class Container implements IContainer {
     await held
   }
 
-  onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
+  /**
+   * Calls `listener` when the instance for `token` held by this container is
+   * destroyed; with `args`, the instance for those args. Returns a function
+   * that removes the listener.
+   */
+  onInvalidate(token: AnyInjectableType, listener: () => void): () => void
+  onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void
+  onInvalidate(token: AnyInjectableType, args: unknown, listener?: () => void): () => void {
     return addInvalidateListener(this, () => this.store, token, args, listener)
   }
 
@@ -300,14 +316,28 @@ export class Container implements IContainer {
     await abandonBuilds(this)
     await settleHost(this)
     try {
-      // What holds the container itself stays while the container is usable.
-      await destroyAll(this.store.entries().filter((entry) => !isSelfEntry(entry)))
-      await destroyAll(
-        Array.from(this.factoryValues.values()).filter(
-          (value) => value.status !== EntryStatus.Creating,
-        ),
-      )
+      // What an `onInvalidate` listener throws is rethrown at the end: the
+      // values of factory tokens are destroyed all the same.
+      let failure: { error: unknown } | null = null
+      try {
+        // What holds the container itself stays while the container is usable.
+        await destroyAll(this.store.entries().filter((entry) => !isSelfEntry(entry)))
+      } catch (error) {
+        failure = { error }
+      }
+      try {
+        await destroyAll(
+          Array.from(this.factoryValues.values()).filter(
+            (value) => value.status !== EntryStatus.Creating,
+          ),
+        )
+      } catch (error) {
+        failure ??= { error }
+      }
       await settleHost(this)
+      if (failure !== null) {
+        throw failure.error
+      }
     } finally {
       this.factoryValues.clear()
       this.usedAliases = null

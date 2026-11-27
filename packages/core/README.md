@@ -64,11 +64,13 @@ const app = createApplication(AppModule, {
 })
 ```
 
-| Transport | Package                                                                      | `@Module` option     |
-| --------- | ---------------------------------------------------------------------------- | -------------------- |
-| HTTP      | [`@navios/server`](https://www.npmjs.com/package/@navios/server)             | `controllers`        |
-| Messages  | [`@navios/microservice`](https://www.npmjs.com/package/@navios/microservice) | `messageControllers` |
-| Cron jobs | [`@navios/schedule`](https://www.npmjs.com/package/@navios/schedule)         | `jobs`               |
+`@navios/microservice` is not published yet.
+
+| Transport | Package                                                              | `@Module` option     |
+| --------- | -------------------------------------------------------------------- | -------------------- |
+| HTTP      | [`@navios/server`](https://www.npmjs.com/package/@navios/server)     | `controllers`        |
+| Messages  | `@navios/microservice` (not published yet)                           | `messageControllers` |
+| Cron jobs | [`@navios/schedule`](https://www.npmjs.com/package/@navios/schedule) | `jobs`               |
 
 A module lists what it has for each transport, and an application ignores the options of transports it does not have, so one module can serve several.
 
@@ -97,7 +99,7 @@ A module lists what it has for each transport, and an application ignores the op
 
 ## One copy
 
-Every package of an application has to resolve the same `@navios/core`. `@navios/server` depends on it; adapters, plugins and other transports list it as a peer dependency. If two copies are loaded, a warning names both locations. Two copies that a bundler put into one file are not noticed.
+Every package of an application has to resolve the same `@navios/core`. `@navios/server`, the other transports and the plugins that work on any transport list it as a peer dependency, so an application installs it once, beside them. HTTP adapters peer on `@navios/server` only and reach this package through it. If two copies are loaded, a warning names both locations. Two copies that a bundler put into one file are not noticed.
 
 ## Upgrading from 1.x
 

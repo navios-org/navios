@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking
 
 - **`extractUrlParamNames` is removed.** The url param names of a route are `RouteInfo.params` of `@navios/server`, which the server computes when it takes the path apart; the document reads them from there.
+- **`disableJson`, `disableYaml` and `disableScalar` are replaced by `json`, `yaml` and `scalar`.** `json` (default `true`) and `yaml` (default `false`) are booleans; `scalar` (default `true`) is `false` to leave the page out or the `ScalarOptions` object it already took. The defaults serve what they served before.
+
+### Added
+
+- `SchemaConverter.resolve(schema)` follows a reference to `components.schemas` and returns the component.
+- A `querySchema`, `headersSchema`, `cookiesSchema` or `urlParamsSchema` that is a union or an intersection of objects lists the properties of every member; in a union a parameter is required when every member requires it. A slot whose schema is not made of objects logs one warning naming the endpoint and the slot. `OperationBuilder` takes the warning function as an optional fourth argument.
+
+### Fixed
+
+- A named schema (`$defs`, for example Zod's `.meta({ id })`) in `querySchema`, `headersSchema` or `cookiesSchema` produced no parameters, and in `urlParamsSchema` every path parameter fell back to `string`: the reference is now followed.
+- A named multipart `requestSchema` was documented as `{ $ref, type: 'object', properties: {} }` and its component kept unconstrained file fields. The body is now the reference, and the file fields are marked binary in the component.
 
 ## [2.0.0-alpha.0] - 2026-11-26
 

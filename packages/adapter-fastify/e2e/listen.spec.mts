@@ -39,6 +39,12 @@ describe('fastify adapter: where it listens', () => {
     expect(app.getServer().server).toBeInstanceOf(https.Server)
   })
 
+  it('needs a port or a path', async () => {
+    await create({})
+    await expect(app.listen({ host: '127.0.0.1' })).rejects.toThrow(/"port" or "path"/)
+    expect(await app.listen({ port: 0, host: '127.0.0.1' })).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
+  })
+
   it('listens on a unix socket', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'navios-'))
     try {

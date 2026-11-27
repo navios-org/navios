@@ -98,9 +98,9 @@ describe('declareEventSource', () => {
       expect(factory).toBeTypeOf('function')
     })
 
-    it('should use baseUrl from config', () => {
+    it('should use baseURL from config', () => {
       const factory = createEventSourceHandler({
-        baseUrl: 'https://api.example.com',
+        baseURL: 'https://api.example.com',
       })
 
       const chatEvents = factory({ url: '/events' })
@@ -183,7 +183,10 @@ describe('declareEventSource', () => {
       const handle = chatEvents({ urlParams: { roomId: 'abc' }, params: { token: 't' } })
       expect(handle.url).toBe('/events/ABC?token=t')
       expect(() => chatEvents({ urlParams: { roomId: '' }, params: { token: 't' } })).toThrow(
-        'roomId is required',
+        expect.objectContaining({
+          kind: 'request-validation',
+          issues: [{ message: 'roomId is required', part: 'urlParams' }],
+        }),
       )
     })
   })
@@ -299,7 +302,7 @@ describe('declareEventSource', () => {
     })
 
     it('should append to a query string the URL template already has', () => {
-      const events = createEventSourceHandler({ baseUrl: 'https://api.example.com' })({
+      const events = createEventSourceHandler({ baseURL: 'https://api.example.com' })({
         url: '/rooms/$roomId/events?v=2',
         querySchema: z.object({ token: z.string() }),
       })

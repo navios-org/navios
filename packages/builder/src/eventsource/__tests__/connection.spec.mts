@@ -305,7 +305,9 @@ describe('connecting', () => {
     const required = declare({ url: '/feed', querySchema: z.object({ room: z.string() }) })
 
     expect(withDefault().url).toBe('/feed?room=lobby')
-    expect(() => (required as unknown as () => void)()).toThrow(z.ZodError)
+    expect(() => (required as unknown as () => void)()).toThrow(
+      expect.objectContaining({ name: 'ConnectionError', kind: 'request-validation' }),
+    )
   })
 
   it('should use the given constructor where there is no global one', () => {

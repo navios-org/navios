@@ -1,7 +1,7 @@
 import { handlerChain, resolveChain } from '@navios/core/transport'
 
+import type { ClassType, Container } from '@navios/core'
 import type { ModuleNode } from '@navios/core/transport'
-import type { ClassType, Container } from '@navios/di'
 
 import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
 import { memberEndpoint } from '../handlers/endpoint-declaration.mjs'

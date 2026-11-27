@@ -629,6 +629,149 @@ describe('generateOpenApiDocument', () => {
       })
     })
 
+    describe('a named schema (.meta({ id })) in a parameter or upload slot', () => {
+      it('documents the parameters of named query, header, cookie and url param schemas', async () => {
+        const list = {
+          config: {
+            method: 'GET' as const,
+            url: '/tenants/$tenantId/items' as const,
+            urlParamsSchema: z.object({ tenantId: z.uuid() }).meta({ id: 'ItemParams' }),
+            querySchema: z
+              .object({ page: z.number().optional(), search: z.string() })
+              .meta({ id: 'ListQuery' }),
+            headersSchema: z.object({ 'x-trace': z.string() }).meta({ id: 'ListHeaders' }),
+            cookiesSchema: z.object({ session: z.string().optional() }).meta({ id: 'ListCookies' }),
+            responseSchema: z.array(z.string()),
+          },
+        }
+
+        @Controller()
+        class ItemsController {
+          list = handler(list, () => [])
+        }
+
+        const found = operation(
+          await documentOf([ItemsController]),
+          'get',
+          '/tenants/{tenantId}/items',
+        )
+        expect(found.parameters).toEqual([
+          {
+            name: 'tenantId',
+            in: 'path',
+            required: true,
+            schema: expect.objectContaining({ type: 'string', format: 'uuid' }),
+          },
+          { name: 'page', in: 'query', required: false, schema: { type: 'number' } },
+          { name: 'search', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'x-trace', in: 'header', required: true, schema: { type: 'string' } },
+          { name: 'session', in: 'cookie', required: false, schema: { type: 'string' } },
+        ])
+      })
+
+      it('marks the binary fields of a named multipart body in its component', async () => {
+        const upload = api.declareEndpoint({
+          method: 'POST',
+          url: '/named-files',
+          body: 'multipart',
+          requestSchema: z
+            .object({ file: z.instanceof(File), title: z.string() })
+            .meta({ id: 'Upload' }),
+          response: 'void',
+        })
+
+        @Controller()
+        class FilesController {
+          upload = handler(upload, () => {})
+        }
+
+        const document = await documentOf([FilesController])
+        expect(operation(document, 'post', '/named-files').requestBody).toEqual({
+          required: true,
+          content: { 'multipart/form-data': { schema: { $ref: '#/components/schemas/Upload' } } },
+        })
+        expect(document.components?.schemas?.Upload).toMatchObject({
+          type: 'object',
+          properties: {
+            file: { type: 'string', format: 'binary' },
+            title: { type: 'string' },
+          },
+          required: ['file', 'title'],
+        })
+      })
+    })
+
+    describe('a query schema that is not one object', () => {
+      it('expands a union of objects; a parameter is required when every member requires it', async () => {
+        const search = api.declareEndpoint({
+          method: 'GET',
+          url: '/search',
+          querySchema: z.union([
+            z.object({ q: z.string(), page: z.number() }),
+            z.object({ q: z.string(), cursor: z.string() }).meta({ id: 'CursorQuery' }),
+          ]),
+          responseSchema: z.array(z.string()),
+        })
+
+        @Controller()
+        class SearchController {
+          search = handler(search, () => [])
+        }
+
+        const logger = { warn: vi.fn(), debug: vi.fn() }
+        const document = await documentOf([SearchController], { logger })
+        expect(operation(document, 'get', '/search').parameters).toEqual([
+          { name: 'q', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'page', in: 'query', required: false, schema: { type: 'number' } },
+          { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+        ])
+        expect(logger.warn).not.toHaveBeenCalled()
+      })
+
+      it('expands an intersection of objects', async () => {
+        const search = api.declareEndpoint({
+          method: 'GET',
+          url: '/both',
+          querySchema: z.intersection(
+            z.object({ q: z.string() }),
+            z.object({ page: z.number().optional() }),
+          ),
+          responseSchema: z.array(z.string()),
+        })
+
+        @Controller()
+        class SearchController {
+          search = handler(search, () => [])
+        }
+
+        expect(operation(await documentOf([SearchController]), 'get', '/both').parameters).toEqual([
+          { name: 'q', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'page', in: 'query', required: false, schema: { type: 'number' } },
+        ])
+      })
+
+      it('warns, naming the endpoint and the slot, when the schema has no properties to list', async () => {
+        const odd = api.declareEndpoint({
+          method: 'GET',
+          url: '/odd',
+          querySchema: z.union([z.object({ q: z.string() }), z.string()]),
+          responseSchema: z.array(z.string()),
+        })
+
+        @Controller()
+        class OddController {
+          odd = handler(odd, () => [])
+        }
+
+        const logger = { warn: vi.fn(), debug: vi.fn() }
+        const document = await documentOf([OddController], { logger })
+        expect(operation(document, 'get', '/odd').parameters).toBeUndefined()
+        expect(logger.warn).toHaveBeenCalledTimes(1)
+        expect(logger.warn.mock.calls[0][0]).toContain('GET /odd (OddController.odd)')
+        expect(logger.warn.mock.calls[0][0]).toContain('querySchema')
+      })
+    })
+
     describe('a schema library without the Standard JSON Schema extension', () => {
       const plain = <T,>(): StandardSchemaV1<T, T> => ({
         '~standard': {

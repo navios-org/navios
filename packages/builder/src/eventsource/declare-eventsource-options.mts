@@ -61,7 +61,7 @@ export interface CreateEventSourceHandlerConfig {
   /**
    * Base URL for EventSource connections (e.g., 'https://api.example.com').
    */
-  baseUrl?: string
+  baseURL?: string
 
   /**
    * The class connections are opened with, for runtimes without a global

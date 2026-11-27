@@ -9,14 +9,14 @@ This page builds a small users API and runs it on Fastify. The declarations, the
 ## Install
 
 ```bash
-npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@next fastify zod
+npm install @navios/server@next @navios/core@next @navios/builder@next @navios/adapter-fastify@next fastify zod
 ```
 
 :::info
 2.0 is an alpha, published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 :::
 
-`@navios/builder` declares endpoints and `zod` is the schema library used in these docs; any [Standard Schema](https://standardschema.dev) library works in its place. `@navios/core` and `@navios/di` come with the server.
+`@navios/builder` declares endpoints and `zod` is the schema library used in these docs; any [Standard Schema](https://standardschema.dev) library works in its place. `@navios/core` is a peer dependency that the server and its plugins share, so it is installed once, beside them; `@navios/di` comes with it.
 
 Node.js 24 or newer is required, or Bun 1.4.5 or newer.
 

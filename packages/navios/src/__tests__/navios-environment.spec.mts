@@ -31,7 +31,7 @@ describe('navios::environment', () => {
   })
 
   it('should have a default export that is callable and a complete client', async () => {
-    const { default: navios, create } = await import('../index.mjs')
+    const { default: navios } = await import('../index.mjs')
     const fetchMock = vi.fn(async () => Response.json({ ok: true }))
     vi.stubGlobal('fetch', fetchMock)
     const id = navios.interceptors.request.use((config) => {
@@ -40,7 +40,9 @@ describe('navios::environment', () => {
 
     expect((await navios({ url: 'http://x.test/a' })).data).toEqual({ ok: true })
     expect((await navios.request({ url: 'http://x.test/a' })).data).toEqual({ ok: true })
-    expect(navios.create).toBe(create)
+    navios.defaults.headers['x-default'] = '1'
+    expect(navios.create().defaults.headers).toEqual({ 'x-default': '1' })
+    delete navios.defaults.headers['x-default']
     expect(navios.defaults.responseType).toBe('json')
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(init.headers).toEqual({ 'x-a': '1' })

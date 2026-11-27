@@ -262,7 +262,7 @@ describe('client.infiniteQuery', () => {
   })
 
   test('data is InfiniteData of pages', async () => {
-    type Data = InfiniteData<Page, { page: number }>
+    type Data = InfiniteData<Page, { page?: number }>
     expectTypeOf(feed.use({ params: { page: 1 } }).data).toEqualTypeOf<Data | undefined>()
     expectTypeOf(feed.useSuspense({ params: { page: 1 } }).data).toEqualTypeOf<Data>()
     expectTypeOf(await feed.fetch(queryClient, { params: { page: 1 } })).toEqualTypeOf<Data>()

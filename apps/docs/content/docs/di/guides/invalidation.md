@@ -74,12 +74,12 @@ Code that holds a reference outside the container keeps the old object. In the e
 
 ## onInvalidate
 
-`onInvalidate(token, args, listener)` calls `listener` whenever the instance stored for that token and arguments is destroyed, for any reason: `invalidate()`, the invalidation of something it depends on, or `dispose()`.
+`onInvalidate(token, listener)` calls `listener` whenever the instance stored for that token is destroyed, for any reason: `invalidate()`, the invalidation of something it depends on, or `dispose()`. `onInvalidate(token, args, listener)` does so for the instance with those arguments.
 
 ```ts
 let client = await container.get(GatewayClient)
 
-const stop = container.onInvalidate(GatewayClient, undefined, async () => {
+const stop = container.onInvalidate(GatewayClient, async () => {
   client = await container.get(GatewayClient)
 })
 
@@ -90,7 +90,7 @@ stop()
 | Parameter  | Meaning                                                                                                                          |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `token`    | A class or any kind of token                                                                                                     |
-| `args`     | The arguments of the instance to watch, for a [token with a schema](/docs/di/essentials/tokens#tokens-with-a-schema). `undefined` otherwise. Ignored for bound and factory tokens, which carry their own |
+| `args`     | The arguments of the instance to watch, for a [token with a schema](/docs/di/essentials/tokens#tokens-with-a-schema). Left out otherwise. Ignored for bound and factory tokens, which carry their own |
 | `listener` | Called with no arguments, after the whole cascade is over                                                                           |
 
 Listeners run once everything the call destroys is gone and every `onServiceDestroy()` has settled, just before the promise returned by `invalidate()` or `dispose()` resolves. They run in the order the instances were destroyed, dependents first. A listener can therefore resolve the service again, as above, and gets a fully rebuilt instance. Every listener runs even if one throws; the first error rejects that promise. The promise does not wait for asynchronous listeners; what they reject with goes to the [`logger`](/docs/di/reference/api#container).

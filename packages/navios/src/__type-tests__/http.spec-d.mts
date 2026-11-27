@@ -36,6 +36,28 @@ describe('requests', () => {
   })
 })
 
+describe('configuration', () => {
+  test('create and defaults take the options a request falls back to', () => {
+    expectTypeOf(create).toBeCallableWith({
+      timeout: 5000,
+      credentials: 'include',
+      withCredentials: true,
+      cache: 'no-store',
+    })
+    client.defaults.timeout = 5000
+    client.defaults.credentials = 'same-origin'
+    expectTypeOf(create().defaults.timeout).toEqualTypeOf<number | undefined>()
+    expectTypeOf(client.create).toBeCallableWith({ timeout: 1000 })
+  })
+
+  test('what belongs to one request is not a default', () => {
+    // @ts-expect-error a signal aborts one request
+    create({ signal: new AbortController().signal })
+    // @ts-expect-error the method is given per request
+    create({ method: 'POST' })
+  })
+})
+
 describe('interceptors', () => {
   test('are typed, optional and may return nothing', () => {
     client.interceptors.request.use((config) => {

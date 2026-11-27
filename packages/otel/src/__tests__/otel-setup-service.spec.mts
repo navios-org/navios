@@ -6,6 +6,8 @@ import { context as otelContext, propagation, ROOT_CONTEXT, trace } from '@opent
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { OtelSetupService } from '../index.mjs'
+import { resolveOtelConfig } from '../otel-config.mjs'
+import { metricsEndpoint } from '../sdk/providers.mjs'
 
 import type { OtelConfig } from '../index.mjs'
 
@@ -106,6 +108,64 @@ describe('OtelSetupService', () => {
       ])
     })
 
+    it('sends metrics to metrics.endpoint when it is set', async () => {
+      const collector = await startCollector()
+      const service = await setUp({
+        exporter: 'otlp',
+        exporterOptions: { endpoint: collector.endpoint },
+        metrics: { enabled: true, endpoint: collector.endpoint.replace('/v1/traces', '/custom') },
+      })
+
+      service.getMeter().createCounter('jobs').add(1)
+      await service.forceFlush()
+
+      expect(collector.requests.map(({ url }) => url)).toEqual(['/custom'])
+    })
+
+    it('derives the metrics endpoint only from a /v1/traces path', () => {
+      const derive = (endpoint?: string, metrics?: string) =>
+        metricsEndpoint(
+          resolveOtelConfig({
+            serviceName: 'x',
+            exporter: 'otlp',
+            exporterOptions: { endpoint },
+            metrics: { enabled: true, endpoint: metrics },
+          }),
+        )
+
+      expect(derive('http://localhost:4318/v1/traces')).toBe('http://localhost:4318/v1/metrics')
+      expect(derive('http://traces.internal:4318/v1/traces')).toBe(
+        'http://traces.internal:4318/v1/metrics',
+      )
+      expect(derive('https://otlp.example/otlp/v1/traces/?key=1')).toBe(
+        'https://otlp.example/otlp/v1/metrics/?key=1',
+      )
+      // Not the traces URL, and not a guess: the exporter's own default.
+      expect(derive('http://traces.internal:4318/ingest')).toBeUndefined()
+      expect(derive(undefined)).toBeUndefined()
+      expect(derive('http://localhost:4318/v1/traces', 'http://metrics:9000/in')).toBe(
+        'http://metrics:9000/in',
+      )
+    })
+
+    it('warns when the metrics endpoint cannot be derived from the traces endpoint', async () => {
+      const logger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() }
+      const service = new OtelSetupService()
+      services.push(service)
+      await service.initialize(
+        {
+          serviceName: 'setup-test',
+          exporter: 'otlp',
+          exporterOptions: { endpoint: 'http://127.0.0.1:9/ingest' },
+          metrics: { enabled: true },
+        },
+        logger,
+      )
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn.mock.calls[0][0]).toContain('metrics.endpoint')
+    })
+
     it('writes spans to the console as they end', async () => {
       const dir = vi.spyOn(console, 'dir').mockImplementation(() => {})
       const service = await setUp({ exporter: 'console' })
@@ -127,6 +187,28 @@ describe('OtelSetupService', () => {
 
       expect(service.getTracer().startSpan('job').isRecording()).toBe(recording)
     })
+
+    it.each([
+      [1, 0, false],
+      [0, 1, true],
+      [0.5, 0, false],
+      [0.5, 1, true],
+    ])(
+      'follows the decision of the parent: ratio %d under a parent with flags %d records: %s',
+      async (ratio, traceFlags, recording) => {
+        const service = await setUp({ sampling: { ratio } })
+        const parent = trace.setSpanContext(ROOT_CONTEXT, {
+          traceId: '0af7651916cd43dd8448eb211c80319c',
+          spanId: 'b7ad6b7169203331',
+          traceFlags,
+          isRemote: true,
+        })
+
+        const span = service.getTracer().startSpan('job', {}, parent)
+        expect(span.isRecording()).toBe(recording)
+        expect(span.spanContext().traceFlags).toBe(traceFlags)
+      },
+    )
   })
 
   describe('registerGlobally', () => {

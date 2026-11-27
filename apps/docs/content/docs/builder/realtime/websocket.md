@@ -27,8 +27,9 @@ import { declareWebSocket, socketBuilder } from '@navios/builder/socket'
 const connect = declareWebSocket({ url: 'wss://api.example.com/ws' })
 
 export const socket = socketBuilder()
+export const connection = connect()
 
-socket.provideClient(connect())
+socket.provideClient(connection)
 ```
 
 `provideClient` accepts a handle from [`declareWebSocket`](#the-connection), a [Socket.IO client](#socketio), or [anything with the same methods](#another-transport). Sending before a client is provided fails with a `NaviosError`; subscriptions made before are attached when the client arrives.
@@ -42,17 +43,19 @@ Calling `provideClient` again moves every subscription to the new connection and
 ```ts
 import { z } from 'zod/v4'
 
-import { socket } from './socket'
+import { connection, socket } from './socket'
 
 export const sendTyping = socket.defineSend({
   topic: 'user.typing',
   payloadSchema: z.object({ userId: z.string() }),
 })
 
-sendTyping({ userId: '42' }) // returns nothing
+connection.on('connect', () => {
+  sendTyping({ userId: '42' }) // returns nothing
+})
 ```
 
-An invalid payload throws a `SocketError` and nothing is sent. So does a connection that cannot send, because it is not open yet or any more, unless its [WebSocket class](#another-websocket-class) keeps messages.
+A socket takes a moment to open, and a message cannot be sent before it has: wait for `connect`, as above, or check `connection.connected`. An invalid payload throws a `SocketError` and nothing is sent. So does a connection that cannot send, because it is not open yet or any more, unless its [WebSocket class](#another-websocket-class) keeps messages.
 
 ### Wait for an acknowledgement
 
@@ -119,6 +122,29 @@ socket.provideClient(handle)
 
 The parameters can be left out when none is required. `params` are validated even then, so that the defaults and required fields of `querySchema` apply. Here the schema's output becomes the query string: `undefined` and `null` are skipped, a `Date` is written as an ISO string, and an array repeats its key for each item.
 
+Connecting with arguments that cannot be used throws a `ConnectionError`, and no socket is opened. Its `kind` is one of the two an HTTP call has for the same mistakes:
+
+| `kind`               | When                                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `request-validation` | `urlParamsSchema` or `querySchema` rejected the arguments. `issues` lists `{ message, path?, part }`, with `part` `'urlParams'` or `'params'` |
+| `config`             | A URL parameter is missing, empty, `.` or `..`, or has no form in a URL; a schema validates asynchronously; the runtime has no `WebSocket` |
+
+```ts
+import { isConnectionError } from '@navios/builder/socket'
+
+try {
+  socket.provideClient(usersSocket({ urlParams: { teamId }, params: { token } }))
+} catch (error) {
+  if (isConnectionError(error) && error.kind === 'request-validation') {
+    console.warn(error.issues)
+  } else {
+    throw error
+  }
+}
+```
+
+A `ConnectionError` is a `NaviosError` with `kind`, `url` (the URL template), `issues` and `cause` (what the schema library reported, or what was thrown). It is thrown to the caller and not passed to `onError`.
+
 A handle also works on its own:
 
 ```ts
@@ -137,7 +163,7 @@ It also exposes `url`, `connected`, `state` (`'connecting' | 'open' | 'closing' 
 `open`, `close`, `error`, `message`, `connect`, `disconnect` and `connect_error` are connection events on a handle. `handle.on('close', ...)` never fires for a server message whose topic is `close`. To listen to a topic with one of those names, use `handle.onTopic(topic, listener)` or `socket.defineSubscribe({ topic })`.
 :::
 
-When several connections share a host, `createWebSocketHandler({ baseUrl, onError })` returns a `declareWebSocket` with the base URL applied.
+When several connections share a host, `createWebSocketHandler({ baseURL, onError })` returns a `declareWebSocket` with the base URL applied. `baseURL` and `url` are joined with exactly one slash, and a `url` with a scheme of its own is used as it is.
 
 A connection that is lost stays closed. To reconnect, listen for `disconnect`, open another connection and pass it to `provideClient`.
 
@@ -256,7 +282,7 @@ const socket = socketBuilder({
 
 ## Errors
 
-Every failure is a `SocketError`. Send functions throw it or reject with it; failures on the receiving side have no caller, so they only reach `onError`.
+Every failure of a message is a `SocketError`. (Opening a connection with invalid arguments throws a [`ConnectionError`](#the-connection) instead.) Send functions throw it or reject with it; failures on the receiving side have no caller, so they only reach `onError`.
 
 | `kind`        | When                                                               | What happens                                  |
 | ------------- | ------------------------------------------------------------------ | --------------------------------------------- |

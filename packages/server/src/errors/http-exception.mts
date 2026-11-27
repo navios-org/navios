@@ -69,9 +69,27 @@ export class NotFoundException extends HttpException {
   }
 }
 
+export class MethodNotAllowedException extends HttpException {
+  constructor(response: string | object = 'Method Not Allowed', cause?: unknown) {
+    super(405, response, cause)
+  }
+}
+
 export class ConflictException extends HttpException {
   constructor(response: string | object = 'Conflict', cause?: unknown) {
     super(409, response, cause)
+  }
+}
+
+export class PayloadTooLargeException extends HttpException {
+  constructor(response: string | object = 'Payload Too Large', cause?: unknown) {
+    super(413, response, cause)
+  }
+}
+
+export class UnsupportedMediaTypeException extends HttpException {
+  constructor(response: string | object = 'Unsupported Media Type', cause?: unknown) {
+    super(415, response, cause)
   }
 }
 
@@ -90,5 +108,11 @@ export class TooManyRequestsException extends HttpException {
 export class InternalServerErrorException extends HttpException {
   constructor(response: string | object = 'Internal Server Error', cause?: unknown) {
     super(500, response, cause)
+  }
+}
+
+export class ServiceUnavailableException extends HttpException {
+  constructor(response: string | object = 'Service Unavailable', cause?: unknown) {
+    super(503, response, cause)
   }
 }

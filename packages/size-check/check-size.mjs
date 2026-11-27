@@ -26,7 +26,9 @@ const ZOD_IMPORT = /from\s*["']zod(\/[^"']*)?["']|require\(["']zod(\/[^"']*)?["'
 const HTTP_IMPORT = /(from\s*|require\()["']@navios\/(server|builder)/
 
 const targets = [
-  { name: 'di', budget: 88_000, forbidden: [/_apply_decs/, ZOD_IMPORT, /node:async_hooks/] },
+  // 2.0.0-alpha.1: bindings of the testing containers per bound token, and the
+  // short form of `onInvalidate`.
+  { name: 'di', budget: 90_000, forbidden: [/_apply_decs/, ZOD_IMPORT, /node:async_hooks/] },
   // No HTTP in core: none of its files may import the server or the builder.
   {
     name: 'core',

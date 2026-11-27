@@ -41,6 +41,8 @@
     "publish:next": "yarn npm publish --access public --tag next"
   },
   "devDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
     "@navios/server": "workspace:^",
     "@types/bun": "^1.4.5",
     "typescript": "^7.0.2",

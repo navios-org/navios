@@ -62,7 +62,9 @@ container.provide(DatabaseService, InMemoryDatabase)
 const db = await container.get(DatabaseService) // InMemoryDatabase
 ```
 
-It must be called before the token is first resolved in that container. Afterwards it throws, because an instance built from the old provider may already be held by other services.
+It must be called before the token is first resolved in that container. Once the container holds an instance of the token it throws, because an instance built from the old provider may already be held by other services.
+
+The check looks at what the root container holds, which is singletons and values stored with `addInstance()`. Instances of a request-scoped token are held by scopes and transients are not held at all, so `provide()` for such a token does not throw after it was resolved: scopes keep the instances they have, and every later resolution uses the new provider.
 
 ## registerProvider
 
@@ -78,7 +80,12 @@ registerProvider(CLOCK, { value: { now: () => Date.now() } })
 
 A token has one default. A second, different one throws `ProviderConflict`, whichever way it is registered. A class or a factory takes a scope of its own as `{ class, scope }` or `{ factory, scope }`.
 
-Outside production (`NODE_ENV`) a second provider of the same form replaces the first instead: hot reload evaluates a module again, and each time with new functions and values. A warning names the token when the two do not look alike.
+Outside production (`NODE_ENV`) some second providers replace the first instead, because hot reload evaluates a module again and creates new classes, functions and values each time:
+
+- A class or a `@Factory` class replaces one with the same name. Two classes with different names are a `ProviderConflict` everywhere.
+- A value replaces a value, a function replaces a function and an alias replaces an alias. A warning names the token when the two do not look alike.
+
+A provider of another form, such as a value for a token whose default is a class, is always a `ProviderConflict`.
 
 ## Lookup order
 
@@ -139,7 +146,7 @@ container.decorate(UserService, (users, info) => {
 
 It runs after construction and `onServiceInit`, and before the instance is stored, so no other service ever sees the undecorated one. `info` holds the `token` and the validated `args`.
 
-Several decorators for one token run in the order they were added. Like `provide()`, `decorate()` throws once the token is resolved. Unlike a provider, a decorator keeps the original implementation and adds to it, which suits logging, tracing and metrics.
+Several decorators for one token run in the order they were added. Like `provide()`, `decorate()` throws once the container holds an instance of the token, and [does not notice](#containerprovide) a request-scoped or transient token that was already resolved: instances built before the call stay undecorated. Unlike a provider, a decorator keeps the original implementation and adds to it, which suits logging, tracing and metrics.
 
 ## Strict containers
 

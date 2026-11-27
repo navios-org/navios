@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Added
+
+- **`timeout`, `credentials`, `withCredentials` and the other `fetch` options (`cache`, `mode`, `redirect`, ...) in `NaviosConfig`**, so `create({ timeout: 5000 })` and `client.defaults.timeout = 5000` type-check. They already applied to every request at runtime. `signal`, `body` and `method` stay options of one request.
+
 ### Changed
 
+- **Breaking: `client.create(config)` starts from the `defaults` of the client it is called on**, as in axios: `baseURL`, `headers` (merged by name), `adapter`, `timeout` and the rest, as they are at the call, with `config` over them. Interceptors are not copied. It used to be the exported `create`, which starts without defaults and still does; `navios.create` is no longer that function, and starts from `navios.defaults`.
 - **Breaking: the seven per-method config types are two.** `NaviosBodyConfig<Data, Params>` is the config of `post`, `put`, `patch` and `delete` (it was `NaviosPostConfig`, `NaviosPutConfig`, `NaviosPatchConfig`, and `NaviosDeleteConfig<Params>` is `NaviosBodyConfig<unknown, Params>`); `NaviosNoBodyConfig<Params>` is the config of `get`, `head` and `options` (`NaviosGetConfig`, `NaviosHeadConfig`, `NaviosOptionsConfig`).
 
 ### Removed

@@ -149,6 +149,8 @@ Each helper takes the `QueryClient` first and the query's arguments second, and 
 | `setData(queryClient, args, updater)` | Writes the entry. `updater` is a value or `(current) => next`. |
 | `invalidate(queryClient, args?, filters?)` | Marks entries stale and refetches the mounted ones. See [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation#invalidating). |
 
+A `signal` among the arguments of a hook or of `fetch` is combined with the one TanStack aborts when the query is cancelled or its last component unmounts, so either aborts the request.
+
 ```tsx
 function UserLink({ userId }: { userId: string }) {
   const queryClient = useQueryClient()

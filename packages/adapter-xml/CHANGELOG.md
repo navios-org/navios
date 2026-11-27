@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-alpha.1] - Unreleased
 
+### Changed
+
+- `engines` names Node.js 24 or newer, as `@navios/server` does. It named only Bun.
+- The suite of `xml()` responses runs on the srvx adapter as well.
+
 ### Fixed
 
 - `"types": ["@navios/adapter-xml/jsx"]` gets the same JSX types as `jsxImportSource`. In 2.0.0-alpha.0 the `./jsx` export named a `jsx.d.ts` that was not in the published package, so TypeScript fell back to another global `JSX` namespace, in which neither an element with child elements nor an async function component type-checked.

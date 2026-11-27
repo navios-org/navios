@@ -1,11 +1,11 @@
 import { classMetadata, describeHandlerClass } from '@navios/core/transport'
 
+import type { ClassType } from '@navios/core'
 import type {
   DecoratorMetadata,
   HandlerClassMetadata,
   HandlerClassOptions,
 } from '@navios/core/transport'
-import type { ClassType } from '@navios/di'
 
 /** The members are method-form handlers, and extras for field-form handlers. */
 export type ControllerMetadata = HandlerClassMetadata

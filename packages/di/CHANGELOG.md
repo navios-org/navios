@@ -11,12 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `@navios/di/testing`: the lifecycle records are removed. `recordLifecycleEvent()`, `expectInitialized()`, `expectDestroyed()`, `expectNotDestroyed()` and the type `LifecycleRecord` are gone, and `getServiceStats()` returns `{ methodCalls }`: the containers never observed a hook, so the assertions only checked what a test had recorded itself. Let a fake record its hooks, or spy on them.
 - `get()` and `getSync()` of `Container` and `ScopedContainer` are methods on the prototype, like `peek()`, instead of functions bound to each instance. Call them on the container; `const { get } = container` loses the container. A scope allocates two closures fewer.
-- `registerProvider()` takes no third argument. Give a class or a factory its scope in the provider: `registerProvider(TOKEN, { class: Impl, scope })`. `RegisterProviderOptions` is deprecated and will be removed.
+- `registerProvider()` takes no third argument. Give a class or a factory its scope in the provider: `registerProvider(TOKEN, { class: Impl, scope })`. The type `RegisterProviderOptions` is removed.
+- `@Injectable({ token })` and `@Factory({ token })` take the scope the token declares when they are given none, as `provide()` and `registerProvider()` do. They used to make a singleton of it. So do `registerInjectable()`, `registerFactory()` and the decorators of `@navios/di/legacy-compat`. An explicit `scope` still wins.
+- `UnitTestContainer` throws when a bound token is listed without `useValue`, `useClass` or `useFactory`. It used to resolve the token to its own args.
+- `@navios/di/testing`: a value given with `toValue()` or `useValue` is never destroyed, like one given with `provide(token, { value })`. Its `onServiceDestroy()` used to be called by `clear()`, by `dispose()` and when the token was bound again.
+- `@Injectable()` and `@Factory()` of `@navios/di/legacy-compat` have the types of the standard decorators: a class that does not fit the type of the token, a constructor that does not take what the schema makes, and a `create()` that returns something else no longer compile.
 
 ### Added
 
 - `container.getProvider()` accepts bound and factory tokens, as `isRegistered()` does, and tells the provider of their token.
 - `TestContainer` has `expectNotCalled()`, as `UnitTestContainer` does. A failed `expectCalledWith()` lists the recorded calls in both containers.
+- `onInvalidate(token, listener)`, for an instance without args, on containers, scopes and `IContainer`. `onInvalidate(token, args, listener)` stays.
+- The types `ProviderInputFor`, `ProvidedFor`, `PublicPart`, `AbstractClassType` and `InstanceDecoratorFor`, the type of the function `decorate()` takes. They appeared in public signatures and could not be named.
 
 ### Changed
 
@@ -27,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `bind()` of `TestContainer` on a bound token, and `useValue`, `useClass` and `useFactory` of `UnitTestContainer` for one, apply to the args of that token alone. They replaced the provider of the underlying token, so every other set of args resolved to the same binding. Binding a bound token again destroys only the instance for its args.
+- `dispose()` runs the destroy listeners that the factory of an `InjectionToken.factory()` token added with `ctx.addDestroyListener()` also when an `onInvalidate` listener throws. The error skipped them, and still rejects `dispose()`. The same holds for `clear()` of the testing containers.
 - `isRegistered()` and `optional()` follow an alias to its end, as resolving it does. An instance of a token halfway along a chain of aliases no longer makes the alias count as provided when what it points to in the end is not.
 - `@Injectable()` and `@Factory()` of `@navios/di/legacy-compat` throw `DIError` when they are applied to something other than a class, like the standard decorators, instead of registering what they were given.
 - A bundle made with rolldown, or a tool built on it such as tsdown, keeps the `Symbol.metadata` polyfill. rolldown left out an entry point that only re-exports, because `sideEffects` did not list it, and with it the import of the polyfill. Decorated classes then had no metadata, and `@navios/core` threw `Decorator metadata is not available` at start. The entry points are now listed.

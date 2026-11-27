@@ -44,7 +44,7 @@ export const openApi = openApiPlugin({
   scalar: {
     theme: 'purple',
   },
-  disableYaml: false,
+  yaml: true,
 })
 
 export function printBanner(url: string): void {

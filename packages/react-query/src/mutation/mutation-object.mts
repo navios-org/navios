@@ -35,7 +35,8 @@ export type MutationCallbackContext<TContext> = TContext & MutationFunctionConte
 /**
  * What to invalidate after a successful mutation.
  *
- * - a query (or infinite query): every cache entry of that endpoint
+ * - a query (or infinite query): every cache entry of that endpoint, of
+ *   every form (its `endpointKey`)
  * - a function: the key it returns, computed from the mutation's result and
  *   variables — return `undefined` to skip
  */
@@ -69,8 +70,10 @@ export type MutationSettings<
      */
     useContext?: () => TContext
 
-    /** Queries to invalidate after the mutation succeeds. */
-    invalidates?: readonly InvalidateTarget<NoInfer<TData>, NoInfer<TVariables>>[]
+    /** What to invalidate after the mutation succeeds: one target or a list. */
+    invalidates?:
+      | InvalidateTarget<NoInfer<TData>, NoInfer<TVariables>>
+      | readonly InvalidateTarget<NoInfer<TData>, NoInfer<TVariables>>[]
 
     /**
      * Optimistic cache updates applied before the request is sent.
@@ -114,7 +117,45 @@ export type MutationSettings<
   }
 
 /**
+ * Options of one use of a mutation hook, over those of the declaration: the
+ * TanStack options that say how this component runs the mutation, and
+ * callbacks that run after the declaration's own.
+ *
+ * What the mutation is stays with the declaration: its function and key,
+ * `onMutate` (which types `onMutateResult` for every callback), `scope`,
+ * `invalidates` and `optimistic`.
+ */
+export type MutationHookOptions<TData, TError, TVariables, TOnMutateResult = unknown> = Pick<
+  UseMutationOptions<TData, TError, TVariables, TOnMutateResult>,
+  'retry' | 'retryDelay' | 'networkMode' | 'gcTime' | 'meta' | 'throwOnError'
+> & {
+  /** Runs after the declaration's invalidations and `onSuccess`. */
+  onSuccess?: (
+    data: TData,
+    variables: TVariables,
+    context: MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+  ) => void | Promise<void>
+  /** Runs after optimistic updates were rolled back and the declaration's `onError`. */
+  onError?: (
+    error: TError,
+    variables: TVariables,
+    context: MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+  ) => void | Promise<void>
+  /** Runs after the declaration's `onSettled`. */
+  onSettled?: (
+    data: TData | undefined,
+    error: TError | null,
+    variables: TVariables,
+    context: MutationFunctionContext & { onMutateResult: TOnMutateResult | undefined },
+  ) => void | Promise<void>
+}
+
+/**
  * A mutation bound to one endpoint: a hook with a few helpers attached.
+ *
+ * The hook takes {@link MutationHookOptions} for one use of it. Callbacks that
+ * belong to a single call go to `mutate(variables, { onSuccess })`, as in
+ * TanStack Query.
  */
 export type MutationObject<
   Options extends BaseEndpointOptions,
@@ -122,7 +163,9 @@ export type MutationObject<
   TData = InferEndpointReturn<Options>,
   TError = InferEndpointError<Options>,
   TVariables = MutationVariables<Options>,
-> = (() => UseMutationResult<TData, TError, TVariables, TOnMutateResult>) & {
+> = ((
+  options?: MutationHookOptions<TData, TError, TVariables, TOnMutateResult>,
+) => UseMutationResult<TData, TError, TVariables, TOnMutateResult>) & {
   /** Key shared by every mutation of this endpoint: `[...prefix, method, url]`. */
   mutationKey: readonly unknown[]
 

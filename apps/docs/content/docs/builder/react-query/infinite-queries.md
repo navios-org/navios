@@ -70,7 +70,9 @@ postsQuery.use({ params: { limit: 20 } })
 // second page  GET /posts?limit=20&cursor=abc
 ```
 
-So `getNextPageParam` only returns what changes. Filters and page size stay in the hook's `params` and are part of the cache key; the page param is not.
+So `getNextPageParam` only returns what changes, and is typed that way: any subset of the query parameters. Filters and page size stay in the hook's `params` and are part of the cache key; the page param is not.
+
+The `lastPageParam` it receives is the whole query of the last page: the page param merged over the hook's `params`. `data.pageParams` holds the page params as they were returned.
 
 The first page param is the hook's `params`, exactly as you passed them. They are not run through `querySchema` first, so a schema default does not show up in `lastPageParam`. Set `initialPageParam` when the first page needs something else.
 
@@ -87,7 +89,7 @@ export const usersFeedQuery = client.infiniteQuery(listUsers, {
 })
 ```
 
-For lists that load in both directions, add `getPreviousPageParam` with the same shape and use `fetchPreviousPage` from the hook result.
+For lists that load in both directions, add `getPreviousPageParam` with the same shape and use `fetchPreviousPage` from the hook result. `initialPageParam` is a subset of the query parameters as well.
 
 ## Helpers and cache entries
 
@@ -109,6 +111,6 @@ postsQuery.setData(queryClient, { params: { limit: 20 } }, (current) =>
 )
 ```
 
-Infinite entries are stored apart from plain ones. You can declare `client.query` and `client.infiniteQuery` on the same endpoint and neither overwrites the other; the key of the infinite form carries an `'infinite'` marker.
+Infinite entries are stored apart from plain ones. You can declare `client.query` and `client.infiniteQuery` on the same endpoint and neither overwrites the other; the key of the infinite form is marked `'infinite'` and that of the plain form `'query'`.
 
 Related: [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation).

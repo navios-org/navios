@@ -9,6 +9,11 @@ import type {
 import type { NaviosResponse } from '../response/navios-response.mjs'
 
 export interface Navios {
+  /**
+   * Creates a client that starts from the `defaults` of this one, as they are
+   * now: `baseConfig` is merged over them, headers by name. Interceptors are
+   * not copied.
+   */
   create: (baseConfig?: NaviosConfig) => Navios
   get: <Result, Params extends object = object>(
     url: string,

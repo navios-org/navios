@@ -12,7 +12,7 @@ The first version of the adapter: for runtimes that the Fastify and the Bun adap
 ### Added
 
 - **`defineSrvxEnvironment(options)`** runs an application on [srvx](https://srvx.h3.dev), for Cloudflare Workers, AWS Lambda, Deno and other runtimes of the web platform.
-  - **Cloudflare Workers**: before `listen()`, `app.getServer()` is a server that does not listen, whose `fetch` handles a request. The Worker needs the `nodejs_compat` flag.
+  - **Cloudflare Workers**: before `listen()`, `app.getServer()` is a server that does not listen, whose `fetch` handles a request. The Worker needs the `nodejs_compat` flag and a compatibility date of 2024-09-23 or later.
   - **AWS Lambda**: that `fetch` goes to `handleLambdaEvent` of `srvx/aws-lambda`.
   - **Deno**: `app.listen({ port?, hostname? })` serves with `Deno.serve`.
   - **Node.js and Bun** are supported, for an application that also runs on one of the others. Their own adapters are the better choice there, and `listen()` logs a warning on Bun, where `@navios/adapter-bun` is faster.

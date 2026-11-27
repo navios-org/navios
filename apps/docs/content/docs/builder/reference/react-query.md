@@ -52,7 +52,7 @@ Unknown keys in an inline declaration are compile errors. A method's `keyPrefix`
 | `keySuffix`    | `readonly unknown[]` | `[]`    | Segments placed right after `[method, url]`                                                      |
 | `withResponse` | `boolean`            | `false` | Deliver [`DataWithResponse`](#withresponse-and-datawithresponse) instead of the bare data        |
 
-Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-response'?, 'infinite'?, { keyBy }?, inputs?]`, where `inputs` is `{ urlParams?, params?, data? }`. Mutation keys are `[...keyPrefix, method, url, ...keySuffix]`. See [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation).
+Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-response'?, 'query' | 'infinite', { keyBy }?, inputs?]`, where `inputs` is `{ urlParams?, params?, data? }`. Mutation keys are `[...keyPrefix, method, url, ...keySuffix]`. See [Keys and invalidation](/docs/builder/react-query/keys-and-invalidation).
 
 ## Query settings
 
@@ -71,13 +71,14 @@ Query keys have the shape `[...keyPrefix, method, url, ...keySuffix, 'with-respo
 | `query()`     | `(args, options?) => QueryOptionsResult<TData, TError>`               | TanStack query options for `useQuery`, `useSuspenseQuery`, `useQueries` and `queryClient.query`     |
 | `use`         | `(args \| skipToken, options?) => UseQueryResult<TSelected, TError>`  | `useQuery`. `options` is every TanStack option except `queryKey` and `queryFn`                      |
 | `useSuspense` | `(args, options?) => UseSuspenseQueryResult<TSelected, TError>`       | `useSuspenseQuery`, with the same rule for `options`                                                |
-| `key`         | `(args?: PartialEndpointInputs<Options>) => TaggedKey<TData, TError>` | No args: every entry of the endpoint. Partial args: the matching entries. Full args: the exact key  |
+| `key`         | `(args?: PartialEndpointInputs<Options>) => TaggedKey<TData, TError>` | No args: every entry of this query. Partial args: the matching entries. Full args: the exact key    |
+| `endpointKey` | `readonly unknown[]`                                                  | Prefix of every entry of the endpoint, in every form (plain, infinite, `withResponse`). Untyped     |
 | `fetch`       | `(queryClient, args) => Promise<TData>`                               | Fetches through the cache; fresh cached data is returned without a request. Rejects with `TError`   |
 | `prefetch`    | `(queryClient, args) => Promise<void>`                                | Like `fetch`, but resolves with nothing and never rejects                                           |
 | `ensure`      | `(queryClient, args) => Promise<TData>`                               | Cached data however old; fetches only when the cache is empty                                       |
 | `getData`     | `(queryClient, args) => TData \| undefined`                           | Reads the cached data                                                                               |
 | `setData`     | `(queryClient, args, updater) => TData \| undefined`                  | Writes the cached data; `updater` is a value or `(current) => next`                                 |
-| `invalidate`  | `(queryClient, args?, filters?) => Promise<void>`                     | Invalidates by the same scopes as `key`. `filters` is TanStack's, minus `queryKey`                  |
+| `invalidate`  | `(queryClient, args?, filters?) => Promise<void>`                     | Without args: the `endpointKey`. With args: the same scopes as `key`. `filters` is TanStack's, minus `queryKey` |
 | `endpoint`    | `EndpointHandler<Options>`                                            | The endpoint this query calls                                                                       |
 
 With a `keyBy`, `use`, `useSuspense`, `fetch`, `prefetch` and `ensure` take `SendArgs<Options, TKeyBy>`, where the shared inputs are optional and sent when present. `query()`, `getData` and `setData` take `KeyedArgs<Options, TKeyBy>`, and `key` and `invalidate` take `PartialKeyedInputs<Options, TKeyBy>`: only the inputs that identify the entry.
@@ -90,20 +91,20 @@ See [Queries](/docs/builder/react-query/queries).
 
 | Setting                | Type                                                                                              | Description                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `getNextPageParam`     | `(lastPage, allPages, lastPageParam, allPageParams) => PageParam<Options> \| undefined \| null`   | Required. Query params of the next page, or nothing when there is none  |
-| `getPreviousPageParam` | `(firstPage, allPages, firstPageParam, allPageParams) => PageParam<Options> \| undefined \| null` | The same, backwards                                                     |
-| `initialPageParam`     | `PageParam<Options>`                                                                              | Defaults to the call's `params`                                         |
+| `getNextPageParam`     | `(lastPage, allPages, lastPageParam, allPageParams) => PartialPageParam<Options> \| undefined \| null`   | Required. The query params that change for the next page, or nothing when there is none |
+| `getPreviousPageParam` | `(firstPage, allPages, firstPageParam, allPageParams) => PartialPageParam<Options> \| undefined \| null` | The same, backwards                                                     |
+| `initialPageParam`     | `PartialPageParam<Options>`                                                                              | Defaults to the call's `params`                                         |
 
-`PageParam<Options>` is the input type of the endpoint's `querySchema`. Each page param is merged over the call's `params`.
+`PageParam<Options>` is the input type of the endpoint's `querySchema`, and `PartialPageParam<Options>` any subset of it. Each page param is merged over the call's `params`; `lastPageParam`, `firstPageParam` and `allPageParams` are the merged result, a `PageParam<Options>`.
 
 ## Infinite query object
 
 `InfiniteQueryObject<Options, TPage, TError, TPageParam, TData>` has the same members as a [query object](#query-object), with these differences:
 
-- The cached value, and so the type handled by `fetch`, `ensure`, `getData` and `setData`, is `InfiniteData<TPage, TPageParam>`.
+- The cached value, and so the type handled by `fetch`, `ensure`, `getData` and `setData`, is `InfiniteData<TPage, TPageParam>`, where `TPageParam` is `PartialPageParam<Options>`.
 - `use` and `useSuspense` wrap `useInfiniteQuery` and `useSuspenseInfiniteQuery`. Their `options` also exclude `getNextPageParam`, `getPreviousPageParam` and `initialPageParam`, which come from the settings.
 - Calling the object returns `InfiniteQueryOptionsResult`.
-- Its keys carry an `'infinite'` marker, so it never shares an entry with a plain query of the same endpoint.
+- Its keys are marked `'infinite'` where a plain query's are marked `'query'`, so the two never share an entry and neither key is a prefix of the other. Their `endpointKey` is the same.
 
 See [Infinite queries](/docs/builder/react-query/infinite-queries).
 
@@ -113,7 +114,7 @@ See [Infinite queries](/docs/builder/react-query/infinite-queries).
 
 | Setting       | Type                                                           | Description                                                                              |
 | ------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `invalidates` | `readonly InvalidateTarget[]`                                  | Invalidated after success. A query object means its whole endpoint; a function `(data, variables) => key \| undefined` means that key |
+| `invalidates` | `InvalidateTarget \| readonly InvalidateTarget[]`              | Invalidated after success. A query object means its whole endpoint (`endpointKey`); a function `(data, variables) => key \| undefined` means that key |
 | `optimistic`  | `(update: OptimisticUpdater) => OptimisticUpdate \| readonly OptimisticUpdate[]` | Cache updates applied before the request is sent                       |
 | `useContext`  | `() => TContext`                                               | A hook run inside the mutation hook; its result is merged into every callback's context  |
 | `onMutate`    | `(variables, context) => TOnMutateResult`                      | Before the request                                                                       |
@@ -140,12 +141,14 @@ See [Mutations](/docs/builder/react-query/mutations) and [Optimistic updates](/d
 
 | Member          | Signature                                                              | Description                                                                         |
 | --------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `mutation()`    | `() => UseMutationResult<TData, TError, TVariables, TOnMutateResult>`  | `useMutation`. Takes no arguments; pass everything, URL params included, to `mutate` |
+| `mutation()`    | `(options?: MutationHookOptions) => UseMutationResult<TData, TError, TVariables, TOnMutateResult>` | `useMutation`. Pass the endpoint's arguments, URL params included, to `mutate` |
 | `mutationKey`   | `readonly unknown[]`                                                   | Key shared by every mutation of this endpoint                                       |
 | `useIsMutating` | `(match?: { urlParams?: Partial<UrlParams> }) => boolean`              | `true` while a mutation of this endpoint is in flight, optionally only for those URL params |
 | `endpoint`      | `EndpointHandler<Options>`                                             | The endpoint this mutation calls                                                    |
 
 `TVariables` is `MutationVariables<Options>`: the endpoint's call arguments, optional when the endpoint requires nothing.
+
+`MutationHookOptions<TData, TError, TVariables, TOnMutateResult>` are the options of one use of the hook: `retry`, `retryDelay`, `networkMode`, `gcTime`, `meta` and `throwOnError`, which replace the declaration's, and `onSuccess`, `onError` and `onSettled`, which run after the declaration's with the same arguments. See [Mutations](/docs/builder/react-query/mutations#options-of-one-component).
 
 ## withResponse and DataWithResponse
 
@@ -162,7 +165,7 @@ interface DataWithResponse<TData> {
 }
 ```
 
-Header names are lower-cased and `headers` is a plain record, so the value survives dehydration and persistence. Entries declared with `withResponse` live under their own key, marked `'with-response'`. Failures still go to the error channel.
+Header names are lower-cased and `headers` is a plain record, so the value survives dehydration and persistence. Entries declared with `withResponse` live under their own key, marked `'with-response'` before the `'query'` or `'infinite'` marker. Failures still go to the error channel.
 
 `MaybeWithResponse<TData, WithResponse>` is `DataWithResponse<TData>` when `WithResponse` is `true`, and `TData` otherwise. `SurfaceData<Options, WithResponse>` is that for the data of an endpoint: `MaybeWithResponse<InferEndpointReturn<Options>, WithResponse>`.
 
@@ -200,10 +203,10 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 
 | Function            | Signature                                                              | Description                                                                              |
 | ------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `createKeyBuilder`  | `(config, options?, isInfinite?) => { base, rule, key(args?), skipped() }` | Key builder for one endpoint config. `options` takes `keyPrefix`, `keySuffix`, `withResponse` and `keyBy`. `skipped()` is the key a hook uses under `skipToken` |
+| `createKeyBuilder`  | `(config, options?, isInfinite?) => { endpoint, base, rule, key(args?), scope(args?), skipped() }` | Key builder for one endpoint config. `options` takes `keyPrefix`, `keySuffix`, `withResponse` and `keyBy`. `endpoint` is the `endpointKey`, `base` the key without arguments, `scope(args?)` the key `invalidate` uses, and `skipped()` the key a hook uses under `skipToken` |
 | `createMutationKey` | `(config, options?: KeyOptions) => readonly unknown[]`                 | The mutation key of an endpoint config                                                   |
 | `pickInputs`        | `(args: unknown, keyBy?: AnyKeyBy) => Record<string, unknown> \| undefined` | Reduces call arguments to `urlParams`, `params` and `data` (only those `keyBy` keeps); stringifies URL param values and drops empty parts |
-| `normalizeKeyValue` | `(value: unknown) => unknown`                                          | Rewrites `URLSearchParams`, `FormData`, `File`, `Blob`, `Map`, `Set` and `bigint` into plain data that hashes by content |
+| `normalizeKeyValue` | `(value: unknown) => unknown`                                          | Rewrites `URLSearchParams`, `FormData`, `File`, `Blob`, `Date`, `Map`, `Set` and `bigint` into plain data that hashes by content |
 | `optimisticUpdate`  | `(query, spec: OptimisticUpdateSpec) => OptimisticUpdate`              | The function the `optimistic` setting hands to its callback                              |
 
 ## Types
@@ -230,10 +233,12 @@ The key-building functions the objects above use. Prefer `query.key()` and `muta
 | `InvalidateFilters`                 | TanStack's `InvalidateQueryFilters` without `queryKey`                        |
 | `InfiniteEndpointOptions`           | Endpoint options with a required `querySchema`                                |
 | `PageParam<Options>`                | Input type of the endpoint's `querySchema`                                    |
+| `PartialPageParam<Options>`         | Any subset of it: what `getNextPageParam` returns and `pageParams` holds      |
 | `InfiniteQueryHookOptions`, `SuspenseInfiniteQueryHookOptions` | The `options` of an infinite query's hooks         |
 | `InfiniteQueryOptionsResult`        | What calling an infinite query object returns                                 |
 | `AnyQueryObject`                    | Anything with a `key` function: a query or an infinite query                  |
 | `MutationVariables<Options>`        | The variables passed to `mutate`                                              |
+| `MutationHookOptions`               | The options of one use of a mutation hook                                     |
 | `MutationCallbackContext<TContext>` | The context argument of the mutation callbacks                                |
 | `InvalidateTarget<TData, TVariables>` | One entry of `invalidates`                                                  |
 | `OptimisticUpdater<TVariables>`     | The function the `optimistic` callback receives                               |

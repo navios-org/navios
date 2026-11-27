@@ -58,7 +58,7 @@ export interface CreateWebSocketHandlerConfig {
   /**
    * Base WebSocket URL (e.g., 'wss://api.example.com').
    */
-  baseUrl?: string
+  baseURL?: string
 
   /**
    * The class connections are opened with, for runtimes without a global

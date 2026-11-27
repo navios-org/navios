@@ -116,6 +116,8 @@ For one instance, the steps are:
 
 `dispose()` first waits for instances that are still being created, then destroys everything the container holds. From the moment it is called nothing new is built, and a `get()` that is still in flight fails with `ContainerDisposed`.
 
+That wait has no bound for an instance the container stores, a singleton or a request-scoped service: when its `onServiceInit` never settles, `dispose()` never resolves.
+
 It waits for at most a second for what it does not hold: a transient that is still initialising, or the arguments that a [factory token](/docs/di/essentials/tokens#factory-tokens) is computing. Either is destroyed as soon as it is ready, after `dispose()` has resolved if need be.
 
 ```ts

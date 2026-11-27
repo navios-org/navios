@@ -14,6 +14,8 @@ The 2.0 alpha is published under the `next` tag. All `@navios` packages of a pro
 
 `@navios/core` is a peer dependency. No schema library is required.
 
+The package needs a runtime with the Node.js APIs: it uses key objects of `node:crypto`, `Buffer` and `process`, and signs with [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken). It runs on Node.js, Bun and Deno. On Cloudflare Workers it needs the `nodejs_compat` flag and is untested there.
+
 ## Example
 
 ```ts

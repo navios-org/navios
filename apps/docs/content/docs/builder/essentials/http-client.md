@@ -173,19 +173,33 @@ export const billingAPI = builder({ client: create({ baseURL: 'https://billing.e
 
 ## The Navios HTTP client
 
-`create(config)` from `@navios/http` returns a client with `request`, `get`, `post`, `put`, `patch`, `delete`, `head` and `options`, `interceptors` and `defaults`. It has no dependencies, runs wherever `fetch` does, and passes `fetch` options such as `cache` and Next.js' `next` through. The API follows axios; it is not a replacement for all of it. There are no `transformRequest`, `auth`, upload progress or proxy options.
+`create(config)` from `@navios/http` returns a client with `request`, `get`, `post`, `put`, `patch`, `delete`, `head` and `options`, `interceptors`, `defaults` and `create`. It has no dependencies, runs wherever `fetch` does, and passes `fetch` options such as `cache` and Next.js' `next` through. The API follows axios; it is not a replacement for all of it. There are no `transformRequest`, `auth`, upload progress or proxy options.
 
-| `create` option   | Description                                                                                     |
-| ----------------- | ----------------------------------------------------------------------------------------------- |
-| `baseURL`         | Put in front of every URL that has no scheme of its own, with exactly one slash between         |
-| `headers`         | Sent with every request. Names are matched without regard to case, and a request's headers win  |
-| `adapter`         | A `fetch` to use instead of the global one, for example undici's                                |
-| `responseType`    | `'json'` (default), `'text'`, `'blob'`, `'arrayBuffer'`, `'formData'` or `'stream'`             |
-| `validateStatus`  | Which statuses resolve. Default: 200 to 299                                                     |
+| `create` option   | Description                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| `baseURL`         | Put in front of every URL that has no scheme of its own, with exactly one slash between             |
+| `headers`         | Sent with every request. Names are matched without regard to case, and a request's headers win      |
+| `adapter`         | A `fetch` to use instead of the global one, for example undici's                                    |
+| `responseType`    | `'json'` (default), `'text'`, `'blob'`, `'arrayBuffer'`, `'formData'` or `'stream'`                 |
+| `validateStatus`  | Which statuses resolve. Default: 200 to 299                                                         |
+| `timeout`         | Milliseconds after which a request is aborted. Default: no timeout                                  |
+| `credentials`     | `'omit'`, `'same-origin'` or `'include'`. `withCredentials: true` is short for `'include'`          |
+| `URLSearchParams` | A class to write `params` with instead of the global one                                            |
+
+Other `fetch` options, such as `cache`, `mode` and `redirect`, can be set on the client too. Every option is a default: a request's own value wins, and `client.defaults` holds them, so `client.defaults.timeout = 5000` applies to every later request.
+
+`client.create(config)` returns a new client that starts from the `defaults` of `client` as they are at that moment, with `config` merged over them and headers merged by name. Interceptors are not copied. `create` imported from the package starts without defaults.
+
+```ts
+const client = create({ baseURL: 'https://api.example.com', headers: { 'X-App': 'web' } })
+const uploads = client.create({ timeout: 60_000 }) // same baseURL and headers
+```
+
+The methods of the package's default client are also named exports: `get`, `post`, `put`, `patch`, `del` (for `delete`), `head` and `options`. They use no `baseURL`, so they take full URLs.
 
 A request also takes `params`, `data`, `signal`, `timeout`, `credentials` and `withCredentials: true`, which is short for `credentials: 'include'`. A string in `data` is sent as it is, as `text/plain` unless a content type is set; `FormData`, `URLSearchParams`, `Blob`, buffers and streams are sent as they are; everything else is JSON. `null` is no body unless the content type is JSON. `timeout` covers reading the body, except for a stream, where it ends with the headers; `Infinity` is no timeout.
 
-Interceptors run in the order they were added. Request interceptors run before `params` and `data` are serialised, so they can change both, also in place: they get a shallow copy of a plain object or array. `config.headers` and `client.defaults.headers` list names in lower case, and take them in any. Response interceptors run after the body was read. What an interceptor returns takes the place of the config or the response, and returning nothing keeps it. A rejected handler receives every failure before it, including network errors and what a request interceptor threw. One of a request has to return a config or throw.
+Interceptors run in the order they were added. That differs from axios for request interceptors, which axios runs in reverse, the one added last first. Request interceptors run before `params` and `data` are serialised, so they can change both, also in place: they get a shallow copy of a plain object or array. `config.headers` and `client.defaults.headers` list names in lower case, and take them in any. Response interceptors run after the body was read. What an interceptor returns takes the place of the config or the response, and returning nothing keeps it. A rejected handler receives every failure before it, including network errors and what a request interceptor threw. One of a request has to return a config or throw.
 
 Every failure of the client itself is an `HttpClientError` with `response` (or `null`), `status`, `code`, `cause` and `config`. `isHttpClientError(error)` is the type guard. `config` can be sent again, which is how a token is refreshed:
 

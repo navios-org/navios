@@ -72,7 +72,7 @@ An application has one schedule transport. Without it `jobs` is ignored, so a we
 
 | Option     | Meaning                                                                                                                        |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `services` | `@Schedulable()` classes to run next to those that modules list                                                                |
+| `jobs`     | `@Schedulable()` classes to run next to those that modules list in their own `jobs`                                            |
 | `enabled`  | `false` registers and builds the classes and starts nothing. For a process, or a test, that shares its modules with a worker    |
 | `timeZone` | The time zone of the jobs that do not name one                                                                                 |
 | `onError`  | Called with the error of a failed run; see [Errors](#errors)                                                                   |
@@ -86,6 +86,20 @@ The jobs follow the application:
 | `app.close()`                   | Every job stops, the signal of the runs in progress is aborted, and `close()` waits for them                       |
 
 `app.init()` and `app.inject()` start nothing, so tests run no jobs. Neither does an application that fails to start.
+
+### Long-lived processes only
+
+The schedule is kept by timers inside the process, so the package is for a process that stays up: a server that listens, or a worker started with `app.start()`. A deployment where the platform calls the application, such as Cloudflare Workers or AWS Lambda with [`@navios/adapter-srvx`](/docs/server/adapters/srvx), only calls `app.init()`: no job ever starts there, and a timer would not survive between invocations anyway.
+
+On such a platform let its scheduler keep the time (Cron Triggers on Cloudflare, EventBridge Scheduler on AWS) and run the job from the handler it calls. `run()` needs `init()` only:
+
+```ts
+// in the scheduled() handler of a Worker, or a Lambda function that EventBridge invokes
+const scheduler = await app.get(SchedulerService)
+await scheduler.getJob(MaintenanceJobs, 'purgeSessions')?.run()
+```
+
+The run gets its own DI scope and its errors reject the promise, as described in [Managing jobs at run time](#managing-jobs-at-run-time). The cron expression of `@Cron` is not used in that case; the platform's schedule is.
 
 `close()` waits for running jobs at most `shutdownTimeout` milliseconds (10 seconds by default), then logs the names of those it gave up on. The services a job uses are shut down after that, not before. A job may call `app.close()` itself, for a worker that runs once and exits; its own run is not waited for.
 

@@ -290,7 +290,7 @@ describe('UnitTestContainer', () => {
       await container.dispose()
     })
 
-    it('should support bound tokens in providers without override', async () => {
+    it('rejects a bound token in providers without a use* option', () => {
       const configSchema = z.object({
         apiUrl: z.string(),
         timeout: z.number(),
@@ -306,15 +306,9 @@ describe('UnitTestContainer', () => {
         timeout: 3000,
       })
 
-      const container = new UnitTestContainer({
-        providers: [{ token: BOUND_CONFIG }],
-      })
-
-      const config = await container.get(BOUND_CONFIG)
-      expect(config.apiUrl).toBe('https://bound-value.com')
-      expect(config.timeout).toBe(3000)
-
-      await container.dispose()
+      expect(() => new UnitTestContainer({ providers: [{ token: BOUND_CONFIG }] })).toThrow(
+        /CONFIG is listed as a bound token without useValue, useClass or useFactory/,
+      )
     })
   })
 

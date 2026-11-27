@@ -29,7 +29,7 @@ export class UsersService {
 
 ## Tracing selected methods
 
-`@Traceable` marks a class without tracing its methods. `@Traced` on a method then traces that method only.
+`@Traced` on a method traces that method only. `@Traceable` on the class is optional: it marks the class without tracing its methods, and gives the spans of its `@Traced` methods a name prefix and attributes.
 
 ```ts title="orders.service.mts"
 import { Injectable } from '@navios/server'
@@ -54,7 +54,9 @@ export class OrdersService {
 }
 ```
 
-A method-level `@Traced` needs `@Traceable` or `@Traced` on the class; without one the class is not instrumented. On a class traced as a whole, a method-level `@Traced` overrides the span name and adds attributes for that method.
+A method-level `@Traced` works by itself: in a class without `@Traceable` or `@Traced`, the method's span is named after its own `name`, or `<Class>.<method>`. On a class traced as a whole, a method-level `@Traced` overrides the span name and adds attributes for that method.
+
+A `@Traced` method is traced on instances the container builds, in an application that has the plugin. An instance made with `new` is left as it is; wrap it as shown in [How instrumentation works](#how-instrumentation-works).
 
 ## Decorator options
 
@@ -216,7 +218,7 @@ it('traces a request', async () => {
 
   await app.inject({ method: 'GET', url: '/users/1' })
   const names = exporter.getFinishedSpans().map((span) => span.name)
-  expect(names).toContain('HTTP GET /users/$userId')
+  expect(names).toContain('GET /users/$userId')
 
   await app.close()
 })

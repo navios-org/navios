@@ -50,6 +50,8 @@ export function getOtelConfig(): OtelPluginOptions {
     // Metrics
     metrics: {
       enabled: env.OTEL_METRICS_ENABLED === 'true',
+      // Unset: next to the traces endpoint, /v1/metrics instead of /v1/traces.
+      endpoint: env.OTEL_METRICS_ENDPOINT || undefined,
     },
 
     // Sampling

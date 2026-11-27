@@ -73,10 +73,12 @@
   "devDependencies": {
     "@navios/adapter-bun": "workspace:^",
     "@navios/adapter-fastify": "workspace:^",
+    "@navios/adapter-srvx": "workspace:^",
     "@navios/builder": "workspace:^",
     "@navios/core": "workspace:^",
     "@navios/server": "workspace:^",
     "@types/bun": "^1.4.5",
+    "srvx": "^1.0.8",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.1",
@@ -87,6 +89,6 @@
     "@navios/server": "workspace:*"
   },
   "engines": {
-    "bun": ">=1.4.5"
+    "node": ">=24"
   }
 }

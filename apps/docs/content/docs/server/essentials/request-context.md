@@ -34,6 +34,8 @@ Most members are created on first access, so a request that never reads cookies 
 | `ctx.url`                    | `URL`                              | The URL of the request, with `ctx.path` as its path                                               |
 | `ctx.ip`                     | `string \| undefined`              | The address of the client                                                                         |
 | `ctx.route`                  | `RouteInfo`                        | The matched route: method, full path, the endpoint's `config`, controller, guards, attributes     |
+| `ctx.handler`                | `RouteInfo`                        | The same object as `ctx.route`, under the name every transport's context has                      |
+| `ctx.kind`                   | `'http'`                           | The kind of transport. A guard shared with [other transports](/docs/server/guides/other-transports#guards-and-interceptors-on-several-transports) narrows with `isHttpContext(ctx)` |
 | `ctx.urlParams`              | `Readonly<Record<string, string>>` | Decoded URL parameters of the whole path, module and global prefixes included. Not validated      |
 | `ctx.query`                  | `RequestQuery`                     | The parsed query string; a repeated parameter is an array. Not validated                          |
 | `ctx.headers.get(name)`      | `string \| undefined`              | Case-insensitive                                                                                  |
@@ -169,7 +171,7 @@ declare module '@navios/server' {
 On Bun the type is `BunEnvironment` from `@navios/adapter-bun`, and on srvx `SrvxEnvironment` from `@navios/adapter-srvx`.
 
 - The declaration also types `app.getServer()` and the options of `app.listen()`. `NaviosApplication` without an argument is then an application on that adapter; a helper that takes an application on any adapter, such as one for tests, takes `NaviosApplication<any>`.
-- An adapter does not register itself when imported, because a shared package may have both adapters installed. The application decides.
+- An adapter does not register itself when imported, because a shared package may have several adapters installed. The application decides.
 - Code that must compile without the declaration, such as a library used on several adapters, narrows explicitly: `const { request } = ctx.raw as FastifyEnvironment['raw']`.
 
 Code that uses `ctx.raw` runs on one adapter only. Prefer the adapter-neutral members when they cover the need. What each adapter exposes is described on the [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun) and [srvx](/docs/server/adapters/srvx) pages.

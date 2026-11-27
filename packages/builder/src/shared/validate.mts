@@ -28,7 +28,29 @@ export async function validate(schema: Schema, value: unknown): Promise<Validati
  */
 export function parseSync(schema: Schema | undefined, value: unknown): unknown {
   if (!schema) return value
-  return unwrap(settled(validateEager(schema, value)))
+  return unwrap(validateSync(schema, value))
+}
+
+/**
+ * {@link validateEager} for a caller that cannot wait.
+ *
+ * @throws {NaviosError} for a schema that validates asynchronously
+ */
+export function validateSync(schema: Schema, value: unknown): ValidationOutcome {
+  return settled(validateEager(schema, value))
+}
+
+/**
+ * {@link validateSync} for a query, which may be left out when the schema
+ * accepts `undefined` or has no required fields. Otherwise the outcome names
+ * the fields.
+ */
+export function validateQuerySync(
+  schema: Schema,
+  query: Record<string, unknown> | undefined,
+): ValidationOutcome {
+  const { outcome, asEmpty } = settled(validateOptional(schema, query))
+  return asEmpty ?? outcome
 }
 
 /**
@@ -40,8 +62,7 @@ export function parseQuery(
   query: Record<string, unknown> | undefined,
 ): Record<string, unknown> | undefined {
   if (!schema) return undefined
-  const { outcome, asEmpty } = settled(validateOptional(schema, query))
-  return unwrap(asEmpty ?? outcome) as Record<string, unknown> | undefined
+  return unwrap(validateQuerySync(schema, query)) as Record<string, unknown> | undefined
 }
 
 /** What validating a value that may be left out found. */

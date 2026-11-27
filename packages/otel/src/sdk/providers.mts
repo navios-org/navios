@@ -11,6 +11,7 @@ import {
   AlwaysOffSampler,
   AlwaysOnSampler,
   ConsoleSpanExporter,
+  ParentBasedSampler,
   TraceIdRatioBasedSampler,
 } from '@opentelemetry/sdk-trace'
 import {
@@ -22,7 +23,7 @@ import {
 import type { AttributeValue, TracerProvider } from '@opentelemetry/api'
 import type { Resource } from '@opentelemetry/resources'
 import type { MetricReader } from '@opentelemetry/sdk-metrics'
-import type { SpanExporter } from '@opentelemetry/sdk-trace'
+import type { Sampler, SpanExporter } from '@opentelemetry/sdk-trace'
 
 import type { ResolvedOtelConfig } from '../otel-config.mjs'
 
@@ -47,10 +48,15 @@ export function createResource(config: ResolvedOtelConfig): Resource {
 }
 
 /**
- * The sampler for the configured `sampling.ratio`.
+ * The sampler for the configured `sampling.ratio`. The ratio decides for a
+ * span without a parent; a span with a parent, local or from an incoming
+ * `traceparent` header, follows the decision of the parent.
  */
-export function createSampler(config: ResolvedOtelConfig) {
-  const ratio = config.sampling.ratio
+export function createSampler(config: ResolvedOtelConfig): Sampler {
+  return new ParentBasedSampler({ root: createRootSampler(config.sampling.ratio) })
+}
+
+function createRootSampler(ratio: number): Sampler {
   if (ratio >= 1.0) {
     return new AlwaysOnSampler()
   }
@@ -58,6 +64,34 @@ export function createSampler(config: ResolvedOtelConfig) {
     return new AlwaysOffSampler()
   }
   return new TraceIdRatioBasedSampler(ratio)
+}
+
+const TRACES_PATH = /\/v1\/traces(\/?)$/
+
+/**
+ * Where metrics are sent: `metrics.endpoint`, else the traces endpoint with
+ * its `/v1/traces` path suffix replaced by `/v1/metrics`. `undefined`, which
+ * leaves the choice to the exporter, when there is nothing to derive it from.
+ */
+export function metricsEndpoint(config: ResolvedOtelConfig): string | undefined {
+  if (config.metrics.endpoint !== undefined) {
+    return config.metrics.endpoint
+  }
+  const traces = config.exporterOptions?.endpoint
+  if (traces === undefined) {
+    return undefined
+  }
+  let url: URL
+  try {
+    url = new URL(traces)
+  } catch {
+    return undefined
+  }
+  if (!TRACES_PATH.test(url.pathname)) {
+    return undefined
+  }
+  url.pathname = url.pathname.replace(TRACES_PATH, '/v1/metrics$1')
+  return url.toString()
 }
 
 /**
@@ -72,20 +106,25 @@ export async function createSpanExporter(
       return new ConsoleSpanExporter()
 
     case 'otlp': {
-      // Imported on demand so that the exporter stays optional.
+      // Imported on demand so that the exporter stays optional. Only a
+      // failed import means the package is missing; what the exporter itself
+      // throws is the caller's to see.
+      let exporters: typeof import('@opentelemetry/exporter-trace-otlp-http')
       try {
-        const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
-        return new OTLPTraceExporter({
-          url: config.exporterOptions?.endpoint,
-          headers: config.exporterOptions?.headers,
-        })
-      } catch {
+        exporters = await import('@opentelemetry/exporter-trace-otlp-http')
+      } catch (cause) {
         logger?.error(
           'Failed to load @opentelemetry/exporter-trace-otlp-http. ' +
             'Please install it as a dependency.',
         )
-        throw new Error('@opentelemetry/exporter-trace-otlp-http is required for OTLP exporter')
+        throw new Error('@opentelemetry/exporter-trace-otlp-http is required for OTLP exporter', {
+          cause,
+        })
       }
+      return new exporters.OTLPTraceExporter({
+        url: config.exporterOptions?.endpoint,
+        headers: config.exporterOptions?.headers,
+      })
     }
 
     case 'none':
@@ -107,23 +146,33 @@ export async function createMetricReaders(
   const readers: MetricReader[] = []
 
   if (config.exporter === 'otlp') {
+    let exporters: typeof import('@opentelemetry/exporter-metrics-otlp-http')
     try {
-      const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http')
-      readers.push(
-        new PeriodicExportingMetricReader({
-          exporter: new OTLPMetricExporter({
-            url: config.exporterOptions?.endpoint?.replace('/traces', '/metrics'),
-            headers: config.exporterOptions?.headers,
-          }),
-          exportIntervalMillis: 60000,
-        }),
-      )
+      exporters = await import('@opentelemetry/exporter-metrics-otlp-http')
     } catch {
       logger?.warn(
         'Failed to load @opentelemetry/exporter-metrics-otlp-http. ' +
           'Metrics will not be exported.',
       )
+      return readers
     }
+    const url = metricsEndpoint(config)
+    if (url === undefined && config.exporterOptions?.endpoint !== undefined) {
+      logger?.warn(
+        `The metrics endpoint cannot be derived from "${config.exporterOptions.endpoint}", ` +
+          'which does not end in /v1/traces. Set metrics.endpoint; until then the metrics ' +
+          'exporter uses its own default.',
+      )
+    }
+    readers.push(
+      new PeriodicExportingMetricReader({
+        exporter: new exporters.OTLPMetricExporter({
+          url,
+          headers: config.exporterOptions?.headers,
+        }),
+        exportIntervalMillis: 60000,
+      }),
+    )
   } else if (config.exporter === 'console') {
     const { ConsoleMetricExporter } = await import('@opentelemetry/sdk-metrics')
     readers.push(

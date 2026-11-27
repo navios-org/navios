@@ -111,6 +111,122 @@ describe('client.mutation', () => {
     )
   })
 
+  describe('options of the hook', () => {
+    it('puts TanStack options over those of the declaration', () => {
+      const create = ctx.client.mutation({
+        method: 'POST',
+        url: '/users',
+        responseSchema: z.any(),
+        retry: 2,
+        meta: { audit: true },
+        gcTime: 1000,
+      })
+
+      expect(create({ retry: 0, meta: { source: 'form' } })).toMatchObject({
+        retry: 0,
+        meta: { source: 'form' },
+        gcTime: 1000,
+        mutationKey: ['POST', '/users'],
+      })
+      expect(create({})).toMatchObject({ retry: 2, meta: { audit: true } })
+    })
+
+    it('runs its callbacks after those of the declaration, with the same context', async () => {
+      const order: string[] = []
+      const listUsers = ctx.client.query({ method: 'GET', url: '/users', responseSchema: z.any() })
+      listUsers.setData(ctx.queryClient, {}, 'list')
+      const create = ctx.client.mutation({
+        method: 'POST',
+        url: '/users',
+        responseSchema: userSchema,
+        invalidates: listUsers,
+        useContext: () => ({ toast: 'toast-fn' }),
+        onMutate: () => 'snapshot',
+        onSuccess: async () => {
+          await Promise.resolve()
+          order.push('declared success')
+        },
+        onSettled: () => {
+          order.push('declared settled')
+        },
+      })
+      const onSuccess = vi.fn(() => {
+        order.push(
+          `hook success, invalidated: ${ctx.queryClient.getQueryState(listUsers.key())?.isInvalidated}`,
+        )
+      })
+      const onSettled = vi.fn(() => {
+        order.push('hook settled')
+      })
+
+      await run(() => create({ onSuccess, onSettled }), undefined)
+
+      expect(order).toEqual([
+        'declared success',
+        'hook success, invalidated: true',
+        'declared settled',
+        'hook settled',
+      ])
+      expect(onSuccess).toHaveBeenCalledWith(
+        { id: '1', name: 'Saved' },
+        undefined,
+        expect.objectContaining({
+          toast: 'toast-fn',
+          client: ctx.queryClient,
+          onMutateResult: 'snapshot',
+        }),
+      )
+      expect(onSettled).toHaveBeenCalledWith(
+        { id: '1', name: 'Saved' },
+        null,
+        undefined,
+        expect.objectContaining({ onMutateResult: 'snapshot' }),
+      )
+    })
+
+    it('calls onError of the hook after the rollback and the declaration', async () => {
+      ctx.http.respond(() => ({ status: 500 }))
+      const list = ctx.client.query({ method: 'GET', url: '/users', responseSchema: z.any() })
+      list.setData(ctx.queryClient, {}, ['a'])
+      const declared = vi.fn()
+      const create = ctx.client.mutation({
+        method: 'POST',
+        url: '/users',
+        responseSchema: z.any(),
+        optimistic: (update) =>
+          update(list, { update: (current: string[] | undefined) => [...(current ?? []), 'b'] }),
+        onError: declared,
+      })
+      let seen: unknown
+      const onError = vi.fn(() => {
+        seen = list.getData(ctx.queryClient)
+      })
+
+      await run(() => create({ onError }), undefined).catch(() => {})
+
+      expect(declared).toHaveBeenCalledTimes(1)
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'http-unknown', status: 500 }),
+        undefined,
+        expect.objectContaining({ client: ctx.queryClient }),
+      )
+      expect(seen).toEqual(['a'])
+    })
+
+    it('ignores options that belong to the declaration', () => {
+      const create = ctx.client.mutation({ method: 'POST', url: '/users', responseSchema: z.any() })
+      const mutationFn = vi.fn()
+
+      const options = create({ mutationKey: ['x'], mutationFn } as never) as unknown as {
+        mutationKey: unknown
+        mutationFn: unknown
+      }
+
+      expect(options.mutationKey).toEqual(['POST', '/users'])
+      expect(options.mutationFn).not.toBe(mutationFn)
+    })
+  })
+
   it('gives onError the typed EndpointError', async () => {
     ctx.http.respond(() => ({ status: 409, data: { reason: 'taken' } }))
     const onError = vi.fn()

@@ -97,6 +97,17 @@ export function getTracedMetadata(
 }
 
 /**
+ * Records a class whose only mark is `@Traced` on a method. Legacy method
+ * decorators know their class, so they call this; a class decorator that
+ * runs afterwards records the class itself.
+ */
+export function markMethodOwner(target: ClassType, metadata: ClassTracedMetadata): void {
+  if (!classes.has(target)) {
+    classes.set(target, metadata)
+  }
+}
+
+/**
  * What `@Traced` (`enabled`) and `@Traceable` do to a class. The options are
  * added to what the class inherits: a name replaces the inherited one, and
  * attributes are merged into the inherited ones.

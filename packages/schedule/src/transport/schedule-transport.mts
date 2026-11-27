@@ -18,9 +18,9 @@ import { driveScheduler } from './schedule-settings.mjs'
 export interface ScheduleTransportOptions {
   /**
    * Classes decorated with `@Schedulable()` whose jobs should run, next to
-   * those that modules list in `jobs`.
+   * those that modules list in their own `jobs`.
    */
-  services?: ClassType[]
+  jobs?: ClassType[]
 
   /**
    * Whether jobs are started. With `false` the classes are registered and
@@ -43,7 +43,7 @@ export interface ScheduleTransportOptions {
 
 /**
  * Runs the application's cron jobs: the `@Cron` methods of the classes that
- * modules list in `jobs`, and of those given as `services`.
+ * modules list in `jobs`, and of those given in the `jobs` option.
  *
  * `app.start()`, or `app.listen()` of an HTTP application, starts the jobs
  * once the application is initialised; `app.init()` starts nothing.
@@ -67,13 +67,13 @@ export interface ScheduleTransportOptions {
 export const scheduleTransport = defineTransport<ScheduleTransportOptions | void, Transport>({
   name: 'schedule',
   create(host: TransportHost, options) {
-    const { services = [], enabled = true, timeZone, onError } = options ?? {}
+    const { jobs = [], enabled = true, timeZone, onError } = options ?? {}
     driveScheduler(host.container, { timeZone, onError })
     let scheduler: SchedulerService | null = null
     return {
       async setup(graph: readonly ModuleNode[]) {
         scheduler = await host.container.get(SchedulerService)
-        for (const service of new Set([...services, ...graph.flatMap(moduleJobs)])) {
+        for (const service of new Set([...jobs, ...graph.flatMap(moduleJobs)])) {
           scheduler.register(service)
         }
         await scheduler[prepareJobs]()

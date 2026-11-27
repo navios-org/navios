@@ -12,7 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@navios/di` is no longer a peer dependency. The package uses the container through `@navios/core`, so an application lists `@navios/core` (or `@navios/server`, which comes with it), and the package uses the copy of `@navios/di` that core uses.
 - **BREAKING**: `@navios/otel/legacy-compat` exports the decorators `Traced` and `Traceable` and the type `TracedOptions`, as the documentation says. `extractTracedMetadata`, `getTracedMetadata`, `hasTracedMetadata`, `getTraceableServices`, `TracedMetadataKey` and the types `TracedMetadata`, `ClassTracedMetadata` and `MethodTracedMetadata` are no longer exported from it.
 - **BREAKING**: the legacy `Traced` and `Traceable` are built with `legacy()` of `@navios/core/legacy-compat` and accept only the legacy call shapes. Before, they also accepted a standard decorator call; use `Traced` and `Traceable` of `@navios/otel` for standard decorators.
-- **BREAKING**: span attributes have their stable semantic-convention names, and each is set once. A request span has `http.request.method` instead of `http.method`, `url.path` instead of `http.url`, `user_agent.original` instead of `http.user_agent`, and the status only as `http.response.status_code`: `http.status_code` is no longer set. A traced method's span has `code.function.name`, `<Class>.<method>`, instead of `code.function` and `code.namespace`. `environment` sets the resource attribute `deployment.environment.name` instead of `deployment.environment`. Queries and dashboards that use the old names need the new ones.
+- **BREAKING**: request spans follow the HTTP semantic conventions. The span is named `{method} {route}`, `GET /users/$userId`, without the `HTTP ` prefix. Its status is `ERROR` only for a response status of 500 and above and is left unset otherwise: a 4xx no longer marks the span as failed, and `OK` is no longer set. Span attributes have their stable semantic-convention names, and each is set once. A request span has `http.request.method` instead of `http.method`, `url.path` instead of `http.url`, `user_agent.original` instead of `http.user_agent`, and the status only as `http.response.status_code`: `http.status_code` is no longer set. A traced method's span has `code.function.name`, `<Class>.<method>`, instead of `code.function` and `code.namespace`. `environment` sets the resource attribute `deployment.environment.name` instead of `deployment.environment`. Queries and dashboards that use the old names need the new ones.
+
+- **BREAKING**: the sampler is parent-based, as the default sampler of OpenTelemetry is. `sampling.ratio` decides for a span without a parent; a span with a parent, a request with a `traceparent` header included, follows the parent's decision. Before, the ratio was applied to every span and an unsampled caller was ignored.
+- **BREAKING**: with `exporter: 'otlp'`, the metrics endpoint is derived from `exporterOptions.endpoint` only when its path ends in `/v1/traces`. Before, the first `/traces` anywhere in the URL was replaced, which broke a host such as `traces.internal`, and a URL without it sent metrics to the traces endpoint. For any other URL set the new `metrics.endpoint`; without it the metrics exporter uses its own default and a warning is logged. `ResolvedOtelConfig.metrics` is `MetricsConfig`.
 
 ### Removed
 
@@ -24,9 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `injectTraceContext(headers)` adds the trace context of the current span to outgoing headers and returns them. It replaces `TraceContextService.injectIntoHeaders()`.
+- `metrics.endpoint`, the URL of the OTLP metrics endpoint.
 
 ### Fixed
 
+- `@Traced` on a method of a class without `@Traced` or `@Traceable` was ignored. The method is now traced, with standard and with legacy decorators.
+- An error thrown by an OTLP exporter while it is created was reported as `@opentelemetry/exporter-trace-otlp-http is required`, and for metrics as a warning that the package could not be loaded. Only a failed import says so now, with the import error as its `cause`; the exporter's own error is thrown as it is.
+- `LICENSE` is in the package, as `files` says.
 - The documentation of `autoInstrument.transports` no longer promises spans for the jobs of `@navios/schedule`. Jobs do not run through interceptors; a `@Traced` class traces them.
 - A subclass of a `@Traced` or `@Traceable` class that is not decorated itself is no longer traced with the metadata of its parent by `traceInstance()` and `TracedProxyFactory.wrap()`. Only what a class is decorated with itself counts, as with `@Schedulable()`.
 - `@Traceable` on a subclass adds to the span name and attributes it inherits, as `@Traced` does. Before, it replaced them, so the subclass lost the name and the attributes of its parent.

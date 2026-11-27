@@ -1,4 +1,4 @@
-import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/di'
+import type { StandardSchemaIssue, StandardSchemaV1 } from '@navios/core'
 
 import { ResponseValidationError, ValidationError } from '../errors/validation-error.mjs'
 import { adopt } from '../internal/promises.mjs'

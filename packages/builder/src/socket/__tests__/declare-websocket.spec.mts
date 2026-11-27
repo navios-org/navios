@@ -43,7 +43,7 @@ describe('declareWebSocket', () => {
   })
 
   it('should build the URL from Zod url and query schemas', () => {
-    const chatSocket = createWebSocketHandler({ baseUrl: 'wss://api.example.com' })({
+    const chatSocket = createWebSocketHandler({ baseURL: 'wss://api.example.com' })({
       url: '/ws/$roomId',
       urlParamsSchema: z.object({ roomId: z.string() }),
       querySchema: z.object({ token: z.string() }),
@@ -54,7 +54,7 @@ describe('declareWebSocket', () => {
     expect(handle.url).toBe('wss://api.example.com/ws/abc?token=t')
     expect(handle.socket.url).toBe('wss://api.example.com/ws/abc?token=t')
     expect(() => chatSocket({ urlParams: { roomId: 1 as any }, params: { token: 't' } })).toThrow(
-      z.ZodError,
+      expect.objectContaining({ kind: 'request-validation', cause: expect.any(z.ZodError) }),
     )
   })
 
@@ -83,7 +83,10 @@ describe('declareWebSocket', () => {
     const handle = chatSocket({ urlParams: { roomId: 'abc' }, params: { token: 't' } })
     expect(handle.url).toBe('/ws/ABC?token=t')
     expect(() => chatSocket({ urlParams: { roomId: '' }, params: { token: 't' } })).toThrow(
-      'roomId is required',
+      expect.objectContaining({
+        kind: 'request-validation',
+        issues: [{ message: 'roomId is required', part: 'urlParams' }],
+      }),
     )
   })
 
@@ -254,7 +257,7 @@ describe('declareWebSocket', () => {
     })
 
     it('should append to a query string the URL template already has', () => {
-      const chatSocket = createWebSocketHandler({ baseUrl: 'wss://api.example.com' })({
+      const chatSocket = createWebSocketHandler({ baseURL: 'wss://api.example.com' })({
         url: '/ws/$roomId?v=2',
         querySchema: passthrough(),
       })

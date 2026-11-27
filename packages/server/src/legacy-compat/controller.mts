@@ -1,6 +1,6 @@
 import { legacy } from '@navios/core/legacy-compat'
 
-import type { ClassType } from '@navios/di'
+import type { ClassType } from '@navios/core'
 
 import { Controller as StandardController } from '../controllers/controller.mjs'
 

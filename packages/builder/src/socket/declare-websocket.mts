@@ -52,7 +52,7 @@ const CLOSING = 2
  * // `z` is Zod here; any Standard Schema library works the same way
  *
  * const declareWebSocket = createWebSocketHandler({
- *   baseUrl: 'wss://api.example.com',
+ *   baseURL: 'wss://api.example.com',
  * })
  *
  * const chatSocket = declareWebSocket({
@@ -76,7 +76,7 @@ export function createWebSocketHandler(config: CreateWebSocketHandlerConfig = {}
   ): WebSocketHandler<Options> {
     return declareConnection(
       options,
-      config.baseUrl,
+      config.baseURL,
       () => config.WebSocket ?? globalThis.WebSocket,
       '[Navios-Socket]: this runtime has no WebSocket. Pass one to createWebSocketHandler({ WebSocket })',
       (WebSocketImpl, fullUrl) =>

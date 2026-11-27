@@ -62,6 +62,25 @@ describe('srvx adapter: a function of AWS Lambda', () => {
     expect(JSON.parse((result as { body: string }).body)).toEqual({ data: { a: 1 } })
   })
 
+  it('answers HEAD with the headers of GET, and without its body', async () => {
+    const event = (method: string) => ({
+      version: '2.0',
+      rawPath: '/simple',
+      rawQueryString: '',
+      headers: { host: 'app.example' },
+      isBase64Encoded: false,
+      requestContext: { http: { method, sourceIp: '203.0.113.9' } },
+    })
+    type Result = { statusCode: number; body: string; headers: Record<string, string> }
+    const get = (await handler(event('GET'), context)) as Result
+    const head = (await handler(event('HEAD'), context)) as Result
+    expect(get.body).toBe('{"ok":true}')
+    expect(head.statusCode).toBe(200)
+    expect(head.body).toBe('')
+    expect(head.headers['content-type']).toBe(get.headers['content-type'])
+    expect(head.headers['content-length']).toBe('11')
+  })
+
   it('gives a handler the event, and answers like a server', async () => {
     const send = (path: string, init?: RequestInit) =>
       invokeLambdaHandler(handler, new Request(`https://app.example${path}`, init))

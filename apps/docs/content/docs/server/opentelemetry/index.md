@@ -52,7 +52,7 @@ const app = await NaviosFactory.create(AppModule, {
 await app.listen({ port: 3000 })
 ```
 
-`app.usePlugin(otelPlugin(options))` before `init()` does the same. Registering the plugin twice sets it up once.
+`app.usePlugin(otelPlugin(options))` before `init()` does the same. Registering the plugin twice with equal options sets it up once; with different options the application throws `registered twice with different options`.
 
 ## Configuration
 
@@ -68,9 +68,10 @@ await app.listen({ port: 3000 })
 | `autoInstrument.transports` | `boolean \| 'auto'`            | `'auto'` | Trace the handlers of [other transports](/docs/server/guides/other-transports): one span per run, named `<transport> <Class>.<handler>`. `'auto'` does so in an application without HTTP; in one that also serves HTTP, set `true`. [Scheduled jobs](/docs/server/guides/scheduled-jobs) do not run through interceptors and get no span from it; mark the class with `@Traced`. |
 | `ignoreRoutes`            | `string[]`                      | `[]`     | Request paths without a server span. `*` matches any run of characters (`'/docs/*'`).     |
 | `includeNaviosAttributes` | `boolean`                       | `false`  | Add `navios.controller`, `navios.handler` and `navios.module` to request spans.           |
-| `sampling.ratio`          | `number`                        | `1.0`    | Share of traces to sample, from `0` to `1`.                                               |
+| `sampling.ratio`          | `number`                        | `1.0`    | Share of the traces that start here to sample, from `0` to `1`. See [Sampling](#sampling). |
 | `resourceAttributes`      | `Record<string, value>`         |          | Extra resource attributes.                                                                |
 | `metrics.enabled`         | `boolean`                       | `false`  | Create a meter provider. See [Metrics](#metrics).                                         |
+| `metrics.endpoint`        | `string`                        |          | URL of the OTLP metrics endpoint, when it is not next to the traces endpoint.             |
 | `registerGlobally`        | `boolean`                       | `true`   | Register the provider, a context manager and the W3C propagators process-wide. See [Context propagation](#context-propagation). |
 
 ## Exporters
@@ -81,7 +82,7 @@ await app.listen({ port: 3000 })
 | `'console'` | Standard output. Useful in development.                                     | Written as each span ends.         |
 | `'none'`    | Nowhere. Spans are still created, so `spanProcessors` and propagation work. | None.                              |
 
-With `'otlp'`, `exporterOptions.endpoint` is the full URL of the traces endpoint, for example `http://localhost:4318/v1/traces`, and `exporterOptions.headers` is sent with every export, for example for authentication. When the exporter package is not installed, `init()` fails with a message naming it.
+With `'otlp'`, `exporterOptions.endpoint` is the full URL of the traces endpoint, for example `http://localhost:4318/v1/traces`, and `exporterOptions.headers` is sent with every export, for example for authentication. When the exporter package is not installed, `init()` fails with a message naming it. An error of the exporter itself, such as one about its options, is thrown as it is.
 
 To send spans somewhere this package has no exporter for, pass a span processor of your own. The processor classes come from `@opentelemetry/sdk-trace`:
 
@@ -95,19 +96,27 @@ otelPlugin({
 })
 ```
 
+## Sampling
+
+`sampling.ratio` decides for a trace that starts in this application: a request without a `traceparent` header, or a span started outside any other. A span that has a parent follows the decision of the parent, as the default sampler of OpenTelemetry does (`ParentBasedSampler`):
+
+- a request whose `traceparent` says the caller sampled the trace is sampled, whatever the ratio;
+- a request whose `traceparent` says the caller did not is not sampled, even with a ratio of `1`;
+- the spans of `@Traced` methods and the spans you start inside a request share the fate of the request span, so a trace is exported whole or not at all.
+
 ## HTTP request spans
 
 The plugin registers one [interceptor](/docs/server/essentials/guards-and-interceptors), `OtelHttpInterceptor` from `@navios/otel/http`, around every route.
 
 | Property   | Value                                                                                                                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Name       | `HTTP <METHOD> <route path>`, with the route pattern, not the actual URL: `HTTP GET /users/$userId`.                                                                                                               |
+| Name       | `<METHOD> <route path>`, with the route pattern, not the actual URL: `GET /users/$userId`.                                                                                                                         |
 | Kind       | `SERVER`                                                                                                                                                                                                           |
 | Attributes | `http.request.method`, `http.route`, `url.path` (the request path, without the query string), `http.request_id`, `user_agent.original` when the header is present, and the status as `http.response.status_code`. |
 | Parent     | Taken from the incoming `traceparent` header when there is one, so the span continues the caller's trace.                                                                                                          |
 | End        | When the response has finished: after the body was sent, a stream ended, or the client went away. The span of a streamed response covers the whole stream.                                                         |
-| Status     | `OK` below 400 and `ERROR` from 400 up, from the final status of the response, including one produced by an `app.mapError()` mapper.                                                                               |
-| Errors     | An error thrown by a guard, by validation or by the handler is recorded on the span as an exception event.                                                                                                         |
+| Status     | `ERROR` for a final response status of 500 and above, including one produced by an `app.mapError()` mapper; unset otherwise. A 4xx is the client's error, so the span is not marked as failed, and `OK` is never set. This is what the OpenTelemetry HTTP semantic conventions say for a server span. |
+| Errors     | An error thrown by a guard, by validation or by the handler is recorded on the span as an exception event, whatever status it is answered with.                                                                    |
 
 Two limits follow from how interceptors work:
 
@@ -135,7 +144,7 @@ Use `ctx.find()`, not `ctx.get()`: the key is not set for ignored routes or when
 
 For each request the plugin starts the server span and runs the rest of the pipeline inside `context.with(...)` from `@opentelemetry/api`, with that span as the active span. Each traced service method does the same with its own span.
 
-`context.with()` only has an effect when an OpenTelemetry context manager is registered. The context manager keeps the active span across `await`, timers and callbacks; in Node.js and Bun it is built on `AsyncLocalStorage`. With `registerGlobally: true`, the default, the plugin registers the SDK's context manager together with the W3C trace-context and baggage propagators, so this works without further setup:
+`context.with()` only has an effect when an OpenTelemetry context manager is registered. The context manager keeps the active span across `await`, timers and callbacks. The one the plugin registers is built on `AsyncLocalStorage` of `node:async_hooks`, which Node.js, Bun and Deno have, and Cloudflare Workers with the `nodejs_compat` flag. With `registerGlobally: true`, the default, the plugin registers the SDK's context manager together with the W3C trace-context and baggage propagators, so this works without further setup:
 
 ```ts
 import { trace } from '@opentelemetry/api'
@@ -160,9 +169,11 @@ The plugin records no metrics of its own. `metrics: { enabled: true }` creates a
 
 | `exporter`  | Metrics go to                                                                                                                       |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `'otlp'`    | `exporterOptions.endpoint` with `/traces` replaced by `/metrics`, through `@opentelemetry/exporter-metrics-otlp-http`, every 60 seconds. |
+| `'otlp'`    | `metrics.endpoint`, or `exporterOptions.endpoint` with its trailing `/v1/traces` replaced by `/v1/metrics`, through `@opentelemetry/exporter-metrics-otlp-http`, every 60 seconds. |
 | `'console'` | Standard output, every 10 seconds.                                                                                                  |
 | `'none'`    | Nowhere.                                                                                                                            |
+
+When the traces endpoint does not end in `/v1/traces`, there is nothing to derive the metrics endpoint from: set `metrics: { enabled: true, endpoint: 'https://collector.example/metrics' }`. Without it the metrics exporter uses its own default (`OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` or `http://localhost:4318/v1/metrics`), and a warning is logged during `init()`.
 
 ```ts
 import { inject, Injectable } from '@navios/server'
@@ -191,3 +202,36 @@ app.enableShutdownHooks() // closes the application on SIGTERM and SIGINT
 [Application setup](/docs/server/essentials/application) describes shutdown hooks and the order of `close()`.
 
 To export without shutting down, for example at the end of a job, inject `OtelSetupService` and call `forceFlush()`.
+
+### Serverless: Cloudflare Workers and AWS Lambda
+
+With `exporter: 'otlp'` spans are batched and sent on a timer, and besides that only when the application closes. On a platform that calls the application instead of running it, as in the [srvx recipes](/docs/server/adapters/srvx) for Cloudflare Workers and AWS Lambda, the application is initialised once and never closed, and the isolate or the function is frozen between invocations, so a batch that was not sent yet can be lost. Flush at the end of each invocation:
+
+```ts title="lambda.mts"
+import { OtelSetupService } from '@navios/otel'
+import { handleLambdaEvent } from 'srvx/aws-lambda'
+
+import type { AWSLambdaHandler } from 'srvx/aws-lambda'
+
+import { createApp } from './app.mjs'
+
+const ready = createApp().then(async (app) => {
+  await app.init()
+  return { fetch: app.getServer().fetch, otel: await app.container.get(OtelSetupService) }
+})
+
+export const handler: AWSLambdaHandler = async (event, context) => {
+  const { fetch, otel } = await ready
+  try {
+    return await handleLambdaEvent(fetch, event, context)
+  } finally {
+    await otel.forceFlush()
+  }
+}
+```
+
+On Cloudflare Workers, do not hold the response back: hand the flush to `context.waitUntil(otel.forceFlush())` after the handler has returned the response, which keeps the Worker alive until the export is done.
+
+`forceFlush()` exports spans and, with `metrics.enabled`, metrics. The span of a streamed response ends when the stream does, so a flush that runs before that does not carry it; it goes out with the next one.
+
+The end-to-end tests of this package run on Fastify and Bun. The plugin is not tested on workerd or on Lambda: the exporters and the context manager need the Node.js APIs those platforms provide (`nodejs_compat` on Workers), and whether they work there is for you to verify.

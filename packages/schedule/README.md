@@ -12,7 +12,7 @@ npm install @navios/schedule@next @navios/core@next
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-`@navios/core` is a peer dependency. Nothing else is needed: the example is a worker that only runs scheduled jobs. In an HTTP application, pass the same transport to `NaviosFactory.create` from `@navios/server`.
+`@navios/core` is a peer dependency. Jobs are kept on their schedule by timers of the process, so the package is for long-lived processes; on Cloudflare Workers or AWS Lambda, let the platform's scheduler call `getJob(Jobs, 'method')?.run()`, see [Long-lived processes only](https://navios.tech/docs/server/guides/scheduled-jobs#long-lived-processes-only). Nothing else is needed: the example is a worker that only runs scheduled jobs. In an HTTP application, pass the same transport to `NaviosFactory.create` from `@navios/server`.
 
 ## Example
 
@@ -63,7 +63,7 @@ await app.start()
 | Need                                     | How                                                                                  | Docs                                                                                                                       |
 | ---------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | Five- and six-field expressions, presets | `@Cron('*/30 * * * * *')`, the `Schedule` enum                                       | [Cron expressions](https://navios.tech/docs/server/guides/scheduled-jobs#cron-expressions)                                 |
-| Keep a feature's jobs in its module      | `@Module({ jobs: [Jobs] })`, or `scheduleTransport({ services: [Jobs] })`            | [Running them with an application](https://navios.tech/docs/server/guides/scheduled-jobs#running-them-with-an-application) |
+| Keep a feature's jobs in its module      | `@Module({ jobs: [Jobs] })`, or `scheduleTransport({ jobs: [Jobs] })`                | [Running them with an application](https://navios.tech/docs/server/guides/scheduled-jobs#running-them-with-an-application) |
 | A schedule in a given time zone          | `@Cron('0 4 * * *', { timeZone: 'Europe/Kyiv' })`, `scheduleTransport({ timeZone })` | [Cron expressions](https://navios.tech/docs/server/guides/scheduled-jobs#cron-expressions)                                 |
 | Stop early when the application closes   | `job({ signal }: JobRun)`                                                            | [What a job is called with](https://navios.tech/docs/server/guides/scheduled-jobs#what-a-job-is-called-with)               |
 | Runs that may overlap                    | `@Cron(expression, { overlap: 'allow' })`; they are skipped by default               | [Overlapping runs](https://navios.tech/docs/server/guides/scheduled-jobs#overlapping-runs)                                 |

@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from '@navios/di'
+import type { StandardSchemaV1 } from '@navios/core'
 
 import { registerController } from '../controllers/controller.mjs'
 import { handler } from '../handlers/handler.mjs'

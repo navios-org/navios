@@ -4,7 +4,7 @@ title: Services and injection
 
 # Services and injection
 
-A service is a class that holds logic controllers should not: data access, calls to other systems, business rules. Navios wires services with [`@navios/di`](/docs/di/), and `@navios/server` re-exports all of it, so server code imports `Injectable`, `inject` and `provide` from `@navios/server`.
+A service is a class that holds logic controllers should not: data access, calls to other systems, business rules. Navios wires services with [`@navios/di`](/docs/di/), and `@navios/server` re-exports what an application uses of it, through `@navios/core`, so server code imports `Injectable`, `inject` and `provide` from `@navios/server`. The test helpers of `@navios/di/testing` are not re-exported: a project that uses them lists `@navios/di` among its own dev dependencies.
 
 This page covers what a server developer uses every day. The DI section covers the rest: [tokens](/docs/di/essentials/tokens), [providers](/docs/di/essentials/providers), [scopes](/docs/di/essentials/scopes), [lifecycle](/docs/di/essentials/lifecycle) and [factories](/docs/di/essentials/factories).
 

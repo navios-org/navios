@@ -21,7 +21,7 @@ export default defineProject({
     }),
   ],
   test: {
-    include: ['e2e/in-memory/**/*.spec.tsx', 'e2e/fastify/**/*.spec.tsx'],
+    include: ['e2e/in-memory/**/*.spec.tsx', 'e2e/fastify/**/*.spec.tsx', 'e2e/srvx/**/*.spec.tsx'],
     typecheck: {
       enabled: true,
     },

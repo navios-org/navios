@@ -8,7 +8,7 @@ title: Mutations
 
 ## The hook
 
-The mutation is a hook that takes no arguments. `mutate` and `mutateAsync` take the endpoint's arguments.
+The mutation is a hook. `mutate` and `mutateAsync` take the endpoint's arguments, URL parameters included.
 
 ```tsx
 // client from the React Query quick start; updateUser from "URL params, query and body"
@@ -35,6 +35,27 @@ The hook returns TanStack's [`useMutation` result](https://tanstack.com/query/la
 
 Any endpoint works, including ones without a response body (`response: 'void'`), uploads and downloads. See [Uploads and downloads](/docs/builder/react-query/uploads-and-downloads) for the last two.
 
+### Options of one component
+
+The hook takes options for the component that uses it, over those of the declaration:
+
+```tsx
+function RenameForm({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const { mutate } = useUpdateUser({
+    onSuccess: () => onDone(),
+    retry: 0,
+  })
+  // ...
+}
+```
+
+| Option                                                              | Effect                                                           |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `onSuccess`, `onError`, `onSettled`                                 | Run after the declaration's callback of the same name, with the same arguments. `onSuccess` runs after `invalidates`, `onError` after optimistic updates were rolled back |
+| `retry`, `retryDelay`, `networkMode`, `gcTime`, `meta`, `throwOnError` | Replace the declaration's value for this component            |
+
+What the mutation is stays with the declaration: `onMutate`, `scope`, `invalidates`, `optimistic` and `useContext` are not hook options. A callback for a single call goes to `mutate(variables, { onSuccess })`, as in TanStack Query; unlike the hook's, it does not run when the component unmounted before the mutation finished.
+
 ## Settings
 
 Settings go in the second argument, or beside the endpoint options in an inline declaration. Every `useMutation` option except `mutationKey` and `mutationFn` is accepted and passed through: `retry`, `scope`, `gcTime`, `meta`, `networkMode` and so on.
@@ -50,7 +71,7 @@ The settings this package adds or changes are described below. `optimistic` has 
 
 ## Invalidating queries
 
-`invalidates` lists what to refetch after the mutation succeeds. Each item is a query, meaning every cache entry of that endpoint, or a function that returns one key.
+`invalidates` lists what to refetch after the mutation succeeds. Each item is a query, meaning every cache entry of that endpoint in every form (its [`endpointKey`](/docs/builder/react-query/keys-and-invalidation#three-scopes)), or a function that returns one key. A single item does not need the array: `invalidates: usersQuery`.
 
 ```ts
 // userQuery from the React Query quick start; usersQuery from Queries

@@ -7,7 +7,7 @@ Runs a [Navios](https://navios.tech) application on [Fastify](https://fastify.de
 ## Install
 
 ```bash
-npm install @navios/adapter-fastify@next @navios/server@next @navios/builder@next fastify
+npm install @navios/adapter-fastify@next @navios/server@next @navios/core@next @navios/builder@next fastify
 ```
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.

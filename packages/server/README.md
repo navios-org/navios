@@ -1,18 +1,18 @@
 # @navios/server
 
-An HTTP server framework for TypeScript in which a controller implements endpoints declared with [`@navios/builder`](https://www.npmjs.com/package/@navios/builder). The route, the request and response validation and the handler's types all come from the declaration, and a client can call the same declaration with the same types. The HTTP server is Fastify or `Bun.serve`, chosen by an adapter; application code is the same on both.
+An HTTP server framework for TypeScript in which a controller implements endpoints declared with [`@navios/builder`](https://www.npmjs.com/package/@navios/builder). The route, the request and response validation and the handler's types all come from the declaration, and a client can call the same declaration with the same types. The HTTP server is chosen by an adapter: Fastify, `Bun.serve`, or [srvx](https://srvx.h3.dev) for Node, Deno, Bun, Cloudflare Workers and AWS Lambda. Application code is the same on all of them.
 
 **[Documentation](https://navios.tech/docs/server/)** · [Quick start](https://navios.tech/docs/server/quick-start) · [How a request is handled](https://navios.tech/docs/server/request-lifecycle)
 
 ## Install
 
 ```bash
-npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@next fastify zod
+npm install @navios/server@next @navios/core@next @navios/builder@next @navios/adapter-fastify@next fastify zod
 ```
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-Node.js 24 or newer is required, or Bun 1.4.5 or newer. On Bun, install [`@navios/adapter-bun`](https://www.npmjs.com/package/@navios/adapter-bun) in place of the two Fastify packages. `@navios/core` and `@navios/di` come with the server. `zod` is what the example uses; any [Standard Schema](https://standardschema.dev) library works. Navios uses standard (TC39) decorators, so leave `experimentalDecorators` off. A project that has to keep it on uses the [legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators) entry point.
+Node.js 24 or newer is required, or Bun 1.4.5 or newer. On Bun, install [`@navios/adapter-bun`](https://www.npmjs.com/package/@navios/adapter-bun) in place of the two Fastify packages; [`@navios/adapter-srvx`](https://www.npmjs.com/package/@navios/adapter-srvx) serves on Deno, Cloudflare Workers and AWS Lambda as well. `@navios/core` is a peer dependency that the server and its plugins share, and `@navios/di` comes with it. `zod` is what the example uses; any [Standard Schema](https://standardschema.dev) library works. Navios uses standard (TC39) decorators, so leave `experimentalDecorators` off. A project that has to keep it on uses the [legacy decorators](https://navios.tech/docs/server/reference/legacy-decorators) entry point.
 
 ## Example
 
@@ -103,13 +103,13 @@ console.log(`Listening on ${url}`)
 | Queue consumers, workers, mixed processes | `transports`, `createApplication`                       | [Other transports](https://navios.tech/docs/server/guides/other-transports)                   |
 | Coming from NestJS                        | the same vocabulary, listed differences                 | [Migrating from NestJS](https://navios.tech/docs/server/reference/migrating-from-nestjs)      |
 
-Related packages: [`@navios/adapter-fastify`](https://navios.tech/docs/server/adapters/fastify), [`@navios/adapter-bun`](https://navios.tech/docs/server/adapters/bun), [`@navios/adapter-xml`](https://navios.tech/docs/server/adapters/xml), [`@navios/jwt`](https://navios.tech/docs/server/guides/authentication), [`@navios/schedule`](https://navios.tech/docs/server/guides/scheduled-jobs), [`@navios/openapi`](https://navios.tech/docs/server/guides/openapi) and [`@navios/otel`](https://navios.tech/docs/server/opentelemetry/).
+Related packages: [`@navios/adapter-fastify`](https://navios.tech/docs/server/adapters/fastify), [`@navios/adapter-bun`](https://navios.tech/docs/server/adapters/bun), [`@navios/adapter-srvx`](https://navios.tech/docs/server/adapters/srvx), [`@navios/adapter-xml`](https://navios.tech/docs/server/adapters/xml), [`@navios/jwt`](https://navios.tech/docs/server/guides/authentication), [`@navios/schedule`](https://navios.tech/docs/server/guides/scheduled-jobs), [`@navios/openapi`](https://navios.tech/docs/server/guides/openapi) and [`@navios/otel`](https://navios.tech/docs/server/opentelemetry/).
 
 ## Entry points
 
 | Import                         | Contents                                                              |
 | ------------------------------ | --------------------------------------------------------------------- |
-| `@navios/server`               | The framework, plus everything from `@navios/core` and `@navios/di`.  |
+| `@navios/server`               | The framework, plus everything from `@navios/core`.                   |
 | `@navios/server/adapter`       | The adapter contract, for adapter authors.                            |
 | `@navios/server/web`           | CORS, body limit and `inject()` for adapters of web-standard servers. |
 | `@navios/server/testing`       | `defineInMemoryEnvironment`, `createTestClient`.                      |

@@ -27,13 +27,15 @@ const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 
 | Option                  | Type                                   | Default                              | Meaning                                                                                                    |
 | ----------------------- | -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `adapter`               | `AdapterDefinition`                    | required                             | The HTTP adapter: `defineFastifyEnvironment()` or `defineBunEnvironment()`                                 |
+| `adapter`               | `AdapterDefinition`                    | required                             | The HTTP adapter: `defineFastifyEnvironment()`, `defineBunEnvironment()` or `defineSrvxEnvironment()`      |
 | `providers`             | `Provider[]`                           | none                                 | [`provide(...)`](/docs/server/essentials/services#providers-at-a-glance) entries that win over those of [plugins and modules](/docs/server/essentials/modules#providers) |
 | `plugins`               | `PluginInstance[]`                     | none                                 | [Plugins](/docs/server/guides/plugins). Same as calling `app.usePlugin()` for each                         |
 | `container`             | `Container`                            | a new one                            | Use an existing DI container. What it provides wins over everything else. It backs one open application at a time, and `app.close()` disposes it |
 | `logger`                | `LoggerService \| LogLevel[] \| false` | console logger                       | Where log output goes. See [Logging](/docs/server/essentials/config-and-logging#logging)                   |
 | `globalPrefix`          | `string`                               | none                                 | Path prefix for every route                                                                                |
-| `guards`                | guard classes                          | none                                 | [Guards](/docs/server/essentials/guards-and-interceptors#attaching-guards) of every route, also of modules that plugins add |
+| `guards`                | guard classes                          | none                                 | [Guards](/docs/server/essentials/guards-and-interceptors#attaching-guards) of every route, also of modules that plugins add. `app.guard()` adds more |
+| `interceptors`          | interceptor classes                    | none                                 | [Interceptors](/docs/server/essentials/guards-and-interceptors#attaching-interceptors) around every route. `app.intercept()` adds more |
+| `errorMappers`          | `[ErrorClass, mapper][]`               | none                                 | [Error mappers](/docs/server/essentials/errors#mapping-domain-errors) to start with. `app.mapError()` adds more |
 | `validateResponses`     | `'always' \| 'never'`                  | `'always'`                           | Whether handler results are validated                                                                      |
 | `exposeErrorDetails`    | `boolean`                              | `false`                              | Send the message of [unexpected errors](/docs/server/essentials/errors#unexpected-errors) to the client    |
 | `clientErrorStacks`     | `'always' \| 'development' \| 'never'` | `'development'`                      | When 4xx errors capture a [stack](/docs/server/essentials/errors#stacks-of-client-errors). `'development'` captures unless `NODE_ENV` is `production` |
@@ -44,31 +46,33 @@ const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 
 Keep `validateResponses` at `'always'` unless a profile shows it matters: validation is what removes undeclared fields from responses. There is no setting that validates in development only, because it would send in production what development removes.
 
-Settings of the HTTP server itself, such as CORS, body limits and multipart, are options of the adapter factory, not of the application. See [Fastify](/docs/server/adapters/fastify) and [Bun](/docs/server/adapters/bun).
+Settings of the HTTP server itself, such as CORS, body limits and multipart, are options of the adapter factory, not of the application. See [Fastify](/docs/server/adapters/fastify), [Bun](/docs/server/adapters/bun) and [srvx](/docs/server/adapters/srvx).
 
 ## Methods
 
 | Method                              | When            | Purpose                                                                                             |
 | ----------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
 | `app.usePlugin(plugin)`             | before `init()` | Registers a [plugin](/docs/server/guides/plugins)                                                   |
+| `app.guard(GuardClass)`             | before `init()` | Adds a [guard](/docs/server/essentials/guards-and-interceptors#attaching-guards) of every route, after those of the `guards` option |
 | `app.intercept(InterceptorClass)`   | before `init()` | Adds an [interceptor](/docs/server/essentials/guards-and-interceptors#attaching-interceptors) around every route |
 | `app.mapError(ErrorClass, mapper)`  | any time        | [Maps an error class](/docs/server/essentials/errors#mapping-domain-errors) to a response           |
 | `app.init()`                        | once            | Builds everything. Calling it again returns the same run                                            |
 | `app.listen(options)`               |                 | Calls `init()` if needed, starts the server and the other transports, and resolves to its base URL  |
 | `app.start()`                       |                 | Calls `init()` if needed and starts the other transports, without listening                         |
 | `app.transport(factory)`            | after `init()`  | One of the application's [transports](/docs/server/guides/other-transports)                        |
+| `app.findTransport(factory)`        |                 | The same, but `undefined` when the application has no such transport, or before `init()`            |
 | `app.inject(request)`               |                 | Calls `init()` if needed and handles a request in process. See [Testing](/docs/server/essentials/testing#injecting-requests) |
 | `app.routes()`                      | after `init()`  | Every route as a `RouteInfo`                                                                        |
 | `app.get(token)`                    |                 | Resolves a service from the container                                                               |
 | `app.container`                     |                 | The DI container                                                                                    |
 | `app.adapter`                       | after `init()`  | The adapter instance                                                                                |
 | `app.getServer()`                   | after `init()`  | The adapter's native server                                                                         |
-| `app.enableShutdownHooks(signals?, options?)` | before `init()` | Closes the application on process signals                                                 |
+| `app.enableShutdownHooks(signals?, options?)` | before `close()` | Closes the application on process signals                                                 |
 | `app.close(signal?)`                |                 | Shuts down. `app.dispose()` is an alias                                                             |
 
-`usePlugin`, `intercept`, `mapError` and `enableShutdownHooks` return the application, so calls can be chained.
+`usePlugin`, `guard`, `intercept`, `mapError` and `enableShutdownHooks` return the application, so calls can be chained.
 
-The options of `listen` belong to the adapter: `{ port, host }` on Fastify, `{ port, hostname }` on Bun.
+The options of `listen` belong to the adapter: `{ port, host }` on Fastify, `{ port, hostname }` on Bun and on srvx.
 
 ## What `init()` does
 

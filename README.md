@@ -67,14 +67,20 @@ const user = await getUser({ urlParams: { userId: '42' } })
 A server on Node.js, and the client of the example:
 
 ```bash
-npm install @navios/server@next @navios/builder@next @navios/adapter-fastify@next fastify zod
+npm install @navios/server@next @navios/core@next @navios/builder@next @navios/adapter-fastify@next fastify zod
 ```
 
 ```bash
 npm install @navios/builder@next @navios/http@next zod
 ```
 
-The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases. `@navios/core` and `@navios/di` come with the server. Node.js 24 or newer is required, or Bun 1.4.5 or newer.
+The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases. `@navios/core` is a peer dependency shared by the server and its plugins and is installed next to it; `@navios/di` comes with core.
+
+A server runs on Node.js 24 or newer with `@navios/adapter-fastify`, on Bun 1.4.5 or newer with `@navios/adapter-bun`, and on Deno, Cloudflare Workers and AWS Lambda with `@navios/adapter-srvx`.
+
+## Performance
+
+In the [benchmark](https://github.com/navios-org/navios-benchmark) run of 2026-11-26 (`@navios/server` 2.0.0-alpha.0, Apple M4 Max, Node.js 24.22, Bun 1.4.5, 64 connections, every server validating requests and responses with the same Zod schemas), Navios on Fastify served 35 to 45 % more requests per second than NestJS 12 on its Node adapter in most scenarios, and kept 87 % of the throughput of `node:http` with hand-written routing; plain Fastify with the same schemas kept 92 %. On Bun it kept 80 % of `Bun.serve`, where Hono kept 79 % and Elysia 88 %. The srvx adapter has not been benchmarked yet. The tables and the method are on the [Performance](https://navios.tech/docs/server/performance) page.
 
 ## Packages
 
@@ -91,13 +97,13 @@ The 2.0 alpha is published under the `next` tag. All `@navios` packages of a pro
 | [`@navios/adapter-xml`](./packages/adapter-xml)         | XML responses written as JSX                          | [XML responses](https://navios.tech/docs/server/adapters/xml)           |
 | [`@navios/jwt`](./packages/jwt)                         | Signing and verifying JSON Web Tokens                 | [Authentication](https://navios.tech/docs/server/guides/authentication) |
 | [`@navios/schedule`](./packages/schedule)               | Cron jobs                                             | [Scheduled jobs](https://navios.tech/docs/server/guides/scheduled-jobs) |
-| [`@navios/microservice`](./packages/microservice)       | Message handlers on a queue                           | [Messages](https://navios.tech/docs/server/guides/other-transports#messages) |
-| [`@navios/queues`](./packages/queues)                   | Queue clients and typed messages                      | [README](./packages/queues/README.md)                                   |
+| [`@navios/microservice`](./packages/microservice)       | Message handlers on a queue; not published yet        | [Messages](https://navios.tech/docs/server/guides/other-transports#messages) |
+| [`@navios/queues`](./packages/queues)                   | Queue clients and typed messages; not published yet   | [README](./packages/queues/README.md)                                   |
 | [`@navios/openapi`](./packages/openapi)                 | An OpenAPI document generated from the routes         | [OpenAPI](https://navios.tech/docs/server/guides/openapi)               |
 | [`@navios/otel`](./packages/otel)                       | OpenTelemetry traces and metrics                      | [OpenTelemetry](https://navios.tech/docs/server/opentelemetry/)         |
 | [`@navios/di`](./packages/di)                           | The dependency injection container, usable on its own | [DI](https://navios.tech/docs/di/)                                      |
 | [`@navios/di-react`](./packages/di-react)               | React bindings for the container                      | [DI React](https://navios.tech/docs/di/react/)                          |
-| [`@navios/commander`](./packages/commander)             | A CLI framework on the same module and DI model       | [Commander](https://navios.tech/docs/commander/getting-started)         |
+| [`@navios/commander`](https://github.com/navios-org/commander) | A CLI framework, in its own repository; on 1.x until it is ported | [Commander](https://navios.tech/docs/commander/getting-started) |
 
 ## Development
 

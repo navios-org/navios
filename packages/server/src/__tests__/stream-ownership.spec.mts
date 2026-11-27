@@ -1,7 +1,7 @@
 import { EventEmitter, on } from 'node:events'
 import { Readable } from 'node:stream'
 
-import { Injectable, InjectableScope } from '@navios/di'
+import { Injectable, InjectableScope } from '@navios/core'
 import { describe, expect, it, vi } from 'vitest'
 
 import { LiveRequests } from '../context/live-requests.mjs'

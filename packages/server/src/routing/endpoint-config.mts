@@ -17,4 +17,4 @@ export interface RouteEndpointConfig {
   response?: 'json' | 'blob' | 'text' | 'stream' | 'void'
 }
 
-export type SchemaLike = import('@navios/di').StandardSchemaV1<any, any>
+export type SchemaLike = import('@navios/core').StandardSchemaV1<any, any>

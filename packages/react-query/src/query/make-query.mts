@@ -10,6 +10,7 @@ import type { BaseEndpointOptions, EndpointHandler, InferEndpointError } from '@
 import type { QueryClient, QueryFunctionContext } from '@tanstack/react-query'
 
 import { createKeyBuilder } from '../endpoint/cache-key.mjs'
+import { withQuerySignal } from '../endpoint/combine-signals.mjs'
 import { createCaller } from '../endpoint/create-caller.mjs'
 import { callOptionsFor } from '../endpoint/http-client.mjs'
 import { sharedInputsOf, withSharedInputs } from '../endpoint/key-by.mjs'
@@ -84,10 +85,13 @@ export function makeQuery<
       queryFn: rule
         ? ({ signal, client }: QueryFunctionContext) =>
             requestShared(entryOf(client, options), rule, own, signal, (inputs) =>
-              call({ signal, ...withSharedInputs(args, inputs, rule) }, callOptionsFor(client)),
+              call(
+                withQuerySignal(signal, withSharedInputs(args, inputs, rule)),
+                callOptionsFor(client),
+              ),
             )
         : ({ signal, client }: QueryFunctionContext) =>
-            call({ signal, ...args }, callOptionsFor(client)),
+            call(withQuerySignal(signal, args), callOptionsFor(client)),
     })
   }
 

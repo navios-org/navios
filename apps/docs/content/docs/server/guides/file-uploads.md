@@ -101,7 +101,7 @@ export const uploadAttachments = API.declareEndpoint({
 
 ## Limits
 
-Both adapters read every file into memory before the handler runs, so an upload endpoint needs two limits.
+Every adapter reads every file into memory before the handler runs, so an upload endpoint needs two limits.
 
 **In the schema**, for what a valid upload is. A file that fails it is a 400 validation response with `source: 'body'`, like any other invalid body:
 

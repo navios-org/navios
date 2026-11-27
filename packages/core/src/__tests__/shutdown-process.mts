@@ -6,7 +6,11 @@ import { registerModule } from '../modules/module.mjs'
 const mode = process.argv[2]
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-if (mode === 'process-1') {
+if (mode === 'process-1-without-os') {
+  // A runtime that has no `node:os` to give.
+  Object.defineProperty(process, 'getBuiltinModule', { value: undefined })
+}
+if (mode === 'process-1' || mode === 'process-1-without-os') {
   // Nothing that a signal does by default ends that one.
   Object.defineProperty(process, 'pid', { value: 1 })
   process.kill = () => true

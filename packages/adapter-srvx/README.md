@@ -19,7 +19,7 @@ The adapter runs on Node.js and on Bun as well, for an application that has to r
 ## Install
 
 ```bash
-npm install @navios/adapter-srvx@next @navios/server@next @navios/builder@next srvx
+npm install @navios/adapter-srvx@next @navios/server@next @navios/core@next @navios/builder@next srvx
 ```
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
@@ -66,7 +66,7 @@ export default {
 } satisfies { fetch: CloudflareFetchHandler }
 ```
 
-This is a Cloudflare Worker, which needs the `nodejs_compat` compatibility flag. On Lambda the same `fetch` is given to `handleLambdaEvent` of `srvx/aws-lambda`, and on Deno, Node.js and Bun the application listens with `app.listen({ port, hostname })`. The documentation has each of them.
+This is a Cloudflare Worker, which needs the `nodejs_compat` compatibility flag and a compatibility date of 2024-09-23 or later. On Lambda the same `fetch` is given to `handleLambdaEvent` of `srvx/aws-lambda`, and on Deno, Node.js and Bun the application listens with `app.listen({ port, hostname })`. The documentation has each of them.
 
 `defineSrvxEnvironment(options)` takes two options, both optional: `cors`, and `serve` for extra options of srvx such as `tls` or `trustProxy`. `AppModule` is an ordinary Navios module, such as the one with `getUser` at `/users/$userId` from the [quick start](https://navios.tech/docs/server/quick-start); nothing in it depends on the adapter.
 
@@ -87,6 +87,8 @@ This is a Cloudflare Worker, which needs the `nodejs_compat` compatibility flag.
 | Tests without a socket                   | `app.inject()`                                            | [Testing](https://navios.tech/docs/server/essentials/testing)                                 |
 
 It has no WebSockets, and a handler cannot write the response itself.
+
+`app.inject()` calls the adapter, not srvx: routing and CORS are those of a real request, but `serve.middleware`, `serve.plugins` and `serve.error` take no part in it. To test those, send a `Request` to `app.getServer().fetch`.
 
 ## Development
 

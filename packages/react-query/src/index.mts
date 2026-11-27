@@ -30,6 +30,7 @@ export type {
   InfiniteQueryOptionsResult,
   InfiniteQuerySettings,
   PageParam,
+  PartialPageParam,
   SuspenseInfiniteQueryHookOptions,
 } from './query/infinite-query-object.mjs'
 export type {
@@ -44,6 +45,7 @@ export type { AnyQueryObject, InvalidateFilters, TaggedKey } from './query/types
 export type {
   InvalidateTarget,
   MutationCallbackContext,
+  MutationHookOptions,
   MutationObject,
   MutationSettings,
   MutationVariables,

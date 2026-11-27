@@ -1,7 +1,6 @@
 import { Application } from '@navios/core'
 
-import type { InterceptorClass } from '@navios/core'
-import type { ClassType } from '@navios/di'
+import type { ClassType, GuardClass, InterceptorClass } from '@navios/core'
 
 import type { HttpAdapter, HttpAdapterEnvironment } from '../adapter/http-adapter.mjs'
 import type { TestRequest, TestResponse } from '../adapter/test-request.mjs'
@@ -27,6 +26,7 @@ export class NaviosApplication<
   Env extends HttpAdapterEnvironment = ApplicationEnvironment,
 > extends Application {
   private readonly errorMappers: Array<[ErrorClass<any>, ErrorMapper<any>]>
+  private readonly routeGuards: GuardClass[]
   private readonly routeInterceptors: InterceptorClass[]
 
   constructor(appModule: ClassType, options: NaviosApplicationOptions<Env>) {
@@ -37,13 +37,18 @@ export class NaviosApplication<
       exposeErrorDetails,
       clientErrorStacks,
       guards,
+      interceptors,
+      errorMappers: mappers,
       transports,
       ...applicationOptions
     } = options
-    // The transport reads both lists when it needs them, so what is added
+    // The transport reads the lists when it needs them, so what is added
     // between construction and init() is seen.
-    const errorMappers: Array<[ErrorClass<any>, ErrorMapper<any>]> = []
-    const routeInterceptors: InterceptorClass[] = []
+    const errorMappers = (mappers ?? []).map(
+      ([errorClass, mapper]): [ErrorClass<any>, ErrorMapper<any>] => [errorClass, mapper],
+    )
+    const routeGuards: GuardClass[] = [...(guards ?? [])]
+    const routeInterceptors: InterceptorClass[] = [...(interceptors ?? [])]
     super(appModule, {
       ...applicationOptions,
       transports: [
@@ -53,7 +58,7 @@ export class NaviosApplication<
           validateResponses,
           exposeErrorDetails,
           clientErrorStacks,
-          guards,
+          guards: routeGuards,
           errorMappers,
           interceptors: routeInterceptors,
         }),
@@ -61,6 +66,7 @@ export class NaviosApplication<
       ],
     })
     this.errorMappers = errorMappers
+    this.routeGuards = routeGuards
     this.routeInterceptors = routeInterceptors
   }
 
@@ -90,7 +96,19 @@ export class NaviosApplication<
     return this
   }
 
-  /** Adds an interceptor around every route. */
+  /**
+   * Adds a guard of every route, whichever module it belongs to, after those
+   * of the `guards` option. They run before the guards of the module.
+   */
+  guard(guard: GuardClass): this {
+    if (this.http) {
+      throw new Error('[Navios] guard() must be called before init()')
+    }
+    this.routeGuards.push(guard)
+    return this
+  }
+
+  /** Adds an interceptor around every route, after those of the `interceptors` option. */
   override intercept(interceptor: InterceptorClass): this {
     if (this.http) {
       // Raises the "before init()" error.

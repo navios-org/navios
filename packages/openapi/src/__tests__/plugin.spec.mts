@@ -62,7 +62,7 @@ describe('openApiPlugin', () => {
 
   it('does not document its own routes', async () => {
     const app = await createApp([UsersController], {
-      plugins: [openApiPlugin({ info, disableYaml: false })],
+      plugins: [openApiPlugin({ info, yaml: true })],
     })
 
     const paths = app.routes().map((route: RouteInfo) => route.path)
@@ -102,7 +102,7 @@ describe('openApiPlugin', () => {
 
   it('serves the document as YAML when enabled', async () => {
     const app = await createApp([UsersController], {
-      plugins: [openApiPlugin({ info, disableYaml: false })],
+      plugins: [openApiPlugin({ info, yaml: true })],
     })
 
     const response = await app.inject({ method: 'GET', url: '/openapi.yaml' })
@@ -120,7 +120,7 @@ describe('openApiPlugin', () => {
           jsonPath: '/spec/api.json',
           yamlPath: '/spec/api.yaml',
           docsPath: '/reference',
-          disableYaml: false,
+          yaml: true,
         }),
       ],
     })
@@ -143,7 +143,7 @@ describe('openApiPlugin', () => {
     ]) {
       const app = await createApp([UsersController], {
         globalPrefix,
-        plugins: [openApiPlugin({ info, docsPath, jsonPath, yamlPath, disableYaml: false })],
+        plugins: [openApiPlugin({ info, docsPath, jsonPath, yamlPath, yaml: true })],
       })
       const paths = app.routes().map((route: RouteInfo) => route.path)
       expect(paths).toEqual(expect.arrayContaining([docs, json, yaml]))
@@ -155,9 +155,7 @@ describe('openApiPlugin', () => {
 
   it('can disable the Scalar page and the JSON route', async () => {
     const app = await createApp([UsersController], {
-      plugins: [
-        openApiPlugin({ info, disableScalar: true, disableJson: true, disableYaml: false }),
-      ],
+      plugins: [openApiPlugin({ info, scalar: false, json: false, yaml: true })],
     })
 
     expect((await app.inject({ method: 'GET', url: '/docs' })).status).toBe(404)
@@ -165,9 +163,18 @@ describe('openApiPlugin', () => {
     expect((await app.inject({ method: 'GET', url: '/openapi.yaml' })).status).toBe(200)
   })
 
+  it('serves the Scalar page for scalar: true and for an options object', async () => {
+    for (const scalar of [true, { theme: 'moon' }] as const) {
+      const app = await createApp([UsersController], {
+        plugins: [openApiPlugin({ info, scalar })],
+      })
+      expect((await app.inject({ method: 'GET', url: '/docs' })).status).toBe(200)
+    }
+  })
+
   it('embeds the document in the Scalar page when the JSON route is disabled', async () => {
     const app = await createApp([UsersController], {
-      plugins: [openApiPlugin({ info, disableJson: true })],
+      plugins: [openApiPlugin({ info, json: false })],
     })
 
     const docs = await app.inject({ method: 'GET', url: '/docs' })
