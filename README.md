@@ -80,7 +80,7 @@ A server runs on Node.js 24 or newer with `@navios/adapter-fastify`, on Bun 1.4.
 
 ## Performance
 
-In the [benchmark](https://github.com/navios-org/navios-benchmark) run of 2026-11-26 (`@navios/server` 2.0.0-alpha.0, Apple M4 Max, Node.js 24.22, Bun 1.4.5, 64 connections, every server validating requests and responses with the same Zod schemas), Navios on Fastify served 35 to 45 % more requests per second than NestJS 12 on its Node adapter in most scenarios, and kept 87 % of the throughput of `node:http` with hand-written routing; plain Fastify with the same schemas kept 92 %. On Bun it kept 80 % of `Bun.serve`, where Hono kept 79 % and Elysia 88 %. The srvx adapter has not been benchmarked yet. The tables and the method are on the [Performance](https://navios.tech/docs/server/performance) page.
+In the [benchmark](https://github.com/navios-org/navios-benchmark) run of 2026-11-26, with Navios measured again on 2026-11-27 (`@navios/server` 2.0.0-alpha.1, Apple M4 Max, Node.js 24.22, Bun 1.4.5, 64 connections, every server validating requests and responses with the same Zod schemas), Navios on Fastify served 34 to 45 % more requests per second than NestJS 12 on its Node adapter in most scenarios, and kept 88 % of the throughput of `node:http` with hand-written routing; plain Fastify with the same schemas kept 92 %. On Bun it kept 80 % of `Bun.serve`, where Hono kept 79 % and Elysia 88 %. The srvx adapter has not been benchmarked yet. The tables and the method are on the [Performance](https://navios.tech/docs/server/performance) page.
 
 ## Packages
 

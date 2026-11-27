@@ -432,7 +432,7 @@ const throughput: { runtime: string; bars: Bar[] }[] = [
     bars: [
       { name: 'node:http, no framework', value: 89.9 },
       { name: 'Fastify + Zod', value: 85.2 },
-      { name: 'Navios 2 / Fastify', value: 81.8, ours: true },
+      { name: 'Navios 2 / Fastify', value: 82, ours: true },
       { name: 'NestJS / Node adapter', value: 60.6 },
       { name: 'NestJS / Fastify', value: 58.4 },
     ],
@@ -455,11 +455,11 @@ const throughputScale = Math.max(
 
 const stats = [
   {
-    value: '35 to 45 %',
-    text: 'more requests per second than NestJS 12 on its Node adapter, on Node.js, in most scenarios. On a 31 KB response the two are within the noise.',
+    value: '34 to 45 %',
+    text: 'more requests per second than NestJS 12 on its Node adapter, on Node.js, in most scenarios. On a 31 KB response it is 5 % ahead.',
   },
   {
-    value: '87 %',
+    value: '88 %',
     text: 'of the throughput of node:http is kept on Fastify. Plain Fastify with the same Zod schemas keeps 92 %, NestJS on its Node adapter 63 %.',
   },
   {
@@ -468,7 +468,7 @@ const stats = [
   },
   {
     value: '35 ms',
-    text: 'from spawning the process to the first answer on Bun, 132 ms on Node.js. NestJS takes 176 to 191 ms on Node.js.',
+    text: 'from spawning the process to the first answer on Bun, 135 ms on Node.js. NestJS takes 176 to 191 ms on Node.js.',
   },
 ]
 
@@ -509,8 +509,8 @@ function Performance() {
         ))}
       </div>
       <p className={styles.perfCaption}>
-        @navios/server 2.0.0-alpha.0 and NestJS 12.6.0, measured on 2026-11-26 on an Apple M4 Max
-        with Node.js 24.22 and Bun 1.4.5. Medians of 5 rounds with 64 connections; every server
+        @navios/server 2.0.0-alpha.1 and NestJS 12.6.0, measured on 2026-11-26 on an Apple M4 Max
+        with Node.js 24.22 and Bun 1.4.5; Navios was measured again on 2026-11-27. Medians of 5 rounds with 64 connections; every server
         validates requests and responses with the same Zod schemas. The mixed workload is 40 %{' '}
         <code>GET /users/:id</code>, with queries, pages of records, JSON bodies, a guard and
         errors making up the rest. The bars of both runtimes share one scale. The percentages are
