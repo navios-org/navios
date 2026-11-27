@@ -50,7 +50,7 @@ describe('srvx adapter: the server', () => {
     expect(app.getServer()).toBe(before)
     expect(before.url).toBeUndefined()
     const response = await before.fetch(new Request('http://app.example/users/7'))
-    expect(await response.json()).toEqual({ id: '7', ip: null })
+    expect(await response.text()).toBe('{"id":"7"}')
 
     const base = await app.listen(local)
     expect(app.getServer()).not.toBe(before)
@@ -80,6 +80,9 @@ describe('srvx adapter: the server', () => {
     const base = await app.listen(local)
     const simple = await fetch(`${base}/simple`)
     expect(simple.headers.get('content-length')).toBe('11')
+    const head = await fetch(`${base}/simple`, { method: 'HEAD' })
+    expect(head.headers.get('content-length')).toBe('11')
+    expect(await head.text()).toBe('')
     const events = await fetch(`${base}/events`)
     expect(events.headers.get('content-length')).toBeNull()
     expect(await events.text()).toBe(':\n\ndata: one\n\ndata: two\n\n')
@@ -164,6 +167,37 @@ describe('srvx adapter: request body limit', () => {
     expect((await chunked(base, '/raw-read', LIMIT + 1)).status).toBe(413)
     // Not read, so not counted.
     expect((await chunked(base, '/no-body', LIMIT + 1)).status).toBe(200)
+  })
+
+  it('answers a GET request that is sent with chunked transfer encoding', async () => {
+    app = await createApp({ serve: { maxRequestBodySize: LIMIT } })
+    const { port } = new URL(await app.listen(local))
+    const get = (path: string, body: string) =>
+      new Promise<{ status: number | undefined; text: string }>((resolve, reject) => {
+        const request = http.request(
+          {
+            port,
+            host: '127.0.0.1',
+            path,
+            method: 'GET',
+            headers: { 'transfer-encoding': 'chunked' },
+          },
+          (response) => {
+            let text = ''
+            response.on('data', (chunk) => (text += chunk))
+            response.on('end', () => resolve({ status: response.statusCode, text }))
+          },
+        )
+        request.on('error', reject)
+        request.end(body)
+      })
+    expect(await get('/simple', '')).toEqual({ status: 200, text: '{"ok":true}' })
+    // A body of a GET request is not read, so it is not counted either.
+    expect(await get('/simple', 'x'.repeat(LIMIT + 1))).toEqual({
+      status: 200,
+      text: '{"ok":true}',
+    })
+    expect((await get('/nowhere', 'x')).status).toBe(404)
   })
 
   it('answers a request without a body that has neither a length nor an encoding', async () => {

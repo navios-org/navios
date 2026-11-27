@@ -33,7 +33,7 @@ const app = await NaviosFactory.create(AppModule, {
 const url = await app.listen({ port: 3000, host: '0.0.0.0' })
 ```
 
-`app.listen()` takes Fastify's listen options and resolves to the server's address. It needs a `port`, or the `path` of a unix socket. Without a `host`, Fastify listens on `localhost`, on each of its addresses. `app.getServer()` returns the `FastifyInstance` once the application is initialised.
+`app.listen()` takes Fastify's listen options and resolves to the server's address. The options need a `port`, which may be `0` for a free one, or the `path` of a unix socket: with neither, Node throws a `TypeError`. Without a `host`, Fastify listens on `localhost`, on each of its addresses. `app.getServer()` returns the `FastifyInstance` once the application is initialised.
 
 In tests, `app.inject()` goes through `fastify.inject()`, so Fastify's parsing, hooks and plugins take part without opening a socket. See [Testing](/docs/server/essentials/testing).
 
@@ -141,6 +141,28 @@ defineFastifyEnvironment({
 
 Every response carries the headers, including those of errors and of URLs that the router rejects. A `Vary` header that a handler sets is sent next to the one of the plugin.
 
+The defaults are those of the plugin, which differ from the CORS of the [Bun](/docs/server/adapters/bun#cors) and [srvx](/docs/server/adapters/srvx#cors) adapters:
+
+| Request or option                                      | Fastify, with the defaults of `@fastify/cors`                           | Bun and srvx                                           |
+| ------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| `OPTIONS` that is not a preflight request              | 400, `text/plain`, `Invalid Preflight Request`. The route does not run. | The `OPTIONS` route runs, or the answer is 405 or 404. |
+| Preflight request from an origin that is not allowed   | 204 without `access-control-allow-origin`.                              | Answered like any other `OPTIONS` request.             |
+| `credentials: true` with any origin (the default, `*`) | Accepted. Browsers reject the response of a credentialed request.       | `init()` throws.                                       |
+
+An application with `OPTIONS` routes of its own turns two options of the plugin: `strictPreflight: false` stops the 400, and `preflightContinue: true` passes the request on to the route. With `strictPreflight: false` alone the plugin answers every `OPTIONS` request with 204.
+
+```ts
+defineFastifyEnvironment({
+  cors: {
+    origin: ['https://app.example.com'],
+    strictPreflight: false,
+    preflightContinue: true,
+  },
+})
+```
+
+Then a preflight request on a path with an `OPTIONS` route reaches that route too, with the headers of the plugin already set, and on any other path it is answered with 200.
+
 ## Multipart
 
 Enable `@fastify/multipart` with `multipart: true`, or with its options to set limits:
@@ -181,9 +203,13 @@ Errors that Fastify, a plugin or a hook raises are answered as `application/prob
 
 Pass `frameworkErrors` or `clientErrorHandler`, which are Fastify options, to answer the last row yourself.
 
+One answer is not a problem response: a request that arrives [while the server closes](#shutdown) gets the 503 of Fastify, which is `application/json` and carries no CORS headers.
+
 ## Shutdown
 
 `app.close()` calls `fastify.close()` and waits for it, for at most the application's `shutdownTimeout` (10 seconds by default). Fastify stops accepting connections and lets in-flight requests finish. The adapter does not wait for keep-alive connections: responses sent while the server closes carry `connection: close`, and connections that become idle, or that never sent a request, are dropped.
+
+A request that arrives while the server closes, on a connection that was not idle then, is not handled. Fastify answers it with its own 503, `{"error":"Service Unavailable","message":"Service Unavailable","statusCode":503}` as `application/json` with `connection: close`, before any hook: it is not a problem response and has no CORS headers. That is the default of Fastify's `return503OnClosing` option. Pass `return503OnClosing: false` to have such a request handled like any other, with `connection: close`.
 
 When the timeout passes, the adapter closes the remaining connections, including those that were upgraded, such as WebSockets. That aborts the `ctx.signal` of requests that are still running, and the application continues with its shutdown hooks. A plugin that keeps connections of its own, such as `@fastify/websocket`, closes them earlier, in its `preClose` hook. [Application setup](/docs/server/essentials/application) describes the whole shutdown sequence.
 
@@ -193,4 +219,4 @@ Listening on `localhost` opens one socket per address, and only the connections 
 
 - Node.js 24 or newer
 - `fastify` 5.6 or newer (peer dependency)
-- `@navios/server` of the same version (peer dependency), with `@navios/builder`
+- `@navios/server` of the same version (peer dependency), with `@navios/core` and `@navios/builder`

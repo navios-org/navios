@@ -46,6 +46,8 @@
     "@fastify/multipart": "^10.1.9"
   },
   "devDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
     "@navios/server": "workspace:^",
     "fastify": "^5.12.8",
     "typescript": "^7.0.2",

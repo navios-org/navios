@@ -53,6 +53,13 @@ function streamFrom(
   })
 }
 
+function byteLength(body: string | Uint8Array | Blob): number {
+  if (typeof body === 'string') {
+    return encoder.encode(body).byteLength
+  }
+  return body instanceof Blob ? body.size : body.byteLength
+}
+
 /**
  * The web `Response` of a route's response. `headers` are its headers, with
  * what the adapter has added. `finished` is called once, when the response
@@ -74,7 +81,16 @@ export function toResponse(
       queueMicrotask(release)
     }
     finished()
-    return new FastResponse(body as BodyInit | null, { status, headers })
+    if (request.method !== 'HEAD' || body === null) {
+      return new FastResponse(body as BodyInit | null, { status, headers })
+    }
+    // Not every runtime drops the body of an answer to `HEAD`: what makes the
+    // result of a function of Lambda does not. The headers stay those of
+    // `GET`, with the length that the body would have had.
+    if (!headers.has('content-length')) {
+      headers.set('content-length', String(byteLength(body)))
+    }
+    return new FastResponse(null, { status, headers })
   }
   // The server closes the body of a stream when the response is released.
   let released = false

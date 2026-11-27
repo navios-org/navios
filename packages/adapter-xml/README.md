@@ -1,6 +1,6 @@
 # @navios/adapter-xml
 
-Build XML responses, such as RSS and Atom feeds or sitemaps, with JSX in a [Navios](https://navios.tech) application. Despite its name it is not an HTTP adapter: it is a JSX runtime, a renderer and a plugin, and it works with the same code on Fastify and on Bun.
+Build XML responses, such as RSS and Atom feeds or sitemaps, with JSX in a [Navios](https://navios.tech) application. Despite its name it is not an HTTP adapter: it is a JSX runtime, a renderer and a plugin, and it works with the same code on every adapter: Fastify, Bun and srvx.
 
 **[Documentation](https://navios.tech/docs/server/adapters/xml)** · [Server quick start](https://navios.tech/docs/server/quick-start)
 
@@ -12,7 +12,7 @@ npm install @navios/adapter-xml@next
 
 The 2.0 alpha is published under the `next` tag. All `@navios` packages of a project must have the same alpha version, because an alpha may break between releases.
 
-`@navios/server` of the same version is a peer dependency. Point TypeScript's JSX transform at the package, and write JSX in `.tsx` files:
+`@navios/server` and `@navios/core` of the same version are peer dependencies. Point TypeScript's JSX transform at the package, and write JSX in `.tsx` files:
 
 ```json
 {

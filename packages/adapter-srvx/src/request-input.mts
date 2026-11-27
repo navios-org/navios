@@ -42,7 +42,8 @@ export class SrvxRouteInput implements RouteInput, BodySource {
   }
 
   remoteAddress(): string | undefined {
-    return this.address ?? this.request.ip
+    // On Cloudflare, the address of a request without the header is `null`.
+    return this.address ?? this.request.ip ?? undefined
   }
 
   header(name: string): string | undefined {

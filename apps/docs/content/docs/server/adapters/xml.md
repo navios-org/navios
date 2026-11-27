@@ -4,7 +4,7 @@ title: XML responses
 
 # XML responses
 
-`@navios/adapter-xml` builds XML responses, such as RSS and Atom feeds or sitemaps, with JSX. Despite its name it is not an HTTP adapter: it is a JSX runtime, a renderer and a plugin, and it works with the same code on Fastify and on Bun.
+`@navios/adapter-xml` builds XML responses, such as RSS and Atom feeds or sitemaps, with JSX. Despite its name it is not an HTTP adapter: it is a JSX runtime, a renderer and a plugin, and it works with the same code on every adapter: Fastify, Bun and srvx.
 
 ## Setup
 
@@ -12,7 +12,7 @@ title: XML responses
 npm install @navios/adapter-xml@next
 ```
 
-`@navios/server` of the same version is a peer dependency.
+`@navios/server` and `@navios/core` of the same version are peer dependencies.
 
 Point TypeScript's JSX transform at the package. Files that contain JSX use the `.tsx` extension.
 

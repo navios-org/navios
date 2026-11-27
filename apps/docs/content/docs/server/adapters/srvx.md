@@ -51,7 +51,7 @@ export function createApp() {
 
 What differs is who takes the requests. Where the runtime has a port to listen on, the application listens. Where the runtime calls the application, it is initialised with `app.init()`, and `app.getServer().fetch` handles a request: before `listen()`, `app.getServer()` is a srvx server that does not listen.
 
-In tests, `app.inject()` builds a `Request` and runs it through the same routing and CORS handling without opening a socket. See [Testing](/docs/server/essentials/testing).
+In tests, `app.inject()` builds a `Request` and runs it through the same routing and CORS handling without opening a socket. It calls the adapter, not srvx: `serve.middleware`, `serve.plugins` and `serve.error` take no part in it, where the `inject()` of the Fastify adapter runs hooks and plugins. To test those, send a `Request` to `app.getServer().fetch`, which is what a runtime calls. See [Testing](/docs/server/essentials/testing).
 
 ## Cloudflare Workers
 
@@ -76,10 +76,10 @@ export default {
 } satisfies { fetch: CloudflareFetchHandler }
 ```
 
-- **Set the `nodejs_compat` compatibility flag.** `@navios/server` imports `node:async_hooks`, `node:util`, `node:os` and `node:process`.
+- **Set the `nodejs_compat` compatibility flag, and a compatibility date of 2024-09-23 or later.** `@navios/server` imports `node:async_hooks`, `node:util` and `node:process`, and uses the `process` global, which the flag provides from that date.
 - The bundler resolves `srvx` to its build for `workerd`. The types of `srvx` are those of every runtime, so the handler is named here.
 - The bindings and the execution context are in `ctx.raw.request.runtime.cloudflare`, and `ctx.raw.request.waitUntil()` keeps the Worker alive for work that outlives the response.
-- `ctx.ip` is the `cf-connecting-ip` header.
+- `ctx.ip` is the `cf-connecting-ip` header, and `undefined` for a request without it.
 - The application is created on the first request, not when the module is loaded: a Worker may do little before it is called.
 - A Worker is built before it is deployed. A build that compiles standard decorators, as esbuild does, is all an application with decorators needs.
 
@@ -105,6 +105,15 @@ export const handler: AWSLambdaHandler = async (event, context) =>
 
 - The event and the context of Lambda are in `ctx.raw.request.runtime.awsLambda`.
 - `ctx.ip` is the source address that the event names.
+- **`serve.trustProxy` does not apply here.** srvx makes the request in `handleLambdaEvent`, which knows nothing of the options of the server and takes the proxies to trust as its fourth argument. Without it, `x-forwarded-for`, `x-forwarded-host` and `x-forwarded-proto` are not read:
+
+  ```ts
+  export const handler: AWSLambdaHandler = async (event, context) =>
+    handleLambdaEvent(await ready, event, context, 'loopback')
+  ```
+
+- The host of `ctx.url` is the `Host` header of the event, or the domain name of its request context. For an event with neither, or with one that is not a host, it is the `_invalid_` of srvx, not `localhost`.
+- A `HEAD` request is answered with the headers of `GET` and an empty body.
 - `handleLambdaEvent` reads the whole response before it returns, so a stream reaches the client when it has ended. srvx has `handleLambdaEventWithStream` for functions with response streaming; the tests of this adapter do not cover it.
 - A body is limited by `serve.maxRequestBodySize`, and before that by what Lambda accepts.
 
@@ -157,6 +166,8 @@ Two options of srvx have another default here:
 - `gracefulShutdown` is `false`. srvx would close its server on `SIGINT` and `SIGTERM` without closing the application. Use [`app.enableShutdownHooks()`](/docs/server/essentials/application).
 
 An error that reaches srvx, which is one of a `middleware`, is logged and answered with a 500 problem response. `serve.error` replaces that.
+
+`middleware`, `plugins` and `error` belong to the server of srvx, so they run for what goes through `app.getServer().fetch` or a socket, and not for `app.inject()`.
 
 ## The `Register` declaration
 
@@ -237,10 +248,11 @@ srvx has no router. Routes are matched by the router of `@navios/server`, which 
 
 - Fixed text wins over a URL parameter at the first segment where two routes differ, and the order of the controllers does not matter.
 - A segment is compared decoded, so `/%75sers` is `/users`.
-- A path that is not valid percent-encoding is a 400.
+- A path that is not valid percent-encoding is a 400 when a route has as many segments as it has, and a 404 when none has: with the routes `/simple` and `/users/$id`, `/users/%zz` is a 400 and `/a/%zz/c` a 404. Fastify answers both with 400.
 - Every method that the runtime accepts can be declared.
+- A request that the runtime cannot read does not reach the adapter. Node.js answers one with an empty 400 or 431 and closes the connection, where the Fastify adapter answers with a problem response. Add a `clientError` listener to `app.getServer().node.server` after `listen()` to answer it yourself.
 
-On Node.js and on Deno, a request without a `Host` header has `localhost` as the host of `ctx.url`, as on the other adapters, and so has one on Node.js whose header is not a host. `ctx.raw.request.url` has what the runtime puts there: the address of the server, or the `_invalid_` of srvx.
+On Node.js and on Deno, a request without a `Host` header has `localhost` as the host of `ctx.url`, as on the other adapters, and so has one on Node.js whose header is not a host. `ctx.raw.request.url` has what the runtime puts there: the address of the server, or the `_invalid_` of srvx. On [Lambda](#aws-lambda) the host is not replaced.
 
 ## Shutdown
 
@@ -253,5 +265,5 @@ A stream that is cut because it has outlived the timeout ends as a failure for t
 ## Requirements
 
 - srvx 1.0 or newer (peer dependency)
-- A runtime that srvx supports. The adapter is tested in `workerd`, on Deno 2.9, Node.js 24 and 26, and Bun 1.4.5
-- `@navios/server` of the same version (peer dependency), with `@navios/builder`
+- A runtime that srvx supports. The adapter is tested in `workerd` with the compatibility dates 2024-09-23 and 2026-01-01, on Deno 2.9, Node.js 24 and 26, and Bun 1.4.5
+- `@navios/server` of the same version (peer dependency), with `@navios/core` and `@navios/builder`

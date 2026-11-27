@@ -121,7 +121,7 @@ interface RouteInput {
 }
 ```
 
-Everything that may cost something is a function or a getter, so a route that does not need it never pays for it. Follow the same rule inside the adapter: do not parse the query, copy headers or create an `AbortController` until the function is called. Using a class with prototype methods for the input, as both shipped adapters do, allocates one object per request instead of one closure per accessor. It can be its own `BodySource`.
+Everything that may cost something is a function or a getter, so a route that does not need it never pays for it. Follow the same rule inside the adapter: do not parse the query, copy headers or create an `AbortController` until the function is called. Using a class with prototype methods for the input, as the shipped adapters do, allocates one object per request instead of one closure per accessor. It can be its own `BodySource`.
 
 Requirements:
 

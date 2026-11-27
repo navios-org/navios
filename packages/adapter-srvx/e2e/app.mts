@@ -33,7 +33,7 @@ export async function createApp(
     simple = handler({ config: { method: 'GET', url: '/simple' } } as any, () => ({ ok: true }))
     user = handler(
       { config: { method: 'GET', url: '/users/$id' } } as any,
-      ({ urlParams }: any, ctx: RequestContext) => ({ id: urlParams.id, ip: ctx.ip ?? null }),
+      ({ urlParams }: any, ctx: RequestContext) => ({ id: urlParams.id, ip: ctx.ip }),
     )
     echo = handler(
       { config: { method: 'POST', url: '/echo', requestSchema: anything } } as any,
