@@ -1,0 +1,4 @@
+data/
+better-auth_migrations/
+*.db
+.env

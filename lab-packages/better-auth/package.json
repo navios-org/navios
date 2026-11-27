@@ -1,0 +1,58 @@
+{
+  "name": "@navios/better-auth",
+  "version": "2.0.0-alpha.2",
+  "private": true,
+  "description": "Better Auth for Navios: an auth instance built by DI, its routes, sessions and a guard",
+  "license": "MIT",
+  "author": {
+    "name": "Oleksandr Hanzha",
+    "email": "alex@granted.name"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/navios-org/navios.git",
+    "directory": "lab-packages/better-auth"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "typings": "./lib/index.d.mts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/index.d.mts",
+        "default": "./lib/index.mjs"
+      },
+      "require": {
+        "types": "./lib/index.d.cts",
+        "default": "./lib/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "check": "tsc -b",
+    "lint": "yarn run -T oxlint --fix && yarn run -T oxfmt",
+    "test:ci": "vitest run",
+    "build": "tsdown"
+  },
+  "devDependencies": {
+    "@navios/builder": "workspace:^",
+    "@navios/core": "workspace:^",
+    "@navios/server": "workspace:^",
+    "better-auth": "^1.7.28",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "@navios/core": "workspace:*",
+    "@navios/server": "workspace:*",
+    "better-auth": "^1.7.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

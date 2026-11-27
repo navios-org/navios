@@ -1,0 +1,27 @@
+{
+  "name": "better-auth-sqlite-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/main.mts",
+    "auth:migrate": "bun --bun x auth migrate --config auth.config.mts",
+    "auth:generate": "bun --bun x auth generate --config auth.config.mts",
+    "auth:check": "bun --bun x auth check --config auth.config.mts",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test:ci": "bun test"
+  },
+  "dependencies": {
+    "@navios/adapter-bun": "workspace:*",
+    "@navios/better-auth": "workspace:*",
+    "@navios/builder": "workspace:*",
+    "@navios/core": "workspace:*",
+    "@navios/server": "workspace:*",
+    "better-auth": "^1.7.28",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.5",
+    "auth": "^1.7.28",
+    "typescript": "^7.0.2"
+  }
+}

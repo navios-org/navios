@@ -20,6 +20,9 @@
       "path": "packages/navios"
     },
     {
+      "path": "lab-packages/better-auth"
+    },
+    {
       "path": "lab-packages/queues-core"
     },
     {
