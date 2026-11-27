@@ -1,8 +1,9 @@
 import { Container } from '../container/container.mjs'
 import { ScopedContainer } from '../container/scoped-container.mjs'
+import { misuse } from '../errors/create.mjs'
 import { DIError, DIErrorCode } from '../errors/di-error.mjs'
 import { InjectableScope } from '../injectable-scope.mjs'
-import { baseToken } from '../internal/lookup.mjs'
+import { argRecord, baseToken } from '../internal/lookup.mjs'
 import { provide } from '../provider/provide.mjs'
 import { attachToken, findInjectableToken } from '../token/injectable-token.mjs'
 import { BoundInjectionToken, InjectionToken } from '../token/injection-token.mjs'
@@ -231,7 +232,9 @@ export class UnitTestContainer<
    */
   override isRegistered(token: AnyInjectableType): boolean {
     const base = baseToken(token)
-    return base !== undefined && this.isProvided(this, base)
+    return (
+      base !== undefined && (argRecord(this, token) !== undefined || this.isProvided(this, base))
+    )
   }
 
   /** Whether `container` can resolve `token` without an auto-mock. */
@@ -384,24 +387,43 @@ export class UnitTestContainer<
     this.registeredTokens.add(realToken)
 
     if (provider.useValue !== undefined) {
-      this.registerValueBinding(providerToken, realToken, provider.useValue)
+      const given = provide(realToken, { value: provider.useValue })
+      this.setRecord(providerToken, realToken, given.record)
+      this.storeBoundValue(providerToken, given, provider.useValue)
     } else if (provider.useClass) {
-      this.overrides.set(realToken, provide(realToken, { class: provider.useClass }).record)
+      this.setRecord(
+        providerToken,
+        realToken,
+        provide(realToken, { class: provider.useClass }).record,
+      )
     } else if (provider.useFactory) {
-      this.overrides.set(realToken, provide(realToken, { factory: provider.useFactory }).record)
+      this.setRecord(
+        providerToken,
+        realToken,
+        provide(realToken, { factory: provider.useFactory }).record,
+      )
     } else if (typeof providerToken === 'function') {
       // Just the class - register it as itself, with the scope it declares
       this.overrides.set(realToken, provide(realToken, providerToken).record)
     } else if (providerToken instanceof BoundInjectionToken) {
-      // A bound token without an override resolves to the bound value
-      this.registerValueBinding(providerToken, realToken, providerToken.value)
+      // A bound token names args, not what to build for them.
+      throw misuse(
+        `[UnitTestContainer] ${realToken} is listed as a bound token without useValue, useClass ` +
+          `or useFactory. Say what its args resolve to with one of them.`,
+      )
     }
   }
 
-  private registerValueBinding(token: AnyToken, realToken: Token, value: unknown): void {
-    const provider = provide(realToken, { value })
-    this.overrides.set(realToken, provider.record)
-    this.storeBoundValue(token, provider, value)
+  /**
+   * Makes `record` the provider of a listed token; for a bound token, of its
+   * args alone.
+   */
+  private setRecord(token: AnyToken, realToken: Token, record: ProviderRecord): void {
+    if (token instanceof BoundInjectionToken) {
+      this.setArgOverride(token, record)
+    } else {
+      this.overrides.set(realToken, record)
+    }
   }
 }
 

@@ -28,9 +28,11 @@ export interface IContainer {
   invalidate(service: unknown): Promise<void>
 
   /**
-   * Calls `listener` when the instance for `token` / `args` held by this
-   * container is destroyed. Returns a function that removes the listener.
+   * Calls `listener` when the instance for `token` held by this container is
+   * destroyed; with `args`, the instance for those args. Returns a function
+   * that removes the listener.
    */
+  onInvalidate(token: AnyInjectableType, listener: () => void): () => void
   onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void
 
   isRegistered(token: AnyInjectableType): boolean

@@ -1,3 +1,4 @@
+import { misuse } from '../errors/create.mjs'
 import { keyOf } from '../internal/args-key.mjs'
 import { EntryStatus } from '../internal/entry.mjs'
 import { finalToken, followAlias, requireToken } from '../internal/lookup.mjs'
@@ -11,14 +12,20 @@ import type { AnyInjectableType, InjectionToken } from '../token/injection-token
 
 // Listens for the instance of `raw` / `args`, in the store that `storeFor`
 // says would hold it. For an alias that is the instance it points to, and one
-// that was added for the alias itself.
+// that was added for the alias itself. Without `given`, `argsOrListener` is the
+// listener and there are no args.
 export function addInvalidateListener(
   root: RootHost,
   storeFor: (token: InjectionToken<any, any>) => Store,
   raw: AnyInjectableType,
-  args: unknown,
-  listener: () => void,
+  argsOrListener: unknown,
+  given: (() => void) | undefined,
 ): () => void {
+  const args = given === undefined ? undefined : argsOrListener
+  const listener = given ?? (argsOrListener as () => void)
+  if (typeof listener !== 'function') {
+    throw misuse('onInvalidate() needs a listener: onInvalidate(token, listener)')
+  }
   const listen = (token: AnyInjectableType, base: InjectionToken<any, any>) =>
     storeFor(base).addListener(base, addressOf(root, token, base, args), listener)
 

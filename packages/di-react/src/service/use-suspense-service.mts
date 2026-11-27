@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 import type { Container, InjectionToken, ScopedContainer } from '@navios/di'
 
@@ -19,6 +19,10 @@ interface CacheEntry<T> {
   unsubscribe: (() => void) | undefined
   // The timer after which a rejected entry leaves the cache
   eviction: ReturnType<typeof setTimeout> | undefined
+  // The timer after which an entry no component shows leaves the cache
+  release: ReturnType<typeof setTimeout> | undefined
+  // How many renders read the entry
+  renders: number
 }
 
 type AnyContainer = Container | ScopedContainer
@@ -45,7 +49,9 @@ function getCache(container: object, token: object): Cache {
 
 /**
  * The cache entry for `key`, created on first use. An instance the container
- * already holds makes it resolved, so the first render does not suspend.
+ * already holds makes it resolved, so the first render does not suspend. The
+ * entry listens for the invalidation of that instance from the start: an
+ * effect would subscribe after the render, and miss one in between.
  */
 function getEntry(
   cache: Cache,
@@ -66,8 +72,13 @@ function getEntry(
       subscribers: new Set(),
       unsubscribe: undefined,
       eviction: undefined,
+      release: undefined,
+      renders: 0,
     }
     cache.set(key, entry)
+    if (syncInstance !== null) {
+      setupInvalidationSubscription(entry, container, token, args)
+    }
   }
   return entry
 }
@@ -145,6 +156,29 @@ function evictAfterRender(cache: Cache, key: string, entry: CacheEntry<any>): vo
 }
 
 /**
+ * Drops a resolved entry, and its invalidation listener, one timer turn after
+ * its last subscriber left, unless a component subscribed or rendered with it
+ * in the meantime. A component that shows the service later reads the instance
+ * from the container again.
+ */
+function releaseWhenUnused(cache: Cache, key: string, entry: CacheEntry<any>): void {
+  clearTimeout(entry.release)
+  const renders = entry.renders
+  entry.release = setTimeout(() => {
+    if (
+      cache.get(key) === entry &&
+      entry.status === 'resolved' &&
+      entry.subscribers.size === 0 &&
+      entry.renders === renders
+    ) {
+      cache.delete(key)
+      entry.unsubscribe?.()
+      entry.unsubscribe = undefined
+    }
+  }, 0)
+}
+
+/**
  * Hook that returns a service from the DI container and suspends while it is
  * resolved. A failed resolution is thrown to the nearest error boundary.
  * Resolves again, suspending, when the instance is invalidated.
@@ -158,6 +192,7 @@ export const useSuspenseService = function useSuspenseService(
   const cache = getCache(container, token)
   const cacheKey = getArgsKey(args)
   const entry = getEntry(cache, cacheKey, container, token, args)
+  entry.renders++
 
   // Subscribe to cache changes
   const subscribe = useCallback(
@@ -165,9 +200,12 @@ export const useSuspenseService = function useSuspenseService(
       entry.subscribers.add(callback)
       return () => {
         entry.subscribers.delete(callback)
+        if (entry.subscribers.size === 0) {
+          releaseWhenUnused(cache, cacheKey, entry)
+        }
       }
     },
-    [entry],
+    [cache, cacheKey, entry],
   )
 
   // Get snapshot of current state - include version to detect invalidation
@@ -177,13 +215,6 @@ export const useSuspenseService = function useSuspenseService(
 
   // Use sync external store to track cache state
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-
-  // Set up subscription for sync instances that don't have one yet
-  useEffect(() => {
-    if (entry.status === 'resolved' && !entry.unsubscribe) {
-      setupInvalidationSubscription(entry, container, token, args)
-    }
-  }, [container, token, args, entry])
 
   // Start fetching if not already
   if (entry.status === 'pending' && !entry.promise) {

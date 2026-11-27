@@ -83,10 +83,14 @@ export const USER_PROFILE = InjectionToken.create<UserProfile, typeof profileArg
 @Injectable({ token: USER_PROFILE })
 export class UserProfile {
   private readonly users = inject(UserService)
-  readonly user
+  private readonly userId: string
 
   constructor(args: z.output<typeof profileArgs>) {
-    this.user = this.users.getUser(args.userId)
+    this.userId = args.userId
+  }
+
+  get user() {
+    return this.users.getUser(this.userId)
   }
 }
 ```
@@ -134,7 +138,7 @@ function SignUpButton() {
 }
 ```
 
-With no provider for `ANALYTICS`, `isNotFound` is `true` and `error` stays `undefined`. `isNotFound` is also set when the token has a provider but one of its dependencies has none. Any other failure is reported in `error`, including a class that is not decorated with `@Injectable`.
+With no provider for `ANALYTICS`, `isNotFound` is `true` and `error` stays `undefined`. When the token has a provider but one of its dependencies has none, that is a failure: `isNotFound` stays `false` and `error` holds the `ProviderNotFound` error. Any other failure is reported in `error` as well, including a class that is not decorated with `@Injectable`.
 
 ## Errors
 

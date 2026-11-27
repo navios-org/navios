@@ -5,6 +5,7 @@ import { dependentsOf } from '../internal/links.mjs'
 import { aliasTarget, baseToken } from '../internal/lookup.mjs'
 import { provide } from '../provider/provide.mjs'
 import { getInjectableToken } from '../token/injectable-token.mjs'
+import { BoundInjectionToken } from '../token/injection-token.mjs'
 
 import type { Entry } from '../internal/entry.mjs'
 import type { ProvidedFor } from '../provider/factorable.mjs'
@@ -93,7 +94,8 @@ export class TestContainer extends TrackingContainer {
   // ============================================================================
 
   /**
-   * Creates a binding builder for the given token.
+   * Creates a binding builder for the given token. A binding on a bound token
+   * is for the args of that token alone; the other args keep their provider.
    *
    * @example
    * ```ts
@@ -105,18 +107,19 @@ export class TestContainer extends TrackingContainer {
    */
   bind<K extends AnyToken>(token: K): BindingBuilder<ProvidedFor<K>> {
     const realToken = this.resolveToken(token)
+    const bound = token instanceof BoundInjectionToken ? token : null
 
     return {
       toValue: (value) => {
         const provider = provide(realToken, { value })
-        this.setBinding(provider)
+        this.setBinding(provider, bound)
         this.storeBoundValue(token, provider, value)
       },
       toClass: (cls) => {
-        this.setBinding(provide(realToken, { class: cls }))
+        this.setBinding(provide(realToken, { class: cls }), bound)
       },
       toFactory: (factory) => {
-        this.setBinding(provide(realToken, { factory }))
+        this.setBinding(provide(realToken, { factory }), bound)
       },
     }
   }
@@ -244,8 +247,21 @@ export class TestContainer extends TrackingContainer {
    * destroyed, together with everything that depends on them. Instances that
    * an open scope holds stay as they are. What an alias points to stays as well,
    * and only its dependents are destroyed: some of them came by the alias.
+   *
+   * With `bound`, the binding is for the args of that bound token alone, and
+   * only the instance for those args is destroyed.
    */
-  private setBinding(provider: Provider): void {
+  private setBinding(provider: Provider, bound: BoundInjectionToken<any, any> | null): void {
+    if (bound !== null) {
+      const key = this.setArgOverride(bound, provider.record)
+      for (const entry of this.store.entries()) {
+        if (entry.token === provider.token && (entry.key ?? '') === key) {
+          discard(entry)
+          this.store.delete(entry)
+        }
+      }
+      return
+    }
     const target = aliasTarget(this, provider.token)
     for (const entry of this.store.entries()) {
       if (entry.token === provider.token) {

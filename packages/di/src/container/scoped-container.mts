@@ -113,7 +113,14 @@ export class ScopedContainer implements IContainer {
     await held
   }
 
-  onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void {
+  /**
+   * Calls `listener` when the instance for `token` held by this scope, or by
+   * its parent for a singleton, is destroyed; with `args`, the instance for
+   * those args. Returns a function that removes the listener.
+   */
+  onInvalidate(token: AnyInjectableType, listener: () => void): () => void
+  onInvalidate(token: AnyInjectableType, args: unknown, listener: () => void): () => void
+  onInvalidate(token: AnyInjectableType, args: unknown, listener?: () => void): () => void {
     return addInvalidateListener(
       this.root,
       (base) => {

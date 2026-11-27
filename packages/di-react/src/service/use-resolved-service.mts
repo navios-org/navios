@@ -103,6 +103,9 @@ export function useResolvedService(
     // the component unmounts: a resolution started by this run is then stale.
     let isCurrent = true
     let unsubscribe: (() => void) | undefined
+    // The resolution whose result counts: the one started last, unless the
+    // instance was invalidated since.
+    let latest = 0
 
     // The container routes the listener to the store that owns the instance
     // (the root store for singletons, the scope's store for request-scoped).
@@ -110,6 +113,9 @@ export function useResolvedService(
       if (unsubscribe) return
       unsubscribe = container.onInvalidate(token, stableArgs, () => {
         if (!isCurrent) return
+        // What a resolution in flight is about to return may be the instance
+        // that is gone.
+        latest++
         setState(LOADING)
         // Listeners run once the invalidation has finished, so resolving here
         // builds the service once. The microtask only keeps the resolution out
@@ -123,17 +129,25 @@ export function useResolvedService(
     }
 
     const resolve = async () => {
+      const run = ++latest
+      try {
+        // Before the instance is asked for: an invalidation between its
+        // resolution and a subscription made afterwards would be missed.
+        subscribe()
+      } catch {
+        // The resolution reports what is wrong with the token.
+      }
       try {
         const instance = await container.get(
           // @ts-expect-error - token is valid
           token as AnyInjectableType,
           stableArgs as any,
         )
-        if (!isCurrent) return
+        if (!isCurrent || run !== latest) return
         setState({ status: 'success', data: instance })
         subscribe()
       } catch (error) {
-        if (!isCurrent) return
+        if (!isCurrent || run !== latest) return
         setState(
           optional && isMissingProvider(container, token, error)
             ? NOT_FOUND
@@ -143,7 +157,9 @@ export function useResolvedService(
     }
 
     // If the instance read during the first render is still the one asked
-    // for, just set up the subscription. Otherwise, resolve.
+    // for, just set up the subscription. Otherwise, resolve. So too when it
+    // was destroyed between that render and this effect, which no listener
+    // was there to see.
     const initial = initialSyncRef.current
     if (
       initial &&
@@ -153,6 +169,11 @@ export function useResolvedService(
       refetchCount === 0
     ) {
       subscribe()
+      if (peekInstance(container, token, stableArgs) !== initial.instance) {
+        initialSyncRef.current = null
+        setState(LOADING)
+        void resolve()
+      }
     } else {
       initialSyncRef.current = null
       setState(LOADING)

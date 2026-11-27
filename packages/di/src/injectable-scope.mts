@@ -4,7 +4,7 @@ export enum InjectableScope {
    */
   Singleton = 'Singleton',
   /**
-   * Instance scope: A new instance is created for each injection.
+   * Transient scope: A new instance is created for each injection.
    */
   Transient = 'Transient',
   /**

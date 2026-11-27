@@ -25,15 +25,15 @@ new Container(options?: ContainerOptions)
 | `get(token, args?)`                    | `Promise<T>`                  | Resolves an instance, waiting for anything asynchronous                                             |
 | `getSync(token, args?)`                | `T`                           | Resolves synchronously. Throws `AsyncInitRequired` if something has to be awaited                   |
 | `peek(token, args?)`                   | `T \| null`                   | Returns an instance that already exists. Never builds                                               |
-| `provide(target, impl)`                | `void`                        | Adds a [provider](/docs/di/essentials/providers#containerprovide). Throws once the token is resolved |
-| `decorate(target, fn)`                 | `void`                        | [Wraps](/docs/di/essentials/providers#decorating-instances) every instance built for a token. Throws once the token is resolved. Not applied to `{ value }` providers or `addInstance()` values |
+| `provide(target, impl)`                | `void`                        | Adds a [provider](/docs/di/essentials/providers#containerprovide). Throws once the container holds an instance of the token, which it never does for a request-scoped or transient one |
+| `decorate(target, fn)`                 | `void`                        | [Wraps](/docs/di/essentials/providers#decorating-instances) every instance built for a token. Throws under the same condition as `provide()`. Not applied to `{ value }` providers or `addInstance()` values |
 | `addInstance(target, value)`           | `void`                        | [Stores](/docs/di/essentials/providers#addinstance) a ready value as a singleton                    |
 | `isRegistered(target)`                 | `boolean`                     | Whether the token has an instance or a provider here                                                |
 | `getProvider(target)`                  | `ProviderInfo \| undefined`   | The provider that would be used                                                                     |
 | `instances()`                          | `unknown[]`                   | Every instance currently held, dependencies before their dependents, each object once, without the container itself |
 | `createScope(metadata?)`               | `ScopedContainer`             | Creates a [scope](/docs/di/essentials/scopes#creating-a-scope)                                      |
 | `invalidate(instance)`                 | `Promise<void>`               | [Destroys](/docs/di/guides/invalidation) an instance and its dependents                             |
-| `onInvalidate(token, args, listener)`  | `() => void`                  | Listens for the destruction of an instance. Returns an unsubscribe function                         |
+| `onInvalidate(token, listener)`, `onInvalidate(token, args, listener)` | `() => void` | Listens for the destruction of the instance of a token, or of the one with those arguments. Returns an unsubscribe function |
 | `ready()`                              | `Promise<void>`               | Resolves when nothing is still being created or cleaned up                                          |
 | `dispose()`                            | `Promise<void>`               | [Destroys](/docs/di/essentials/lifecycle#dispose) everything the container holds and closes it      |
 | `[Symbol.asyncDispose]()`              | `Promise<void>`               | Calls `dispose()`                                                                                   |
@@ -74,6 +74,8 @@ Only a registration on the class itself counts. An undecorated subclass of an in
 
 Option types: `RegisterInjectableOptions` (also named `InjectableOptions`), `RegisterFactoryOptions` (also named `FactoryOptions`), `ContainerOptions`. `ClassType` is any class, `ClassTypeWithInstance<T>` one whose instances are a `T`, and `ResolvedInstance<C>` what a class resolves to: its instance, or the product of a factory class.
 
+The types in the signatures of `provide()`, `addInstance()` and `decorate()` are exported for code that wraps them: `ProviderInputFor<K>` is the `ProviderInput` of the class or token `K`, `ProvidedFor<K>` what may be given for it, `PublicPart<T>` a `T` without its private and protected members, `AbstractClassType` any class including an abstract one, and `InstanceDecoratorFor<K>` the function `decorate()` takes.
+
 ```ts
 // Only the public members of `T` count.
 type ProviderInput<T> =
@@ -113,12 +115,13 @@ See [Tokens](/docs/di/essentials/tokens).
 
 ```ts
 class InjectionToken<T, S = unknown> {
-  readonly name: string | symbol | ClassType
+  readonly name: string | symbol | AbstractClassType
   readonly schema: StandardSchemaV1 | undefined
   readonly scope: InjectableScope | undefined
 
   static create<T>(name: string | symbol): InjectionToken<T, undefined>
-  static create<C>(name: C): InjectionToken<InstanceType<C>, undefined> // C: a class
+  static create<C>(name: C): InjectionToken<InstanceType<C>, undefined> // C: a class, also an abstract one
+  static create<C, S extends StandardSchemaV1>(name: C, schema: S): InjectionToken<InstanceType<C>, S>
   static create<T, S extends StandardSchemaV1>(name: string | symbol, schema: S): InjectionToken<T, S>
   static create<T>(name: string | symbol, options: { scope?: InjectableScope }): InjectionToken<T, undefined>
   static create<T, S extends StandardSchemaV1>(

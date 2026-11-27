@@ -201,7 +201,12 @@ export function resolve(
       }
     }
 
-    const record = lookupRecord(host, token)
+    // A provider for these args alone comes first. Only a testing container
+    // has any.
+    const forArgs = host.root.argOverrides
+    const record =
+      (forArgs !== null ? forArgs.get(token)?.get(key ?? '') : undefined) ??
+      lookupRecord(host, token)
     if (record === undefined) {
       if (token.scope === InjectableScope.Request && !host.isScope) {
         throw requestScopeFromRoot(token.toString(), framePath())

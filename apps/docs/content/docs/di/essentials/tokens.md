@@ -147,3 +147,5 @@ export const REQUEST_ID = InjectionToken.create<string>('RequestId', {
 ```
 
 Declaring the scope makes misuse visible: resolving `REQUEST_ID` from the root container, or injecting it into a singleton, reports a scope mismatch instead of a missing provider. In a scope where no value was added, resolving it fails with `ProviderNotFound`. [Scopes](/docs/di/essentials/scopes#values-supplied-per-scope) shows it in use. The options object also accepts `schema`.
+
+A provider registered for such a token has the scope of the token unless it names one. That holds for `@Injectable({ token })`, `@Factory({ token })`, `registerInjectable()`, `registerFactory()`, `registerProvider()` and `provide()`; an explicit `scope` wins.

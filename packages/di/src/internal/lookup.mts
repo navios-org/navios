@@ -4,6 +4,7 @@ import {
   foreignCopy,
   notInjectable,
 } from '../errors/create.mjs'
+import { validateSync } from '../schema/standard-schema.mjs'
 import { findInjectableToken } from '../token/injectable-token.mjs'
 import {
   BoundInjectionToken,
@@ -13,6 +14,8 @@ import {
 
 import type { ProviderRecord } from '../provider/provider-record.mjs'
 import type { AnyInjectableType } from '../token/injection-token.mjs'
+
+import { keyOf } from './args-key.mjs'
 
 import type { Host, RootHost } from './host.mjs'
 
@@ -66,6 +69,34 @@ export function lookupRecord(
     return own
   }
   return root.strict ? root.providerForUnlisted(token) : token.provider
+}
+
+/**
+ * The key under which `root.argOverrides` holds the provider for the args of
+ * `bound`. Throws what the schema of the token makes of args it refuses.
+ */
+export function argOverrideKey(bound: BoundInjectionToken<any, any>): string {
+  const { token, value } = bound
+  const args =
+    token.schema === undefined ? value : validateSync(token.schema, value, token.toString())
+  return keyOf(args) ?? ''
+}
+
+// The provider `root` was given for the args of a bound token alone.
+export function argRecord(root: RootHost, raw: AnyInjectableType): ProviderRecord | undefined {
+  if (root.argOverrides === null || !(raw instanceof BoundInjectionToken)) {
+    return undefined
+  }
+  const byKey = root.argOverrides.get(raw.token)
+  if (byKey === undefined) {
+    return undefined
+  }
+  try {
+    return byKey.get(argOverrideKey(raw))
+  } catch {
+    // Args the schema refuses have no provider.
+    return undefined
+  }
 }
 
 // What an alias (`{ existing }`) points to in the end, with the args that the
@@ -148,7 +179,7 @@ export function hasProvider(host: Host, raw: AnyInjectableType): boolean {
   if (token === undefined) {
     return false
   }
-  if (hasInstance(host, token)) {
+  if (hasInstance(host, token) || argRecord(host.root, raw) !== undefined) {
     return true
   }
   const record = lookupRecord(host, token)
