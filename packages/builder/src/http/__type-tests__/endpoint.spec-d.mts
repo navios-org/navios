@@ -21,6 +21,10 @@ const api = builder()
 const userSchema = z.object({ id: z.string(), name: z.string() })
 
 describe('ParsePathParams', () => {
+  test('should name a rest param without its star', () => {
+    expectTypeOf<ParsePathParams<'/files/$path*'>>().toEqualTypeOf<'path'>()
+  })
+
   test('follows the runtime grammar', () => {
     expectTypeOf<ParsePathParams<'/users'>>().toEqualTypeOf<never>()
     expectTypeOf<ParsePathParams<'/users/$userId'>>().toEqualTypeOf<'userId'>()

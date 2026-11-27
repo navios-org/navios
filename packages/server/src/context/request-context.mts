@@ -42,6 +42,20 @@ const UNREAD = Symbol('unread')
 const nextMicrotask: Promise<void> = Promise.resolve()
 
 /** A relative url has no host, and one with an invalid host is not a url. */
+/**
+ * Headers of the connection a request came over, which a request built for a
+ * `fetch` handler does not have: its body is in one piece.
+ */
+const CONNECTION_HEADERS = [
+  'connection',
+  'keep-alive',
+  'proxy-connection',
+  'transfer-encoding',
+  'te',
+  'trailer',
+  'upgrade',
+]
+
 function parseUrl(text: string): URL {
   const base = 'http://localhost'
   if (URL.canParse(text, base)) {
@@ -254,6 +268,41 @@ export class RequestContext<
         }
       }
     }
+  }
+
+  /**
+   * The request as a Web `Request`, for code written for `fetch` handlers:
+   * Better Auth, Hono, tRPC, GraphQL Yoga. On an adapter whose server receives
+   * Web requests (Bun, srvx on Bun and Deno) it is that request, untouched, as
+   * long as nothing has read its body. Otherwise it is built from the method,
+   * the target as the client sent it, the headers but those of the connection,
+   * and the bytes of the body. Either way its body can be read once.
+   *
+   * Return what such a handler answers from an endpoint declared with
+   * `response: 'stream'`: a returned `Response` is sent as it is.
+   */
+  async toWebRequest(): Promise<Request> {
+    const native = this.input.webRequest?.()
+    if (native !== undefined && this.bytes === null) {
+      return native
+    }
+    const { method } = this
+    const headers = new Headers(this.headers.toWebHeaders())
+    for (const name of CONNECTION_HEADERS) {
+      headers.delete(name)
+    }
+    const init: RequestInit = { method, headers, signal: this.signal }
+    if (method !== 'GET' && method !== 'HEAD') {
+      const bytes = await this.bodyBytes()
+      if (bytes.byteLength > 0) {
+        init.body = bytes as Uint8Array<ArrayBuffer>
+      }
+    }
+    // The target as it was sent: `ctx.url` has the path the route matched,
+    // in which a rest param has lost the difference between `/` and `%2F`.
+    const url = parseUrl(this.input.url())
+    url.hash = ''
+    return new Request(url, init)
   }
 
   /**

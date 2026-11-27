@@ -5,6 +5,7 @@ import { NaviosFactory } from '../application/navios-factory.mjs'
 import { defineApplicationTopic } from './application.mjs'
 import { defineCorsTopic } from './cors.mjs'
 import { defineErrorsTopic } from './errors.mjs'
+import { defineFetchHandlersTopic } from './fetch-handlers.mjs'
 import { defineGuardsTopic } from './guards.mjs'
 import { defineHeadersTopic } from './headers.mjs'
 import { defineJsonTopic } from './json.mjs'
@@ -58,6 +59,7 @@ export function runAdapterConformance(options: ConformanceOptions): void {
     const responseHeaders = defineResponseHeadersTopic(suite)
     const responseBodies = defineResponseBodiesTopic(suite)
     const routeMatching = defineRouteMatchingTopic(suite)
+    const fetchHandlers = defineFetchHandlersTopic(suite)
     const methods = defineMethodsTopic(suite)
     const requestPath = defineRequestPathTopic(suite)
     const requestBodies = defineRequestBodiesTopic(suite)
@@ -81,6 +83,7 @@ export function runAdapterConformance(options: ConformanceOptions): void {
         ...streamLifecycle.controllers,
         ...application.controllers,
         ...routeMatching.controllers,
+        ...fetchHandlers.controllers,
         ...methods.controllers,
         ...requestPath.controllers,
       ],
@@ -120,6 +123,7 @@ export function runAdapterConformance(options: ConformanceOptions): void {
     responseBodies.tests()
     errors.defects()
     routeMatching.tests()
+    fetchHandlers.tests()
     methods.tests()
     requestPath.tests()
     requestBodies.tests()

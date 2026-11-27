@@ -123,4 +123,10 @@ export class BunRouteInput implements RouteInput, BodySource {
   signal(): AbortSignal {
     return this.request.signal
   }
+
+  webRequest(): Request | undefined {
+    // Bun leaves the url relative when the request names no valid host.
+    const { request } = this
+    return request.bodyUsed || request.url.startsWith('/') ? undefined : request
+  }
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.0-alpha.2] - Unreleased
+
+### Added
+
+- A rest param (`/files/$path*`) is filled with its slashes kept and each segment encoded: `{ path: 'a b/c' }` gives `/files/a%20b/c`. A value with an empty or a dot segment is refused. `ParsePathParams` names it `path`.
+
 ## [2.0.0-alpha.1] - 2026-11-27
 
 ### Added

@@ -13,6 +13,14 @@ describe('compileRoutePath', () => {
     expect(compileRoutePath('/users/').segments).toEqual([{ literal: 'users' }, { literal: '' }])
   })
 
+  it('takes a rest param as the last segment', () => {
+    expect(compileRoutePath('/files/$path*')).toEqual({
+      segments: [{ literal: 'files' }, { rest: 'path' }],
+      params: ['path'],
+    })
+    expect(compileRoutePath('/$all*').segments).toEqual([{ rest: 'all' }])
+  })
+
   it('compares fixed text decoded', () => {
     expect(compileRoutePath('/caf%C3%A9/a.b+c(d);v=1/things:batch').segments).toEqual([
       { literal: 'café' },
@@ -47,6 +55,11 @@ describe('compileRoutePath', () => {
     ['/100%25', 'cannot be matched'],
     ['/%zz', 'not valid percent-encoding'],
     ['/users/$user-id', 'a name of letters, digits and underscores'],
+    ['/files/$path*/meta', 'a rest param ("$path*") has to be the last segment'],
+    ['/files/$path*/', 'a rest param ("$path*") has to be the last segment'],
+    ['/o/$id/$id*', 'two url params named "id"'],
+    ['/x/$*', 'a url param has to be a whole segment'],
+    ['/x/$a**', 'a url param has to be a whole segment'],
   ])('refuses %s', (path, problem) => {
     expect(() => compileRoutePath(path)).toThrow(problem)
   })
@@ -60,6 +73,14 @@ describe('compileRequestPath', () => {
     expect(compileRequestPath(compileRoutePath('/caf%C3%A9'))({})).toBe('/caf%C3%A9')
     expect(compileRequestPath(compileRoutePath('/café'))({})).toBe('/caf%C3%A9')
     expect(compileRequestPath(compileRoutePath('/'))({})).toBe('/')
+  })
+})
+
+describe('compileRequestPath of a rest param', () => {
+  it('keeps the slashes of a rest param and encodes each segment', () => {
+    const path = compileRequestPath(compileRoutePath('/files/$path*'))
+    expect(path({ path: 'a/b c/d' })).toBe('/files/a/b%20c/d')
+    expect(path({ path: 'one' })).toBe('/files/one')
   })
 })
 
@@ -132,6 +153,62 @@ describe('RouteTable', () => {
     expect(routes.match('DELETE', '/a')).toBeUndefined()
     expect(routes.methods('/a')).toEqual(['GET', 'HEAD', 'POST', 'PUT'])
     expect(routes.methods('/nope/x')).toEqual([])
+  })
+
+  it('matches one or more segments with a rest param, each decoded', () => {
+    const routes = table(['GET', '/files/$path*'])
+    expect(routes.match('GET', '/files/a')).toEqual({
+      value: 'GET /files/$path*',
+      urlParams: { path: 'a' },
+    })
+    expect(routes.match('GET', '/files/a/b/c')?.urlParams).toEqual({ path: 'a/b/c' })
+    expect(routes.match('GET', '/files/a%20b/c%2Fd')?.urlParams).toEqual({ path: 'a b/c/d' })
+    for (const path of [
+      '/files',
+      '/files/',
+      '/files/a//b',
+      '/files/a/',
+      '/files/./a',
+      '/files/a/..',
+    ]) {
+      expect(routes.match('GET', path), path).toBeUndefined()
+    }
+  })
+
+  it('prefers fixed text and url params to a rest param, whatever the order', () => {
+    const routes = table(
+      ['GET', '/files/$path*'],
+      ['GET', '/files/$id/meta'],
+      ['GET', '/files/readme'],
+      ['GET', '/files/$id'],
+      ['GET', '/files/docs/$path*'],
+    )
+    expect(routes.match('GET', '/files/readme')?.value).toBe('GET /files/readme')
+    expect(routes.match('GET', '/files/x')?.value).toBe('GET /files/$id')
+    expect(routes.match('GET', '/files/x/meta')?.value).toBe('GET /files/$id/meta')
+    expect(routes.match('GET', '/files/x/other')).toEqual({
+      value: 'GET /files/$path*',
+      urlParams: { path: 'x/other' },
+    })
+    expect(routes.match('GET', '/files/docs/a/b')).toEqual({
+      value: 'GET /files/docs/$path*',
+      urlParams: { path: 'a/b' },
+    })
+  })
+
+  it('decodes a path only for the routes that may match it', () => {
+    const routes = table(['GET', '/files/$path*'], ['GET', '/items/$id'])
+    expect(routes.match('GET', '/nope/a/b/c/%zz')).toBeUndefined()
+    expect(routes.methods('/nope/%zz/b')).toEqual([])
+    expect(() => routes.match('GET', '/files/a/%zz')).toThrow(URIError)
+    expect(() => routes.match('GET', '/items/%zz')).toThrow(URIError)
+  })
+
+  it('knows the methods of a path a rest param matches, and serves HEAD with its GET', () => {
+    const routes = table(['GET', '/api/$path*'], ['POST', '/api/$path*'], ['PUT', '/api/x'])
+    expect(routes.methods('/api/x')).toEqual(['GET', 'HEAD', 'POST', 'PUT'])
+    expect(routes.methods('/api/a/b')).toEqual(['GET', 'HEAD', 'POST'])
+    expect(routes.match('HEAD', '/api/a/b')?.value).toBe('GET /api/$path*')
   })
 
   it('throws for percent-encoding that is not valid, or decodes as it is told', () => {

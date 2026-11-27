@@ -87,7 +87,6 @@ describe('the body of a response', () => {
       [12, 'a value of type number'],
       [{ a: 1 }, 'a plain object'],
       [['a'].values(), 'an object of class'],
-      [new Response('x'), 'an object of class Response'],
     ] as const) {
       for (const kind of ['text', 'blob', 'stream'] as const) {
         const { execute, unhandled } = setup({ response: kind }, () => body)

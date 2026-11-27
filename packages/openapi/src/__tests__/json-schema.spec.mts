@@ -288,6 +288,10 @@ describe('path helpers', () => {
     expect(toOpenApiPath('/users/$userId/posts/$postId')).toBe('/users/{userId}/posts/{postId}')
   })
 
+  it('converts a rest param to {param}, without its star', () => {
+    expect(toOpenApiPath('/files/$path*')).toBe('/files/{path}')
+  })
+
   it('leaves a path without params alone', () => {
     expect(toOpenApiPath('/users')).toBe('/users')
   })

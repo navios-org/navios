@@ -57,14 +57,14 @@ interface HttpAdapter<Env extends HttpAdapterEnvironment = HttpAdapterEnvironmen
 }
 ```
 
-| Member                 | Contract                                                                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Member                 | Contract                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `register(route)`      | Called once per route, before `ready()`. `route.info` is the `RouteInfo`; `route.path` is its path, taken apart for a router; `route.execute` is the executor. Routes arrive in no particular order: fixed text must win over a URL parameter at the first segment that differs, and a path with a trailing slash must match only a route whose path ends with one. |
-| `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response, or a 405 when the path is served for other methods. |
-| `ready()`              | Called once after all routes are registered.                                                                                                                             |
-| `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                          |
-| `inject(request)`      | Handles a `TestRequest` in process and resolves to a `TestResponse`. It should go through as much of the server's real request path as the server allows, and must choose the same route as HTTP would. It rejects when the response fails after it has begun. |
-| `close(timeoutMs)`     | Stops accepting connections and waits for in-flight requests, streams included, for at most `timeoutMs`. Then it closes the connections that are left. It does not wait for a connection on which no request was sent. |
+| `setNotFound(execute)` | The executor for requests that match no route. Call it with a `RouteInput` like any other; it returns the not-found response, or a 405 when the path is served for other methods.                                                                                                                                                                                   |
+| `ready()`              | Called once after all routes are registered.                                                                                                                                                                                                                                                                                                                        |
+| `listen(options)`      | Starts the server and resolves to its base URL.                                                                                                                                                                                                                                                                                                                     |
+| `inject(request)`      | Handles a `TestRequest` in process and resolves to a `TestResponse`. It should go through as much of the server's real request path as the server allows, and must choose the same route as HTTP would. It rejects when the response fails after it has begun.                                                                                                      |
+| `close(timeoutMs)`     | Stops accepting connections and waits for in-flight requests, streams included, for at most `timeoutMs`. Then it closes the connections that are left. It does not wait for a connection on which no request was sent.                                                                                                                                              |
 
 A request handler is then a few lines. Check `result instanceof Promise` and avoid `await` on the synchronous path:
 
@@ -81,15 +81,23 @@ register({ info, path, execute }: CompiledRoute): void {
 
 ### Paths
 
-`route.path.segments` has one entry per segment: `{ literal: 'users' }`, decoded, or `{ param: 'userId' }`. The last segment of a path with a trailing slash is the literal `''`. The server has checked that there is nothing else, so this is all an adapter translates:
+`route.path.segments` has one entry per segment: `{ literal: 'users' }`, decoded, `{ param: 'userId' }`, or, as the last one, `{ rest: 'path' }` for a rest param, which takes one segment or more. The last segment of a path with a trailing slash is the literal `''`. The server has checked that there is nothing else, so this is all an adapter translates:
 
 ```ts
 function toNativePath({ segments }: RoutePath): string {
   return segments
-    .map((segment) => ('param' in segment ? `/:${segment.param}` : `/${escape(segment.literal)}`))
+    .map((segment) =>
+      'param' in segment
+        ? `/:${segment.param}`
+        : 'rest' in segment
+          ? '/*'
+          : `/${escape(segment.literal)}`,
+    )
     .join('')
 }
 ```
+
+`urlParams` of a rest param holds the rest of the path, each segment decoded, joined with `/`. A wildcard that the router does not name, such as Fastify's `*` or Bun's, is renamed or read from the path. At the first segment where two routes differ, fixed text wins over a param and a param over a rest param, as the routers of Fastify and Bun decide.
 
 `escape` stands for whatever the router needs to take the text as it is: Fastify's writes a colon as `::`, and Bun's compares paths before they are decoded, so it gets them percent-encoded.
 
@@ -116,6 +124,7 @@ interface RouteInput {
   readonly body: BodySource
   signal(): AbortSignal
   readonly raw: unknown // becomes ctx.raw
+  webRequest?(): Request | undefined
   responded?(): boolean
   respondedStatus?(): number
 }
@@ -133,6 +142,7 @@ Requirements:
 - `query()` returns the parsed query string as an object, with an array for a repeated parameter, and takes names such as `__proto__` and `constructor` as plain names: what `parseQuery(search)` makes of the query string, for a server that does not parse it. The pipeline calls it at most once per request. It stays text: the server gives it the form its schema describes.
 - `signal()` returns a signal that aborts when the client disconnects before the response is complete. It must not abort because the request body has been read, and it must already be aborted when it is first read after the client has gone.
 - `headerRecord()` is optional. Implement it when the native request has its headers as a record already: it is what a `headersSchema` validates, and without it the pipeline builds a record from `headers()`. Names are lower-case, a repeated header is joined with `, `, and the record is the caller's to change, so return a copy.
+- `webRequest()` is optional. Implement it when the server receives Web `Request`s: return the request while its body is unread (`!request.bodyUsed`) and its url is absolute, else `undefined`. `ctx.toWebRequest()` then hands it on untouched instead of building one.
 - `responded()` is optional. Implement it when `raw` exposes a native reply a handler can write to, and return `true` once the handler has done so. The pipeline then skips response validation and hands back a response the adapter must not write, with a `release` to call when the handler's own response has ended. Such a response has `takenOver` set when the handler is writing it, perhaps later. Without it, and with an error status, the handler failed after taking over: close the connection unless something has been written. The Fastify adapter returns `reply.sent`.
 - `respondedStatus()` belongs to `responded()`: the status of the response the handler wrote, read when it has finished.
 
@@ -217,12 +227,12 @@ When the error came after the headers of another response were set, remove those
 
 A server that hands the adapter a `Request` and takes a `Response` needs the same few things as the Bun and the srvx adapter, which share them. They are in `@navios/server/web`:
 
-| Export                           | Use                                                                                                                                                                                                 |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Export                           | Use                                                                                                                                                                                                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Cors`, `CorsOptions`            | CORS with the options of the Bun adapter. `check(request)` gives the allowed origin, or a promise of it; `apply(headers, origin)` adds the headers of a response; `Cors.isPreflight(request)` and `preflight(request, origin)` answer a preflight request. |
-| `limitBody(request, limit)`      | Makes reading a body without a declared length fail with `bodyTooLarge()` once it is over `limit` bytes, whoever reads it. A declared length is compared before the executor runs.                  |
-| `toWebHeaders(response.headers)` | The headers of a `RouteResponse` as web `Headers`, a list as one line per value.                                                                                                                    |
-| `injectRequest(request, handle)` | `inject()`: makes a `Request` of a `TestRequest`, calls `handle(request, path)` and reads the `Response` into a `TestResponse`.                                                                     |
+| `limitBody(request, limit)`      | Makes reading a body without a declared length fail with `bodyTooLarge()` once it is over `limit` bytes, whoever reads it. A declared length is compared before the executor runs.                                                                         |
+| `toWebHeaders(response.headers)` | The headers of a `RouteResponse` as web `Headers`, a list as one line per value.                                                                                                                                                                           |
+| `injectRequest(request, handle)` | `inject()`: makes a `Request` of a `TestRequest`, calls `handle(request, path)` and reads the `Response` into a `TestResponse`.                                                                                                                            |
 
 ## Running the conformance suite
 
@@ -264,13 +274,13 @@ runAdapterConformance({
 })
 ```
 
-| Option          | Meaning                                                                       |
-| --------------- | ----------------------------------------------------------------------------- |
-| `runner`        | `{ describe, it, expect, beforeAll, afterAll }` from the test runner.         |
-| `name`          | Shown in the suite title.                                                     |
-| `adapter`       | Creates the adapter definition under test. Multipart support must be enabled. |
+| Option          | Meaning                                                                                                                                                                                                                                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runner`        | `{ describe, it, expect, beforeAll, afterAll }` from the test runner.                                                                                                                                                                                                                                                      |
+| `name`          | Shown in the suite title.                                                                                                                                                                                                                                                                                                  |
+| `adapter`       | Creates the adapter definition under test. Multipart support must be enabled.                                                                                                                                                                                                                                              |
 | `cors`          | Optional. Creates the adapter definition under test with CORS for `{ origin, methods, credentials }`: a list of origins or a function `(origin, callback)` that calls back with an error or whether the origin is allowed, a list of methods and `true`. Enables the CORS cases. Leave it out for an adapter without CORS. |
-| `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port. Leave it out for an adapter without a server: requests then go through `inject()`, and what needs a connection is not checked. |
-| `bodyLimit`     | Optional. The largest request body in bytes the adapter under test accepts, 16 KiB or more: a JSON or text body, and one file of a multipart body. Enables the 413 cases, which run with and without a declared length and through `inject()`. |
+| `listenOptions` | Passed to `app.listen()`. It must bind an ephemeral local port. Leave it out for an adapter without a server: requests then go through `inject()`, and what needs a connection is not checked.                                                                                                                             |
+| `bodyLimit`     | Optional. The largest request body in bytes the adapter under test accepts, 16 KiB or more: a JSON or text body, and one file of a multipart body. Enables the 413 cases, which run with and without a declared length and through `inject()`.                                                                             |
 
 An adapter is expected to pass every test. The suite is the definition of "behaves the same on every adapter".

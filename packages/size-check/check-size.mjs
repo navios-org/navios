@@ -35,7 +35,9 @@ const targets = [
     budget: 95_000,
     forbidden: [/_apply_decs/, ZOD_IMPORT, HTTP_IMPORT],
   },
-  { name: 'server', budget: 138_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
+  // 143 kB: 136.4 kB → 141.8 kB for rest params, ctx.toWebRequest() and returned
+  // Responses (2.0.0-alpha.2).
+  { name: 'server', budget: 143_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-fastify', budget: 19_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-bun', budget: 22_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },
   { name: 'adapter-srvx', budget: 18_000, forbidden: [/_apply_decs/, ZOD_IMPORT] },

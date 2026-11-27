@@ -73,6 +73,12 @@ export interface RouteInput {
   /** The adapter's native objects, exposed as `ctx.raw`. */
   readonly raw: unknown
   /**
+   * The Web `Request` the server received, for an adapter whose server has
+   * one (Bun, srvx), while nobody has read its body. `undefined` otherwise:
+   * `ctx.toWebRequest()` then builds one.
+   */
+  webRequest?(): Request | undefined
+  /**
    * Whether the response was already written through the native objects
    * (`ctx.raw`). The pipeline then skips response validation and the adapter
    * writes nothing. Optional: adapters without a native reply omit it.

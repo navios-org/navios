@@ -8,11 +8,9 @@ interface Entry<T> {
   value: T
 }
 
-/** The routes of one length, by what they begin with. */
+/** The routes of one number of segments, by their first segment's text. */
 interface Group<T> {
-  /** Those that begin with fixed text, by that text. */
   fixed: Map<string, Entry<T>[]>
-  /** Those that begin with a url param. */
   open: Entry<T>[]
 }
 
@@ -22,30 +20,43 @@ export interface RouteMatch<T> {
 }
 
 /**
- * Finds routes by method and path, with the rules of the routers of the
- * Fastify and Bun adapters: the whole path has to match, fixed text wins over
- * a url param at the first segment where two routes differ, and the order of
- * registration does not matter. For adapters that have no router of their
- * own, and for `inject()`.
+ * Matches the path of a request to a route the way the adapters' routers do:
+ * at the first segment where two routes differ, fixed text wins over a url
+ * param, and a url param over a rest param. A path with a segment that is
+ * empty or a dot segment matches no url param and no rest param. Adapters
+ * whose server has no router of its own use it.
  */
 export class RouteTable<T> {
   private readonly bySize = new Map<number, Group<T>>()
+  /** Routes that end in a rest param, by the text of their first segment. */
+  private readonly restFixed = new Map<string, Entry<T>[]>()
+  /** Routes that end in a rest param and start with one, or with a url param. */
+  private readonly restOpen: Entry<T>[] = []
 
-  /**
-   * @param decode Decodes one segment. The default throws a `URIError` for
-   *   percent-encoding that is not valid.
-   */
   constructor(private readonly decode: (segment: string) => string = decodeURIComponent) {}
 
   add(method: string, { segments }: RoutePath, value: T): void {
     const entry = { method, segments, value }
+    const [first] = segments
+    if ('rest' in segments[segments.length - 1]) {
+      if ('literal' in first) {
+        const entries = this.restFixed.get(first.literal)
+        if (entries === undefined) {
+          this.restFixed.set(first.literal, [entry])
+        } else {
+          entries.push(entry)
+        }
+      } else {
+        this.restOpen.push(entry)
+      }
+      return
+    }
     let group = this.bySize.get(segments.length)
     if (group === undefined) {
       group = { fixed: new Map(), open: [] }
       this.bySize.set(segments.length, group)
     }
-    const [first] = segments
-    if ('param' in first) {
+    if (!('literal' in first)) {
       group.open.push(entry)
       return
     }
@@ -57,7 +68,6 @@ export class RouteTable<T> {
     }
   }
 
-  /** The route for a request. `HEAD` is served by the `GET` route when it has none of its own. */
   match(method: string, path: string): RouteMatch<T> | undefined {
     const { texts, entries } = this.matching(path)
     return (
@@ -66,7 +76,6 @@ export class RouteTable<T> {
     )
   }
 
-  /** The methods that a path is served for. Empty when no route has the path. */
   methods(path: string): string[] {
     const { entries } = this.matching(path)
     if (entries.length === 0) {
@@ -79,20 +88,50 @@ export class RouteTable<T> {
     return [...methods].sort()
   }
 
+  /** The routes that end in a rest param and may match a path of these segments. */
+  private restFor(raw: readonly string[]): Entry<T>[] | undefined {
+    if (this.restFixed.size === 0) {
+      return undefined
+    }
+    let first = raw[0]
+    if (first.includes('%')) {
+      try {
+        first = this.decode(first)
+      } catch {
+        // No route has fixed text that is not valid percent-encoding.
+        return undefined
+      }
+    }
+    return this.restFixed.get(first)
+  }
+
   private matching(path: string): { texts: string[]; entries: Entry<T>[] } {
     if (!path.startsWith('/')) {
       return { texts: [], entries: [] }
     }
     const raw = path.slice(1).split('/')
     const group = this.bySize.get(raw.length)
-    if (group === undefined) {
+    const restFixed = this.restFor(raw)
+    const { restOpen } = this
+    // Decoded only for the routes that may match, so that a path nothing can
+    // match is not refused for its percent-encoding.
+    if (group === undefined && restFixed === undefined && restOpen.length === 0) {
       return { texts: raw, entries: [] }
     }
     const texts = path.includes('%') ? raw.map(this.decode) : raw
     const entries: Entry<T>[] = []
-    for (const candidates of [group.fixed.get(texts[0]), group.open]) {
+    if (group !== undefined) {
+      for (const candidates of [group.fixed.get(texts[0]), group.open]) {
+        for (const entry of candidates ?? []) {
+          if (matches(entry, texts, entry.segments.length)) {
+            entries.push(entry)
+          }
+        }
+      }
+    }
+    for (const candidates of [restFixed, restOpen]) {
       for (const entry of candidates ?? []) {
-        if (matches(entry, texts)) {
+        if (matchesRest(entry, texts)) {
           entries.push(entry)
         }
       }
@@ -101,10 +140,25 @@ export class RouteTable<T> {
   }
 }
 
-function matches({ segments }: Entry<unknown>, texts: readonly string[]): boolean {
-  for (let i = 0; i < segments.length; i++) {
+/** Whether the first `count` segments of a route match those of a path. */
+function matches({ segments }: Entry<unknown>, texts: readonly string[], count: number): boolean {
+  for (let i = 0; i < count; i++) {
     const segment = segments[i]
-    if ('param' in segment ? isUnmatchable(texts[i]) : segment.literal !== texts[i]) {
+    if ('literal' in segment ? segment.literal !== texts[i] : isUnmatchable(texts[i])) {
+      return false
+    }
+  }
+  return true
+}
+
+/** Whether a route that ends in a rest param matches: one segment or more for the rest. */
+function matchesRest(entry: Entry<unknown>, texts: readonly string[]): boolean {
+  const last = entry.segments.length - 1
+  if (texts.length <= last || !matches(entry, texts, last)) {
+    return false
+  }
+  for (let i = last; i < texts.length; i++) {
+    if (isUnmatchable(texts[i])) {
       return false
     }
   }
@@ -129,14 +183,25 @@ function closest<T>(
   found.segments.forEach((segment, index) => {
     if ('param' in segment) {
       urlParams[segment.param] = texts[index]
+    } else if ('rest' in segment) {
+      urlParams[segment.rest] = texts.slice(index).join('/')
     }
   })
   return { value: found.value, urlParams }
 }
 
+/** Fixed text before a url param, a url param before a rest param. */
+function rank(segment: RouteSegment): number {
+  return 'literal' in segment ? 2 : 'param' in segment ? 1 : 0
+}
+
 function isCloser(entry: Entry<unknown>, other: Entry<unknown>): boolean {
-  const index = entry.segments.findIndex(
-    (segment, at) => 'param' in segment !== 'param' in other.segments[at],
-  )
-  return index >= 0 && 'literal' in entry.segments[index]
+  const length = Math.min(entry.segments.length, other.segments.length)
+  for (let at = 0; at < length; at++) {
+    const difference = rank(entry.segments[at]) - rank(other.segments[at])
+    if (difference !== 0) {
+      return difference > 0
+    }
+  }
+  return false
 }

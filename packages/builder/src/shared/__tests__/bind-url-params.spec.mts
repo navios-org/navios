@@ -3,6 +3,28 @@ import { describe, expect, it } from 'vitest'
 import { bindUrlParams, getUrlParamNames } from '../../index.mjs'
 
 describe('bindUrlParams', () => {
+  describe('rest params', () => {
+    it('should keep the slashes of a rest param and encode each segment', () => {
+      expect(bindUrlParams('/files/$path*', { urlParams: { path: 'docs/a b/c.txt' } })).toBe(
+        '/files/docs/a%20b/c.txt',
+      )
+      expect(bindUrlParams('/files/$path*', { urlParams: { path: 'one' } })).toBe('/files/one')
+    })
+
+    it.each(['a//b', 'a/', '/a', 'a/../b', './a'])(
+      'should reject %j, which has an empty or a dot segment',
+      (value) => {
+        expect(() => bindUrlParams('/files/$path*', { urlParams: { path: value } })).toThrow(
+          'Invalid URL parameters (a segment of a rest param cannot be empty, "." or ".."): path',
+        )
+      },
+    )
+
+    it('should name a rest param by its name', () => {
+      expect(getUrlParamNames('/orgs/$org/files/$path*')).toEqual(['org', 'path'])
+    })
+  })
+
   describe('dot segments', () => {
     it.each(['.', '..'])('should reject %j, which would rewrite the path', (value) => {
       expect(() => bindUrlParams('/users/$id/profile', { urlParams: { id: value } })).toThrow(

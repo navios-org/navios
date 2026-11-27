@@ -113,6 +113,16 @@ export class SrvxRouteInput implements RouteInput, BodySource {
   signal(): AbortSignal {
     return this.request.signal
   }
+
+  webRequest(): Request | undefined {
+    const { request } = this
+    // On Node srvx's request only looks like one: `new Request(request, init)`
+    // fails on it. Its url may carry a host srvx filled in, too.
+    if (request.runtime?.node !== undefined || request.bodyUsed || request.url.startsWith('/')) {
+      return undefined
+    }
+    return request
+  }
 }
 
 /** The body of a request of Node, which has not been read. */

@@ -1,5 +1,11 @@
-/** One segment of a route's path: fixed text, decoded, or a url param. */
-export type RouteSegment = { readonly literal: string } | { readonly param: string }
+/**
+ * One segment of a route's path: fixed text, decoded, a url param, or a rest
+ * param, which takes the rest of the path: one segment or more.
+ */
+export type RouteSegment =
+  | { readonly literal: string }
+  | { readonly param: string }
+  | { readonly rest: string }
 
 /**
  * The path of a route, taken apart. The last segment of a path with a
@@ -7,11 +13,12 @@ export type RouteSegment = { readonly literal: string } | { readonly param: stri
  */
 export interface RoutePath {
   readonly segments: readonly RouteSegment[]
-  /** The names of the url params, in order. */
+  /** The names of the url params, in order, a rest param last. */
   readonly params: readonly string[]
 }
 
 const PARAM = /^\$[A-Za-z_][A-Za-z0-9_]*$/
+const REST_PARAM = /^\$([A-Za-z_][A-Za-z0-9_]*)\*$/
 
 /**
  * What fixed text cannot hold: what separates the parts of a url, and what
@@ -22,8 +29,9 @@ const FORBIDDEN = /[\s\u0000-\u001f\u007f/\\?#*$%]/
 
 /**
  * Takes a path in builder form (`/users/$id`) apart. A segment is fixed text
- * or, as a whole, a url param. Throws for anything else, so that a path means
- * the same on every adapter or does not start.
+ * or, as a whole, a url param; the last one may be a rest param (`$path*`).
+ * Throws for anything else, so that a path means the same on every adapter or
+ * does not start.
  */
 export function compileRoutePath(path: string): RoutePath {
   const refuse = (problem: string) => new Error(`the path ${JSON.stringify(path)} ${problem}`)
@@ -32,17 +40,30 @@ export function compileRoutePath(path: string): RoutePath {
   }
   const texts = path.slice(1).split('/')
   const params: string[] = []
+  const addParam = (name: string) => {
+    if (params.includes(name)) {
+      throw refuse(`has two url params named "${name}"`)
+    }
+    if (name === '__proto__') {
+      throw refuse('has a url param that cannot have this name')
+    }
+    params.push(name)
+  }
   const segments = texts.map((text, index): RouteSegment => {
     if (PARAM.test(text)) {
       const name = text.slice(1)
-      if (params.includes(name)) {
-        throw refuse(`has two url params named "${name}"`)
-      }
-      if (name === '__proto__') {
-        throw refuse('has a url param that cannot have this name')
-      }
-      params.push(name)
+      addParam(name)
       return { param: name }
+    }
+    const rest = REST_PARAM.exec(text)?.[1]
+    if (rest !== undefined) {
+      if (index < texts.length - 1) {
+        throw refuse(
+          `has a segment after its rest param: a rest param ("${text}") has to be the last segment`,
+        )
+      }
+      addParam(rest)
+      return { rest }
     }
     if (text.includes('$')) {
       throw refuse(
@@ -78,6 +99,11 @@ function encodeSegment(text: string): string {
   )
 }
 
+/** The segments of a rest param's value, each encoded, with the slashes between them. */
+function encodeRest(value: string): string {
+  return value.split('/').map(encodeSegment).join('/')
+}
+
 /**
  * Builds the function that gives the path of a request from its url params:
  * what the router matched, whatever the request target looked like.
@@ -94,12 +120,17 @@ export function compileRequestPath({
     return () => path
   }
   const parts = segments.map((segment) =>
-    'param' in segment ? segment : `/${encodeSegment(segment.literal)}`,
+    'literal' in segment ? `/${encodeSegment(segment.literal)}` : segment,
   )
   return (urlParams) => {
     let path = ''
     for (const part of parts) {
-      path += typeof part === 'string' ? part : `/${encodeSegment(urlParams[part.param])}`
+      path +=
+        typeof part === 'string'
+          ? part
+          : 'param' in part
+            ? `/${encodeSegment(urlParams[part.param])}`
+            : `/${encodeRest(urlParams[part.rest])}`
     }
     return path
   }
@@ -112,6 +143,15 @@ export function compileRequestPath({
  */
 export function isUnmatchable(value: string): boolean {
   return value.length <= 2 && (value === '' || value === '.' || value === '..')
+}
+
+/**
+ * Whether a value cannot be a rest param: one of its segments cannot be a url
+ * param, as `a//b` or `a/..` shows.
+ * @internal
+ */
+export function isUnmatchableRest(value: string): boolean {
+  return value.split('/').some(isUnmatchable)
 }
 
 /** Unreserved characters (RFC 3986), which mean the same encoded or not. */
