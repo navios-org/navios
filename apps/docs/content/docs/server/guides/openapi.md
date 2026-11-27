@@ -50,7 +50,7 @@ For each route, from its declaration:
 | Declaration                              | In the document                                                                         |
 | ---------------------------------------- | --------------------------------------------------------------------------------------- |
 | `url: '/users/$userId'`                  | Path `/users/{userId}` and a required `path` parameter: a string, or its entry in `urlParamsSchema` |
-| `querySchema`                            | One `query` parameter per property                                                      |
+| `querySchema`                            | One `query` parameter per property. A union or intersection of objects lists the properties of every member; any other schema has no parameters and logs a warning during `init()` |
 | `headersSchema`, `cookiesSchema` in a hand-built `config` | `header` and `cookie` parameters. `declareEndpoint` has no such options; see [Validation](/docs/server/essentials/controllers#validation) |
 | `requestSchema`                          | An `application/json` request body                                                      |
 | `body: 'multipart'`                      | A `multipart/form-data` request body; file fields are binary strings                    |
@@ -92,7 +92,7 @@ const userSchema = z
   .meta({ id: 'User' })
 ```
 
-A schema with an `id` becomes a shared entry in `components.schemas`, and every use of it is a reference. In general, the `$defs` of a converted schema move to `components.schemas` and its `$schema` key is removed.
+A schema with an `id` becomes a shared entry in `components.schemas`, and every use of it is a reference. In a parameter slot (`querySchema`, `urlParamsSchema`, `headersSchema`, `cookiesSchema`) the reference is followed, so the parameters are listed as usual; a named multipart body keeps the reference, and its file fields are marked binary in the component. In general, the `$defs` of a converted schema move to `components.schemas` and its `$schema` key is removed.
 
 ```json
 {
@@ -198,10 +198,9 @@ With `handler()` fields, pass the values in the options: `handler(createUser, { 
 | `jsonPath`          | `'/openapi.json'` | Path of the JSON document                                                             |
 | `yamlPath`          | `'/openapi.yaml'` | Path of the YAML document                                                             |
 | `docsPath`          | `'/docs'`         | Path of the Scalar page. Slashes around any of the three paths do not matter          |
-| `disableJson`       | `false`           | Do not serve JSON. The Scalar page then embeds the document                           |
-| `disableYaml`       | `true`            | YAML is served only when this is `false`                                              |
-| `disableScalar`     | `false`           | Do not serve the Scalar page                                                          |
-| `scalar`            |                   | `theme`, `favicon`, `customCss`, `hideDownloadButton`, `hideSearch`, `metaData`, `cdn` |
+| `json`              | `true`            | Serve the JSON document. With `false`, the Scalar page embeds the document            |
+| `yaml`              | `false`           | Serve the YAML document                                                               |
+| `scalar`            | `true`            | Serve the Scalar page. `false` leaves it out; an object configures it: `theme`, `favicon`, `customCss`, `hideDownloadButton`, `hideSearch`, `metaData`, `cdn` |
 | `toJsonSchema`      |                   | Converter for schema libraries without the JSON Schema extension                      |
 | `transformDocument` |                   | `(document, routes) => document \| void`. Called once with the generated document before it is served |
 
@@ -241,4 +240,4 @@ The in-memory adapter opens no port, so the script needs nothing but the applica
 | `ApiTagToken`, `ApiOperationToken`, `ApiSummaryToken`, `ApiDeprecatedToken`, `ApiSecurityToken`, `ApiExcludeToken`, `ApiStreamToken` | The symbols the attributes are stored under |
 | `OpenApiPluginOptions`, `OpenApiDocumentOptions`, `ScalarOptions`, `ToJsonSchema`, `OpenApiDocument` and the other document types | Types |
 
-`@navios/server`, with the `@navios/core` it comes with, is the only peer dependency; no schema library is needed at run time.
+`@navios/server` and `@navios/core` are the peer dependencies; no schema library is needed at run time.

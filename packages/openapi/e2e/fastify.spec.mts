@@ -44,7 +44,7 @@ describe('openapi plugin on the Fastify adapter', () => {
       plugins: [
         openApiPlugin({
           info: { title: 'Fastify API', version: '1.0.0' },
-          disableYaml: false,
+          yaml: true,
         }),
       ],
     })

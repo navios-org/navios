@@ -102,7 +102,9 @@ export function generateOpenApiDocument(
     const path = toOpenApiPath(route.path)
     paths[path] = {
       ...paths[path],
-      [route.method.toLowerCase()]: new OperationBuilder(route, metadata, schemas).build(),
+      [route.method.toLowerCase()]: new OperationBuilder(route, metadata, schemas, (message) =>
+        logger.warn(message),
+      ).build(),
     }
     operations++
   }

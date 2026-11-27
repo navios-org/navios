@@ -37,13 +37,23 @@ export interface OpenApiPluginOptions extends Omit<OpenApiGenerationOptions, 'lo
    * @default '/docs'
    */
   docsPath?: string
-  scalar?: ScalarOptions
-  /** @default false */
-  disableJson?: boolean
-  /** @default true */
-  disableYaml?: boolean
-  /** @default false */
-  disableScalar?: boolean
+  /**
+   * Serve the JSON document. When `false`, the Scalar page embeds the
+   * document instead of loading it.
+   * @default true
+   */
+  json?: boolean
+  /**
+   * Serve the YAML document.
+   * @default false
+   */
+  yaml?: boolean
+  /**
+   * Serve the Scalar API reference page: `false` leaves it out, an object
+   * configures it.
+   * @default true
+   */
+  scalar?: boolean | ScalarOptions
   /**
    * Called with the generated document before it is served; may change it
    * in place or return another one.
@@ -89,10 +99,9 @@ export const openApiPlugin = definePlugin({
       jsonPath = '/openapi.json',
       yamlPath = '/openapi.yaml',
       docsPath = '/docs',
-      disableJson = false,
-      disableYaml = true,
-      disableScalar = false,
-      scalar = {},
+      json = true,
+      yaml: serveYaml = false,
+      scalar = true,
       transformDocument,
       ...generation
     } = options
@@ -113,14 +122,14 @@ export const openApiPlugin = definePlugin({
 
     const attributes = [ApiExclude()]
     const handlers: Record<string, FieldHandler> = {}
-    if (!disableJson) {
+    if (json) {
       handlers.json = handler(
         { config: { method: 'GET', url: toUrl(jsonPath) } },
         { attributes },
         () => ready(),
       ) as FieldHandler
     }
-    if (!disableYaml) {
+    if (serveYaml) {
       handlers.yaml = handler(
         { config: { method: 'GET', url: toUrl(yamlPath), response: 'text' } },
         { attributes },
@@ -130,14 +139,15 @@ export const openApiPlugin = definePlugin({
         },
       ) as FieldHandler
     }
-    if (!disableScalar) {
+    if (scalar !== false) {
+      const scalarOptions = scalar === true ? {} : scalar
       handlers.docs = handler(
         { config: { method: 'GET', url: toUrl(docsPath), response: 'text' } },
         { attributes },
         (_params, ctx) => {
           ctx.reply.header('content-type', 'text/html; charset=utf-8')
           return (html ??= renderScalar(
-            scalar,
+            scalarOptions,
             jsonUrl === null ? { content: ready() } : { url: jsonUrl },
           ))
         },

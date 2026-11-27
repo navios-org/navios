@@ -10,6 +10,8 @@ title: Authentication with JWT
 npm install @navios/jwt@next
 ```
 
+The package needs a runtime with the Node.js APIs: it uses key objects of `node:crypto`, `Buffer` and `process`, and signs with [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken). It runs on Node.js, Bun and Deno. On Cloudflare Workers it needs the `nodejs_compat` flag and is untested there.
+
 ## Configure the service
 
 `provideJwtService` returns an injection token with a configured service behind it. Create it once and export it; every `inject()` of it gives the same `JwtService` instance.

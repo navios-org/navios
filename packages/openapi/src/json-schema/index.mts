@@ -58,6 +58,7 @@ const SCHEMA_KEYS = [
 const SCHEMA_ARRAY_KEYS = ['allOf', 'anyOf', 'oneOf', 'prefixItems']
 const SCHEMA_MAP_KEYS = ['properties', 'patternProperties', 'dependentSchemas']
 const DEFINITION_KEYS = ['$defs', 'definitions']
+const COMPONENT_PREFIX = '#/components/schemas/'
 
 /**
  * Turns Standard Schemas into JSON Schemas ready to be placed in an OpenAPI
@@ -83,6 +84,26 @@ export class SchemaConverter {
       return {}
     }
     return this.normalise(raw, io)
+  }
+
+  /**
+   * Follows a reference to `components.schemas` (what a named schema, such
+   * as Zod's `.meta({ id })`, converts to) and returns the component itself,
+   * not a copy. A schema that is not such a reference is returned as it is.
+   */
+  resolve(schema: JsonSchema): JsonSchema {
+    const seen = new Set<string>()
+    let current = schema
+    while (typeof current.$ref === 'string' && current.$ref.startsWith(COMPONENT_PREFIX)) {
+      const name = current.$ref.slice(COMPONENT_PREFIX.length)
+      const target = this.components[name]
+      if (target === undefined || seen.has(name)) {
+        break
+      }
+      seen.add(name)
+      current = target
+    }
+    return current
   }
 
   private toJsonSchema(schema: StandardSchemaV1, io: SchemaIo): JsonSchema | undefined {
@@ -130,7 +151,7 @@ export class SchemaConverter {
     const added: Array<[name: string, definition: JsonSchema]> = []
     for (const [pointer, definition] of Object.entries(definitions)) {
       const name = this.reserve(pointer.slice(pointer.lastIndexOf('/') + 1), definition, io)
-      refs.set(pointer, `#/components/schemas/${name.name}`)
+      refs.set(pointer, `${COMPONENT_PREFIX}${name.name}`)
       if (name.isNew) {
         added.push([name.name, definition])
       }
@@ -180,7 +201,7 @@ export class SchemaConverter {
       // inside an OpenAPI document until it is a component.
       const title = typeof root.title === 'string' ? root.title : `Schema${++this.anonymous}`
       const { name } = this.reserve(title, root, io)
-      const ref = `#/components/schemas/${name}`
+      const ref = `${COMPONENT_PREFIX}${name}`
       const point = (node: unknown): void => {
         if (Array.isArray(node)) {
           node.forEach(point)

@@ -15,6 +15,8 @@
     "@navios/otel": "workspace:*",
     "@navios/server": "workspace:*",
     "@opentelemetry/api": "~1.10.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.301.2",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.301.2",
     "zod": "^4.6.7"
   },
   "devDependencies": {

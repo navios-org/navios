@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The legacy `Cron` and `Schedulable` are `legacy()` of `@navios/core/legacy-compat` applied to the standard decorators. A legacy `@Cron` on a property throws the error of the standard decorator.
+- **BREAKING**: the `services` option of `scheduleTransport()` is renamed to `jobs`, the name `@Module({ jobs })` has for the same list: `scheduleTransport({ jobs: [Jobs] })`.
 - **BREAKING**: `SchedulerService.prepare()` and `SchedulerService.warnAboutUnregistered()`, steps of `scheduleTransport()` that were marked internal, are no longer public methods.
 
 ## [2.0.0-alpha.0] - 2026-11-26

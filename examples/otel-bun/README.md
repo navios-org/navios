@@ -1,6 +1,6 @@
 # OpenTelemetry Bun Example
 
-This example demonstrates how to integrate OpenTelemetry with a Navios Bun application for full observability (traces, metrics, and logs).
+This example demonstrates how to integrate OpenTelemetry with a Navios Bun application for traces and metrics. `@navios/otel` has no logs support, so the application exports no logs.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ This starts:
 - **Jaeger** (traces) - http://localhost:16686
 - **Prometheus** (metrics) - http://localhost:9090
 - **Grafana** (dashboards) - http://localhost:3001 (admin/admin)
-- **Loki** (logs)
+- **Loki** (logs; part of the stack, but this example sends it nothing)
 - **OpenTelemetry Collector** (routing)
 
 2. **Configure environment:**
@@ -92,8 +92,7 @@ cp .env.development .env  # or .env.production, etc.
 |----------|-------------|---------|
 | `OTEL_EXPORTER` | Export type: `otlp`, `console`, `none` | `console` |
 | `OTEL_TRACES_ENDPOINT` | OTLP traces endpoint | `http://localhost:4318/v1/traces` |
-| `OTEL_METRICS_ENDPOINT` | OTLP metrics endpoint | `http://localhost:4318/v1/metrics` |
-| `OTEL_LOGS_ENDPOINT` | OTLP logs endpoint | `http://localhost:4318/v1/logs` |
+| `OTEL_METRICS_ENDPOINT` | OTLP metrics endpoint (`metrics.endpoint`) | the traces endpoint with `/v1/traces` replaced by `/v1/metrics` |
 | `OTEL_HEADERS` | JSON headers for auth | - |
 
 ### Auto-Instrumentation
@@ -108,7 +107,6 @@ cp .env.development .env  # or .env.production, etc.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OTEL_METRICS_ENABLED` | Enable metrics collection | `false` |
-| `OTEL_LOGS_ENABLED` | Enable logs export | `false` |
 | `OTEL_SAMPLING_RATIO` | Sampling ratio (0.0-1.0) | `1.0` |
 | `OTEL_IGNORE_ROUTES` | Comma-separated routes to ignore | `/health` |
 
@@ -165,8 +163,8 @@ This example uses TypeScript's legacy decorators (`experimentalDecorators`), hen
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────┐
 │   Bun App       │────▶│  OTel Collector  │────▶│ Jaeger  │ (traces)
 │  with OTEL      │     │                  │────▶│Prometheus│ (metrics)
-│  Plugin         │     │                  │────▶│  Loki   │ (logs)
-└─────────────────┘     └──────────────────┘     └─────────┘
+│  Plugin         │     │                  │     └─────────┘
+└─────────────────┘     └──────────────────┘
                                                        │
                                                        ▼
                                                  ┌─────────┐

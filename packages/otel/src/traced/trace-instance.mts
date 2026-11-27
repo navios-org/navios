@@ -1,15 +1,17 @@
+import { DIError, DIErrorCode, optional } from '@navios/core'
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import type { ClassType } from '@navios/core'
 import type { AttributeValue, Tracer } from '@opentelemetry/api'
 
+import { TracerToken } from '../sdk/tracer-token.mjs'
 import { ATTR_CODE_FUNCTION_NAME } from '../tracing/attributes.mjs'
 import { parentContext } from '../tracing/context.mjs'
 import { recordSpanError, runInSpan } from '../tracing/span.mjs'
 
 import { tracedClasses } from './traced-metadata.mjs'
 
-import type { MethodTracedMetadata } from './traced-metadata.mjs'
+import type { ClassTracedMetadata, MethodTracedMetadata } from './traced-metadata.mjs'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -140,4 +142,53 @@ export function traceInstance<T extends object>(
   }
   Object.defineProperty(instance, instrumented, { value: true })
   return instance
+}
+
+/**
+ * Traces one `@Traced` method of an instance whose class is not in
+ * `tracedClasses`, that is, has no `@Traced` or `@Traceable` of its own.
+ * Called by the initializer of the method decorator, so while the instance
+ * is constructed: the tracer is injected the way a field would inject it.
+ * `metadata` is that of the class the method was decorated in.
+ *
+ * Nothing happens when the plugin traces the class as a whole, when no
+ * tracer is provided (the plugin is not installed), or when the instance is
+ * built outside a container.
+ */
+export function traceMarkedMethod(
+  instance: object,
+  methodName: string,
+  metadata: ClassTracedMetadata,
+): void {
+  const classType = instance.constructor as ClassType
+  if (tracedClasses.has(classType)) {
+    return
+  }
+  let tracer: Tracer | null
+  try {
+    tracer = optional(TracerToken)
+  } catch (error) {
+    if (error instanceof DIError && error.code === DIErrorCode.OutsideInjectionContext) {
+      return
+    }
+    throw error
+  }
+  const original = (instance as any)[methodName]
+  if (tracer === null || typeof original !== 'function') {
+    return
+  }
+  Object.defineProperty(instance, methodName, {
+    value: traceMethod(
+      original,
+      tracer,
+      classType.name,
+      metadata.name ?? classType.name,
+      methodName,
+      metadata.methods.get(methodName),
+      metadata.attributes ?? {},
+    ),
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  })
 }

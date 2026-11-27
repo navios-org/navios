@@ -1,4 +1,5 @@
 import { builder } from '@navios/builder'
+import { Injectable as LegacyInjectable } from '@navios/core/legacy-compat'
 import {
   Controller,
   handler,
@@ -33,6 +34,7 @@ import {
   Traced,
   TracerToken,
 } from '../index.mjs'
+import { Traced as LegacyTraced } from '../legacy-compat/index.mjs'
 
 import type { OtelPluginOptions } from '../index.mjs'
 
@@ -125,7 +127,7 @@ describe('otelPlugin: HTTP request spans', () => {
 
     expect(spans()).toHaveLength(1)
     const [span] = spans()
-    expect(span.name).toBe('HTTP GET /users/$id')
+    expect(span.name).toBe('GET /users/$id')
     expect(span.kind).toBe(SpanKind.SERVER)
     expect(span.attributes).toMatchObject({
       'http.request.method': 'GET',
@@ -144,15 +146,16 @@ describe('otelPlugin: HTTP request spans', () => {
       'url.path',
       'user_agent.original',
     ])
-    expect(span.status.code).toBe(SpanStatusCode.OK)
+    // A server span without an error keeps its status unset.
+    expect(span.status.code).toBe(SpanStatusCode.UNSET)
     expect(span.ended).toBe(true)
     expect(span.resource.attributes['service.name']).toBe('otel-test')
 
     const created = await app.inject({ method: 'POST', url: '/users', body: { name: 'Grace' } })
     expect(created.status).toBe(201)
-    const post = spans().find((candidate) => candidate.name === 'HTTP POST /users')
+    const post = spans().find((candidate) => candidate.name === 'POST /users')
     expect(post?.attributes['http.response.status_code']).toBe(201)
-    expect(post?.status.code).toBe(SpanStatusCode.OK)
+    expect(post?.status.code).toBe(SpanStatusCode.UNSET)
   })
 
   it('gives concurrent requests separate spans in separate traces', async () => {
@@ -197,7 +200,7 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(response.status).toBe(500)
 
     const [span] = spans()
-    expect(span.name).toBe('HTTP GET /boom')
+    expect(span.name).toBe('GET /boom')
     expect(span.attributes['http.response.status_code']).toBe(500)
     expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'database is down' })
     expect(span.events).toHaveLength(1)
@@ -222,7 +225,8 @@ describe('otelPlugin: HTTP request spans', () => {
 
     const [span] = spans()
     expect(span.attributes['http.response.status_code']).toBe(404)
-    expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'No such user' })
+    // A 4xx is the client's error: not an error of the server span.
+    expect(span.status.code).toBe(SpanStatusCode.UNSET)
     expect(span.events[0].name).toBe('exception')
     expect(span.events[0].attributes?.['exception.type']).toBe('NotFoundException')
   })
@@ -251,9 +255,9 @@ describe('otelPlugin: HTTP request spans', () => {
 
     const [validation, guard] = spans()
     expect(validation.attributes['http.response.status_code']).toBe(400)
-    expect(validation.status.code).toBe(SpanStatusCode.ERROR)
+    expect(validation.status.code).toBe(SpanStatusCode.UNSET)
     expect(guard.attributes['http.response.status_code']).toBe(403)
-    expect(guard.status.code).toBe(SpanStatusCode.ERROR)
+    expect(guard.status.code).toBe(SpanStatusCode.UNSET)
   })
 
   it('reports the status an error mapper answers with', async () => {
@@ -289,7 +293,7 @@ describe('otelPlugin: HTTP request spans', () => {
 
     const [span] = exporter.getFinishedSpans()
     expect(span.attributes['http.response.status_code']).toBe(409)
-    expect(span.status).toEqual({ code: SpanStatusCode.ERROR, message: 'name is taken' })
+    expect(span.status.code).toBe(SpanStatusCode.UNSET)
     expect(span.events[0].name).toBe('exception')
   })
 
@@ -317,7 +321,7 @@ describe('otelPlugin: HTTP request spans', () => {
     // The handler had returned its generator long before the last chunk.
     expect(endedWhileStreaming).toEqual([false, false])
     expect(spans()).toHaveLength(1)
-    expect(spans()[0].name).toBe('HTTP GET /feed')
+    expect(spans()[0].name).toBe('GET /feed')
     expect(spans()[0].ended).toBe(true)
     expect(spans()[0].attributes['http.response.status_code']).toBe(200)
   })
@@ -395,7 +399,7 @@ describe('otelPlugin: HTTP request spans', () => {
     expect(found).toEqual([undefined])
 
     await app.inject({ method: 'GET', url: '/users/2' })
-    expect(spans().map((span) => span.name)).toEqual(['HTTP GET /users/$id'])
+    expect(spans().map((span) => span.name)).toEqual(['GET /users/$id'])
   })
 
   it('registers no interceptor when autoInstrument.http is false', async () => {
@@ -460,7 +464,7 @@ describe('otelPlugin: @Traced services', () => {
     expect(response.body).toEqual({ id: '1', name: 'Ada' })
 
     const [child, request] = spans()
-    expect(request.name).toBe('HTTP GET /users/$id')
+    expect(request.name).toBe('GET /users/$id')
     expect(child.name).toBe('user-service.findName')
     expect(child.kind).toBe(SpanKind.INTERNAL)
     expect(child.parentSpanContext?.spanId).toBe(request.spanContext().spanId)
@@ -514,14 +518,14 @@ describe('otelPlugin: @Traced services', () => {
 
     const byName = new Map(spans().map((span) => [span.name, span]))
     expect([...byName.keys()].sort()).toEqual([
-      'HTTP GET /users/$id',
+      'GET /users/$id',
       'Repository.load',
       'users.findName',
       'users.format',
     ])
     const findName = byName.get('users.findName')!
     expect(findName.parentSpanContext?.spanId).toBe(
-      byName.get('HTTP GET /users/$id')!.spanContext().spanId,
+      byName.get('GET /users/$id')!.spanContext().spanId,
     )
     expect(byName.get('Repository.load')!.parentSpanContext?.spanId).toBe(
       findName.spanContext().spanId,
@@ -563,6 +567,92 @@ describe('otelPlugin: @Traced services', () => {
       'code.function.name': 'OrderService.process',
     })
     expect(spans()[0].parentSpanContext).toBeUndefined()
+  })
+
+  it('traces a @Traced method of a class that has no class decorator of this package', async () => {
+    @Injectable()
+    class ReportService {
+      @Traced({ name: 'build-report', attributes: { heavy: true } })
+      build() {
+        return this.load()
+      }
+
+      @Traced()
+      async send() {
+        return 'sent'
+      }
+
+      load() {
+        return 'report'
+      }
+    }
+    @Injectable()
+    class WeeklyReportService extends ReportService {}
+    @Module({})
+    class AppModule {}
+
+    const { app, spans } = await createApp(AppModule)
+    const reports = await app.container.get(ReportService)
+    expect(reports.build()).toBe('report')
+    await expect(reports.send()).resolves.toBe('sent')
+
+    expect(spans().map((span) => span.name)).toEqual(['build-report', 'ReportService.send'])
+    expect(spans()[0].attributes).toMatchObject({
+      heavy: true,
+      'code.function.name': 'ReportService.build',
+    })
+
+    // The mark is the method's: an undecorated subclass keeps it.
+    const weekly = await app.container.get(WeeklyReportService)
+    expect(weekly.build()).toBe('report')
+    expect(spans().at(-1)?.name).toBe('build-report')
+    expect(spans().at(-1)?.attributes['code.function.name']).toBe('WeeklyReportService.build')
+  })
+
+  it('leaves a @Traced method alone outside a container and without the plugin', async () => {
+    class Plain {
+      @Traced()
+      work() {
+        return 'done'
+      }
+    }
+
+    expect(new Plain().work()).toBe('done')
+    expect(Object.hasOwn(new Plain(), 'work')).toBe(false)
+  })
+
+  it('traces a @Traced method once when the class is @Traceable as well', async () => {
+    @Traceable()
+    @Injectable()
+    class Once {
+      @Traced()
+      work() {
+        return 'done'
+      }
+    }
+    @Module({})
+    class AppModule {}
+
+    const { app, spans } = await createApp(AppModule)
+    expect((await app.container.get(Once)).work()).toBe('done')
+    expect(spans().map((span) => span.name)).toEqual(['Once.work'])
+  })
+
+  it('traces a method marked with the legacy @Traced alone', async () => {
+    class LegacyReportService {
+      build() {
+        return 'report'
+      }
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(LegacyReportService.prototype, 'build')!
+    LegacyTraced({ name: 'legacy-build' })(LegacyReportService.prototype, 'build', descriptor)
+    LegacyInjectable()(LegacyReportService)
+    @Module({})
+    class AppModule {}
+
+    const { app, spans } = await createApp(AppModule)
+    expect((await app.container.get(LegacyReportService)).build()).toBe('report')
+    expect(spans().map((span) => span.name)).toEqual(['legacy-build'])
   })
 
   it('records an error thrown by a traced method, sync or async, and rethrows it', async () => {
@@ -676,7 +766,7 @@ describe('otelPlugin: context propagation', () => {
     await app.inject({ method: 'GET', url: '/users/1' })
 
     const [child, request] = spans()
-    expect(request.name).toBe('HTTP GET /users/$id')
+    expect(request.name).toBe('GET /users/$id')
     expect(child.parentSpanContext).toBeUndefined()
     expect(child.spanContext().traceId).not.toBe(request.spanContext().traceId)
   })
@@ -765,7 +855,7 @@ describe('otelPlugin: providers and shutdown', () => {
     await app.close()
     apps.length = 0
 
-    expect(exported).toEqual(['HTTP GET /health'])
+    expect(exported).toEqual(['GET /health'])
     expect(shutdowns).toBe(1)
     // The global registration is taken back, so a later application can
     // register its own provider.

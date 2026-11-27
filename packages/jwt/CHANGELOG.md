@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The README and the guide state the runtime requirement: the Node.js APIs (`node:crypto`, `Buffer`, `process`), so Node.js, Bun and Deno; Cloudflare Workers need `nodejs_compat` and are untested.
 - A configuration function of `provideJwtService` that returns a thenable which is not a native promise is waited for. The service resolved to `undefined`.
 
 ## [2.0.0-alpha.0] - 2026-11-26

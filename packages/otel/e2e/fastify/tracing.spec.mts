@@ -121,7 +121,7 @@ describe('otel plugin on the Fastify adapter', () => {
     expect(response.body).toEqual({ id: '42', name: 'user-42' })
 
     const request = exporter.spans.find((span) => span.kind === SpanKind.SERVER)!
-    expect(request.name).toBe('HTTP GET /users/$id')
+    expect(request.name).toBe('GET /users/$id')
     expect(request.attributes).toMatchObject({
       'http.request.method': 'GET',
       'http.route': '/users/$id',
@@ -129,7 +129,7 @@ describe('otel plugin on the Fastify adapter', () => {
       'http.response.status_code': 200,
       'user.id': '42',
     })
-    expect(request.status.code).toBe(SpanStatusCode.OK)
+    expect(request.status.code).toBe(SpanStatusCode.UNSET)
   })
 
   it('parents the span of a traced service method to the request span', async () => {
@@ -140,7 +140,7 @@ describe('otel plugin on the Fastify adapter', () => {
 
     const [child, request] = exporter.spans
     expect(child.name).toBe('user-service.findName')
-    expect(request.name).toBe('HTTP GET /users/$id')
+    expect(request.name).toBe('GET /users/$id')
     expect(child.parentSpanContext?.spanId).toBe(request.spanContext().spanId)
     expect(child.spanContext().traceId).toBe(request.spanContext().traceId)
   })
@@ -153,12 +153,12 @@ describe('otel plugin on the Fastify adapter', () => {
     expect((await server.inject({ method: 'GET', url: '/fail/missing' })).status).toBe(404)
 
     const [crash, missing] = exporter.spans
-    expect(crash.name).toBe('HTTP GET /fail/$kind')
+    expect(crash.name).toBe('GET /fail/$kind')
     expect(crash.attributes['http.response.status_code']).toBe(500)
     expect(crash.status).toEqual({ code: SpanStatusCode.ERROR, message: 'unexpected failure' })
     expect(crash.events[0].name).toBe('exception')
     expect(missing.attributes['http.response.status_code']).toBe(404)
-    expect(missing.status).toEqual({ code: SpanStatusCode.ERROR, message: 'Nothing here' })
+    expect(missing.status.code).toBe(SpanStatusCode.UNSET)
     expect(missing.events[0].attributes?.['exception.type']).toBe('NotFoundException')
   })
 
@@ -227,7 +227,7 @@ describe('otel plugin on the Fastify adapter', () => {
     app = null
 
     expect(exporter.spans.map((span) => span.name).sort()).toEqual([
-      'HTTP GET /users/$id',
+      'GET /users/$id',
       'user-service.findName',
     ])
     expect(exporter.shutdowns).toBe(1)

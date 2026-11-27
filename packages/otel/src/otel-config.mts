@@ -37,6 +37,14 @@ export interface MetricsConfig {
    * `MeterToken`. The plugin records no metrics of its own.
    */
   enabled: boolean
+  /**
+   * URL of the OTLP/HTTP metrics endpoint, for `exporter: 'otlp'`. When it
+   * is not set and `exporterOptions.endpoint` ends in `/v1/traces`, metrics
+   * go to the same URL ending in `/v1/metrics`; with any other traces URL
+   * the metrics exporter uses its own default, and a warning says so.
+   * @example 'http://localhost:4318/v1/metrics'
+   */
+  endpoint?: string
 }
 
 /**
@@ -44,8 +52,11 @@ export interface MetricsConfig {
  */
 export interface SamplingConfig {
   /**
-   * Sampling ratio from 0.0 to 1.0.
-   * 1.0 means sample all traces, 0.5 means sample 50%.
+   * Share of traces that start here which are sampled, from 0.0 to 1.0:
+   * 1.0 samples all of them, 0.5 half. A span with a parent, such as a
+   * request that arrives with a `traceparent` header, follows the decision
+   * of its parent instead (a parent-based sampler, the OpenTelemetry
+   * default).
    * @default 1.0
    */
   ratio?: number
@@ -56,8 +67,9 @@ export interface SamplingConfig {
  */
 export interface OtlpExporterOptions {
   /**
-   * URL of the OTLP/HTTP traces endpoint. With metrics enabled, metrics go to
-   * the same URL with `/traces` replaced by `/metrics`.
+   * URL of the OTLP/HTTP traces endpoint. With metrics enabled and no
+   * `metrics.endpoint`, metrics go to the same URL with a trailing
+   * `/v1/traces` replaced by `/v1/metrics`.
    * @example 'http://localhost:4318/v1/traces'
    */
   endpoint?: string
@@ -168,7 +180,7 @@ export interface OtelConfig {
  */
 export interface ResolvedOtelConfig extends OtelConfig {
   autoInstrument: Required<AutoInstrumentConfig>
-  metrics: Required<MetricsConfig>
+  metrics: MetricsConfig
   sampling: Required<SamplingConfig>
   includeNaviosAttributes: boolean
   ignoreRoutes: string[]
@@ -209,6 +221,7 @@ export function resolveOtelConfig(config: OtelConfig): ResolvedOtelConfig {
       transports: config.autoInstrument?.transports ?? 'auto',
     },
     metrics: {
+      ...config.metrics,
       enabled: config.metrics?.enabled ?? false,
     },
     sampling: {
