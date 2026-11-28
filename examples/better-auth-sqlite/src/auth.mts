@@ -25,7 +25,7 @@ export const Auth = provideBetterAuth(async (ctx) => {
   }
 })
 
-// Types `AuthSession` and `requireSession` with the fields above.
+// Types `CurrentUser` and `CurrentSession` with the fields above.
 declare module '@navios/better-auth' {
   interface BetterAuthRegister {
     auth: typeof Auth

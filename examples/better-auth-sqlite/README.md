@@ -4,7 +4,7 @@ A notes API with [Better Auth](https://www.better-auth.com) email and password s
 
 - `src/auth.mts`: Better Auth is built by the DI container. Its factory injects the configuration and the `Database` service, so the application and Better Auth share one SQLite connection.
 - `src/create-app.mts`: `betterAuthPlugin` serves Better Auth at `/api/auth`. On Bun, Better Auth gets the request Bun received, and its response is sent as it is.
-- `src/app.module.mts`: `BetterAuthGuard` protects every route of the module. Handlers read the user with `requireSession(ctx)`.
+- `src/notes/notes.controller.mts`: `@Authenticated()` protects every route of the controller, and the handlers read the user with `ctx.get(CurrentUser)`.
 - `auth.config.mts`: the Better Auth CLI gets the same instance, built from the same module, with `authForCli`.
 
 ## Run it

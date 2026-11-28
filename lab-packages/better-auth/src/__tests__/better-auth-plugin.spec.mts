@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import type { NaviosApplication, TestResponse } from '@navios/server'
 
-import { AllowAnonymous, betterAuthPlugin, provideBetterAuth } from '../index.mjs'
+import { betterAuthPlugin, provideBetterAuth } from '../index.mjs'
+import { AccessAttribute } from '../internal/access-attributes.mjs'
 
 import { migrate, testOptions } from './helpers.mjs'
 import { receivedBodies, testPlugin } from './test-plugin.mjs'
@@ -184,7 +185,7 @@ describe('betterAuthPlugin', () => {
     expect(response.headers['content-type']).toBe('application/problem+json')
   })
 
-  it('should mark its routes anonymous and hidden from OpenAPI', async () => {
+  it('should mark its routes public and hidden from OpenAPI', async () => {
     await createApp()
 
     const routes = app.routes().filter((route) => route.path === '/api/auth/$path*')
@@ -197,7 +198,7 @@ describe('betterAuthPlugin', () => {
       'PUT',
     ])
     for (const route of routes) {
-      expect(AttributeFactory.has(AllowAnonymous, route)).toBe(true)
+      expect(AttributeFactory.get(AccessAttribute, route)).toBe('public')
       expect(AttributeFactory.has(OPENAPI_EXCLUDE, route)).toBe(true)
     }
   })

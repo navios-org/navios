@@ -10,8 +10,8 @@ import {
 import type { FieldHandler, InjectionToken, RequestContext } from '@navios/server'
 import type { Auth } from 'better-auth'
 
-import { AllowAnonymous, OpenApiExclude } from './attributes.mjs'
 import { BetterAuth } from './better-auth-token.mjs'
+import { AccessAttribute, OpenApiExclude } from './internal/access-attributes.mjs'
 import { effectiveBasePath, servedPath } from './internal/base-path.mjs'
 
 export interface BetterAuthPluginOptions {
@@ -54,7 +54,7 @@ async function authRequest(ctx: RequestContext): Promise<Request> {
  * `auth.handler()`. On Bun and srvx Better Auth gets the request the server received, and its
  * response is sent as it is. The routes are ordinary Navios routes, so they get the
  * application's prefixes and interceptors, and an application route with a fixed path under
- * the same prefix still wins. They carry `AllowAnonymous` and are left out of an OpenAPI
+ * the same prefix still wins. They are public and left out of an OpenAPI
  * document.
  *
  * ```ts
@@ -76,7 +76,8 @@ export const betterAuthPlugin = definePlugin({
 
     api.provide(BetterAuth, { existing: token })
 
-    const attributes = [AllowAnonymous(), OpenApiExclude()]
+    // Public: Better Auth decides who may call its endpoints.
+    const attributes = [AccessAttribute('public'), OpenApiExclude()]
     // Handlers are fields of the instance, the form core discovers at boot.
     class BetterAuthController {
       constructor() {

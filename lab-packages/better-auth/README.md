@@ -54,41 +54,54 @@ const app = await NaviosFactory.create(AppModule, {
 
 The plugin declares one route per method (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`; `HEAD` is answered as `GET`) on `path/$path*`, a rest param that takes the rest of the path, and hands each request to `auth.handler()` with `ctx.toWebRequest()`. On Bun and srvx that is the request the server received, untouched; on Fastify one built from it. Better Auth's `Response` is returned as it is: status, headers, every `set-cookie` and its body. Every endpoint of Better Auth and of its plugins is reached, whatever its method or depth.
 
-They are ordinary routes, so they pass through the application's interceptors (CORS, OpenTelemetry) and get its global prefix. A cookie an interceptor or `AuthSession` sets on such a route is sent next to Better Auth's own. A route of your own with a fixed path under `path`, such as `/api/auth/me`, wins over them. They carry `AllowAnonymous` and are left out of an OpenAPI document.
+They are ordinary routes, so they pass through the application's interceptors (CORS, OpenTelemetry) and get its global prefix. A cookie an interceptor sets on such a route is sent next to Better Auth's own. A route of your own with a fixed path under `path`, such as `/api/auth/me`, wins over them. They are public and left out of an OpenAPI document.
 
 The instance is created when the application starts. When `path`, with the application's prefixes, is not Better Auth's base path, the start fails with a message that says what to change: with `globalPrefix: '/v1'` the routes are at `/v1/api/auth`, and Better Auth needs `basePath: '/v1/api/auth'`, or a `baseURL` with that path.
 
-## Sessions
+## Protect routes
+
+A route says what it needs of the session with a decorator, on the handler, the controller or the module. The most specific one counts, and a route without one is not checked:
+
+| Decorator          | Without a session | Signed in                 | In the handler          |
+| ------------------ | ----------------- | ------------------------- | ----------------------- |
+| none               | no check          | no check                  |                         |
+| `@Public()`        | passes            | passes                    |                         |
+| `@Authenticated()` | 401               | passes                    | `ctx.get(CurrentUser)`  |
+| `@Roles('admin')`  | 401               | 403 unless a role matches | `ctx.get(CurrentUser)`  |
+| `@Guest()`         | passes            | 403                       |                         |
+| `@OptionalAuth()`  | passes            | passes                    | `ctx.find(CurrentUser)` |
 
 ```ts
-@Module({ controllers: [NotesController], guards: [BetterAuthGuard] })
-export class NotesModule {}
-
+@Authenticated()
 @Controller()
 export class NotesController {
   @Endpoint(listNotes)
-  async list(_params: HandlerParams<typeof listNotes>, ctx: RequestContext) {
-    const { user } = await requireSession(ctx)
-    return this.notes.list(user.id)
+  list(_params: HandlerParams<typeof listNotes>, ctx: RequestContext) {
+    return this.notes.list(ctx.get(CurrentUser).id)
   }
 
-  @AllowAnonymous()
-  @Endpoint(listPublicNotes)
-  async listPublic(_params: HandlerParams<typeof listPublicNotes>, ctx: RequestContext) {
-    const session = await ctx.get(AuthSession) // null when signed out
-    return this.notes.listPublic(session?.user.id)
+  @Public()
+  @Endpoint(listFeatured)
+  featured() {
+    return this.notes.featured()
+  }
+
+  @Roles('admin')
+  @Endpoint(purgeNotes)
+  purge() {
+    return this.notes.purge()
   }
 }
 ```
 
-| Export                | What it does                                                                                                                                                                                                                     |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthSession`         | A request value: `await ctx.get(AuthSession)` is the session or `null`. It is looked up on first read, once per request, so the guard and the handler share one lookup. A cookie Better Auth refreshes is sent with the response |
-| `requireSession(ctx)` | The session. Throws `UnauthorizedException` (401) when there is none, on any route                                                                                                                                               |
-| `BetterAuthGuard`     | Answers 401 without a session. Put it on a module, a controller or the application                                                                                                                                               |
-| `AllowAnonymous()`    | Lets a handler, controller or module through the guard. The session can still be read there                                                                                                                                      |
+- Each decorator but `@Public()` attaches `BetterAuthGuard`, which runs once per request, looks the session up once, and fills `CurrentUser` and `CurrentSession` before the handler. They are read synchronously; behind `@Authenticated()` and `@Roles()` they are always there.
+- `@Public()` exempts a route from a decorator above it, and does no lookup.
+- `@Roles()` reads `user.role`, a comma-separated list as Better Auth's [admin plugin](https://www.better-auth.com/docs/plugins/admin) keeps it. Any one of the roles is enough.
+- `@Guest()` is for the application's own routes for visitors, such as an invitation form. Better Auth's sign-up and sign-in are served by the plugin, which leaves them open.
+- When Better Auth extends a session, its new cookie is sent with the response.
+- `BetterAuthGuard` can also be given to a module or to the application (`guards: [BetterAuthGuard]`). It acts on the decorators only.
 
-The session is typed with Better Auth's base user and session. Register your token to type it with your plugins and additional fields:
+The user and the session are typed with Better Auth's base fields. Register your token to type them with your plugins and additional fields:
 
 ```ts
 declare module '@navios/better-auth' {

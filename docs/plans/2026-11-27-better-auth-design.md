@@ -56,7 +56,7 @@ The revision changes `@navios/server` instead, because three small features make
 
 A raw mount that bypasses the pipeline on Bun was considered and rejected (my call): the auth routes would lose the application's interceptors (CORS, OTel), its prefix and its error format, for a saving that Better Auth's own database work dwarfs.
 
-The plugin now declares `GET`, `POST`, `PUT`, `PATCH` and `DELETE` on `path/$path*` (`HEAD` is served by the `GET` route and asked as `GET`) and returns `auth.handler(await ctx.toWebRequest())`. At start-up it checks one thing, failing `init()` with advice: the path the routes are served at, with the prefixes, equals Better Auth's effective base path (the pathname of `$context.baseURL` when set, else `options.basePath`); the advice names `baseURL` when the configured URL has a path of its own. The routes carry `AllowAnonymous` and the OpenAPI exclusion attribute (`Symbol.for('navios:openapi:exclude')`, no dependency on `@navios/openapi`).
+The plugin now declares `GET`, `POST`, `PUT`, `PATCH` and `DELETE` on `path/$path*` (`HEAD` is served by the `GET` route and asked as `GET`) and returns `auth.handler(await ctx.toWebRequest())`. At start-up it checks one thing, failing `init()` with advice: the path the routes are served at, with the prefixes, equals Better Auth's effective base path (the pathname of `$context.baseURL` when set, else `options.basePath`); the advice names `baseURL` when the configured URL has a path of its own. The routes are `@Public()` and carry the OpenAPI exclusion attribute (`Symbol.for('navios:openapi:exclude')`, no dependency on `@navios/openapi`).
 
 ## Package API
 
@@ -64,15 +64,25 @@ Lives in `lab-packages/better-auth` (my call: `lab-packages/` is this repo's pla
 
 - `provideBetterAuth(options | (ctx) => options, { name? })` returns `InjectionToken<Auth<Options>>`, a factory like `provideJwtService`. Options are passed to `betterAuth()` unchanged.
 - `betterAuthPlugin({ auth, path = '/api/auth' })` mounts the routes, provides the `BetterAuth` alias token for the package's own classes, and runs the start-up check.
-- `AuthSession`: a request value whose `resolve` calls `auth.api.getSession({ headers })` once per request, lazily, giving `Promise<Session | null>`.
-- `requireSession(ctx)` returns `Promise<Session>` and throws `UnauthorizedException` when there is none.
-- `BetterAuthGuard` lets a request through when it has a session and throws 401 otherwise. `AllowAnonymous()` (handler, controller or module) skips it. An anonymous route can still read `AuthSession`, so there is no separate "optional auth" attribute.
-- Session typing: `declare module '@navios/better-auth' { interface BetterAuthRegister { auth: typeof Auth } }` types `AuthSession` with the application's plugins and additional fields. Without it, the base `{ session, user }` types apply.
+- **Access is declared with decorators** (revision of 2026-11-28, approved): each decorator sets an access attribute and attaches `BetterAuthGuard` (`@UseGuards`), which runs once per request whatever the levels. The most specific declaration wins: handler over controller over module. Without a decorator there is no check.
+
+  | Decorator          | No session        | Signed in                 | In the handler          |
+  | ------------------ | ----------------- | ------------------------- | ----------------------- |
+  | none               | no check          | no check                  |                         |
+  | `@Public()`        | passes, no lookup | passes                    |                         |
+  | `@Authenticated()` | 401               | passes                    | `ctx.get(CurrentUser)`  |
+  | `@Roles('admin')`  | 401               | 403 unless a role matches | `ctx.get(CurrentUser)`  |
+  | `@Guest()`         | passes            | 403                       |                         |
+  | `@OptionalAuth()`  | passes            | passes                    | `ctx.find(CurrentUser)` |
+
+  `CurrentUser` and `CurrentSession` are context keys the guard fills: synchronous, non-null behind `@Authenticated()` and `@Roles()`. Roles are read from `user.role`, a comma-separated list as Better Auth's admin plugin stores it. `BetterAuthGuard` is exported for `@Module({ guards })` or the application's `guards`; it reads the same decorators. Better Auth's own routes are `@Public()`. Removed: `AllowAnonymous`, `AuthSession`, `requireSession`.
+
+- Session typing: `declare module '@navios/better-auth' { interface BetterAuthRegister { auth: typeof Auth } }` types `CurrentUser` and `CurrentSession` with the application's plugins and additional fields. Without it, the base types apply.
 - `authForCli(token, { module, providers?, plugins?, logger? })` for the CLI.
 
 ## Example
 
-`examples/better-auth-sqlite`: the Bun adapter with `bun:sqlite`. A `Database` service owns the connection, and `Auth` injects it. A notes resource per user is protected by `BetterAuthGuard`. `auth.config.mts` and package scripts (`bun --bun x auth …`) drive the CLI. Its `bun test` suite runs the real CLI (`migrate`, `check`, `generate`) against a temporary database, then the whole sign-up, session, protected route and sign-out flow over HTTP.
+`examples/better-auth-sqlite`: the Bun adapter with `bun:sqlite`. A `Database` service owns the connection, and `Auth` injects it. A notes resource per user is protected with `@Authenticated()`. `auth.config.mts` and package scripts (`bun --bun x auth …`) drive the CLI. Its `bun test` suite runs the real CLI (`migrate`, `check`, `generate`) against a temporary database, then the whole sign-up, session, protected route and sign-out flow over HTTP.
 
 ## Left to later
 
