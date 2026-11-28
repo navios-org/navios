@@ -47,9 +47,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@aws-sdk/client-sqs@npm:^3.1175.0":
-  version: 3.1175.0
-  resolution: "@aws-sdk/client-sqs@npm:3.1175.0"
+"@aws-sdk/client-sqs@npm:^3.1176.0":
+  version: 3.1176.0
+  resolution: "@aws-sdk/client-sqs@npm:3.1176.0"
   dependencies:
     "@aws-sdk/core": "npm:^3.981.1"
     "@aws-sdk/credential-provider-node": "npm:^3.972.98"
@@ -60,7 +60,7 @@ __metadata:
     "@smithy/node-http-handler": "npm:^4.14.2"
     "@smithy/types": "npm:^4.20.0"
     tslib: "npm:^2.6.2"
-  checksum: 10c0/7a46562ccdf1e3d0a1814e27feaf1527f98e581b6ad4cdc9982333628a02a4ae08b9969fb8281f6c970bb6e29bb5e579204626f23ffa81db3efbfd9b9bbd657f
+  checksum: 10c0/ea98d6bbe545980e4817d627b25c4772dd00d7b76b37d72e45902826c58330dff54bbf3ada26eabb48c31929a97ec6f27a33a7fc7a067c1b823d14137c984d5e
   languageName: node
   linkType: hard
 
@@ -2115,7 +2115,7 @@ __metadata:
   resolution: "@navios/queues@workspace:packages/queues"
   dependencies:
     "@aws-sdk/client-sns": "npm:^3.1175.0"
-    "@aws-sdk/client-sqs": "npm:^3.1175.0"
+    "@aws-sdk/client-sqs": "npm:^3.1176.0"
     "@navios/di": "workspace:^"
     "@types/amqplib": "npm:^0.10.8"
     amqp-connection-manager: "npm:^5.0.1"
