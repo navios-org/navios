@@ -75,6 +75,7 @@ const server: Entry[] = [
     'Guides',
     [
       'server/guides/authentication',
+      'server/guides/better-auth',
       'server/guides/request-state',
       'server/guides/file-uploads',
       'server/guides/streams-and-sse',

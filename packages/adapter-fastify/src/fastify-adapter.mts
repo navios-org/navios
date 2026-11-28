@@ -201,10 +201,20 @@ export class FastifyAdapter implements HttpAdapter<FastifyEnvironment> {
     if (info.endpoint.body === 'multipart') {
       this.multipartRoutes.push(`${info.method} ${info.path}`)
     }
+    const last = path.segments[path.segments.length - 1]
+    const handle = this.handlerFor(execute)
     this.server.route({
       method: info.method as any,
       url: toFastifyPath(path),
-      handler: this.handlerFor(execute),
+      handler:
+        'rest' in last
+          ? (request: FastifyRequest, reply: FastifyReply) => {
+              // Fastify names what its wildcard matched `*`.
+              const { '*': rest, ...params } = request.params as Record<string, string>
+              request.params = { ...params, [last.rest]: rest }
+              return handle(request, reply)
+            }
+          : handle,
     })
   }
 
@@ -284,7 +294,11 @@ function collectBody(request: FastifyRequest, body: Buffer, done: any): void {
 function toFastifyPath({ segments }: RoutePath): string {
   return segments
     .map((segment) =>
-      'param' in segment ? `/:${segment.param}` : `/${segment.literal.replaceAll(':', '::')}`,
+      'param' in segment
+        ? `/:${segment.param}`
+        : 'rest' in segment
+          ? '/*'
+          : `/${segment.literal.replaceAll(':', '::')}`,
     )
     .join('')
 }

@@ -4,6 +4,7 @@ import { isCustomResult } from '../responses/custom-result.mjs'
 import { isLazyBody } from '../responses/managed-body.mjs'
 import { isEndpointReply } from '../responses/reply.mjs'
 import { isEventStream } from '../responses/response-headers.mjs'
+import { fromWebResponse } from '../responses/web-response.mjs'
 import { SseBody } from '../sse/sse-body.mjs'
 import { isSseStream } from '../sse/sse-stream.mjs'
 
@@ -104,6 +105,10 @@ export function compileFinalizer(
         return value.headers === undefined
           ? { status: value.status, body: value.body, kind: value.kind }
           : { status: value.status, headers: value.headers, body: value.body, kind: value.kind }
+      }
+      // What a fetch handler answers: sent as it is.
+      if (value instanceof Response) {
+        return fromWebResponse(value, ctx)
       }
       // The request owns a lazy body from here on, so that one that is never
       // sent, whatever the reason, is closed with the request.

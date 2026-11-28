@@ -28,11 +28,11 @@ type SuccessReturnOf<Config> = Config extends { response: 'void' }
   : Config extends { responses: infer Responses extends Record<number, StandardSchemaV1 | null> }
     ? RepliesOf<Responses>
     : Config extends { response: 'stream' }
-      ? ReadableStream | AsyncIterable<string | Uint8Array> | SseStream | CustomResult
+      ? ReadableStream | AsyncIterable<string | Uint8Array> | SseStream | CustomResult | Response
       : Config extends { response: 'text' }
-        ? string | ReadableStream | AsyncIterable<string | Uint8Array> | CustomResult
+        ? string | ReadableStream | AsyncIterable<string | Uint8Array> | CustomResult | Response
         : Config extends { response: 'blob' }
-          ? Blob | ArrayBuffer | Uint8Array | ReadableStream | CustomResult
+          ? Blob | ArrayBuffer | Uint8Array | ReadableStream | CustomResult | Response
           : Config extends { responseSchema: infer Schema extends StandardSchemaV1 }
             ? InferInput<Schema>
             : unknown
@@ -77,6 +77,7 @@ type Opaque =
   | ReadonlySet<unknown>
   | SseStream
   | CustomResult
+  | Response
   | ((...args: any[]) => unknown)
 
 /**

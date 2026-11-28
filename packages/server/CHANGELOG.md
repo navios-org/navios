@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-alpha.2] - Unreleased
+
+### Added
+
+- A rest param takes the rest of a path: `url: '/files/$path*'` matches `/files/a` and `/files/a/b/c`, with `urlParams.path` holding `'a/b/c'`, each segment decoded. It is the last segment of a path, matches one segment or more and no empty or dot segment, and loses to fixed text and to a url param at the first segment where two routes differ. Every adapter serves it, and `app.inject()` and the test client match it the same way.
+- `ctx.toWebRequest()` gives the request as a Web `Request`, for code written for `fetch` handlers (Better Auth, Hono, tRPC). On Bun, and srvx on Bun and Deno, it is the request the server received, untouched, as long as nothing has read its body; elsewhere it is built from the method, the target as the client sent it, the headers but those of the connection, and the body.
+- A handler of an endpoint declared with `response: 'stream'`, `'blob'` or `'text'` may return a Web `Response`. It is sent with its status, its headers over those of `ctx.reply`, every `set-cookie` of both, and its body streamed.
+- For adapter authors: a route's `RoutePath` may end in a `{ rest }` segment, which `RouteTable` matches, and `RouteInput.webRequest()`, optional, gives the Web `Request` of a server that has one.
+
+### Changed
+
+- Returning a `Response` from a `stream`, `blob` or `text` endpoint was an error answered with 500. It is now sent.
+
 ## [2.0.0-alpha.1] - 2026-11-27
 
 ### Breaking

@@ -5,9 +5,19 @@ import type { Schema } from './schema.mjs'
 /**
  * The one definition of a URL parameter: `$` followed by a letter or
  * underscore, then letters, digits or underscores. The type-level
- * `ParsePathParams` follows the same rule.
+ * `ParsePathParams` follows the same rule. A `*` after the name makes it a
+ * rest param (`/files/$path*`), whose value may hold slashes.
  */
-const URL_PARAM_PATTERN = /\$([A-Za-z_][A-Za-z0-9_]*)/g
+const URL_PARAM_PATTERN = /\$([A-Za-z_][A-Za-z0-9_]*)(\*?)/g
+
+/** The names of the rest params of a URL template. */
+function restParamNames(urlPart: string): Set<string> {
+  const names = new Set<string>()
+  for (const [, name, star] of urlPart.matchAll(URL_PARAM_PATTERN)) {
+    if (name !== undefined && star === '*') names.add(name)
+  }
+  return names
+}
 
 /**
  * Lists the parameter names in a URL template, in order of first appearance.
@@ -111,16 +121,34 @@ export function bindUrlParams<Url extends string>(
   // `encodeURIComponent` leaves dots alone, and a `.` or `..` segment is
   // resolved away by URL parsing (`/users/../profile` -> `/profile`), so the
   // request would hit a different route.
-  const dotParams = requiredParams.filter((param) => ['.', '..'].includes(texts.get(param)!))
+  const rest = restParamNames(urlPart)
+  const dotParams = requiredParams.filter(
+    (param) => !rest.has(param) && ['.', '..'].includes(texts.get(param)!),
+  )
   if (dotParams.length > 0) {
     throw new Error(
       `Invalid URL parameters (a value cannot be "." or ".."): ${dotParams.join(', ')}`,
     )
   }
+  // A rest param keeps its slashes, so each of its segments is a segment of
+  // the path: none may be empty or a dot segment.
+  const badRest = [...rest].filter((param) =>
+    texts
+      .get(param)!
+      .split('/')
+      .some((segment) => ['', '.', '..'].includes(segment)),
+  )
+  if (badRest.length > 0) {
+    throw new Error(
+      `Invalid URL parameters (a segment of a rest param cannot be empty, "." or ".."): ${badRest.join(', ')}`,
+    )
+  }
 
   // Single-pass replacement using callback to avoid issues with values containing $
-  const result = urlPart.replace(URL_PARAM_PATTERN, (_, paramName: string) =>
-    encodeURIComponent(texts.get(paramName)!),
+  const result = urlPart.replace(URL_PARAM_PATTERN, (_, paramName: string, star: string) =>
+    star === '*'
+      ? texts.get(paramName)!.split('/').map(encodeURIComponent).join('/')
+      : encodeURIComponent(texts.get(paramName)!),
   )
 
   return result as Url

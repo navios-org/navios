@@ -69,6 +69,14 @@ describe('handler() field form', () => {
     })
   })
 
+  it('accepts a Web Response from a stream, text or blob endpoint, and not from a JSON one', () => {
+    handler(download, () => new Response('body'))
+    handler(download, async () => new Response(null, { status: 302 }))
+    handler(text, () => new Response('text'))
+    // @ts-expect-error a JSON endpoint returns its body
+    handler(getUser, () => new Response('{}'))
+  })
+
   it('accepts declared error replies, bodiless statuses, streams and void', () => {
     handler(getUser, () => reply(404, { message: 'missing' }))
     handler(createUser, () => reply(204))

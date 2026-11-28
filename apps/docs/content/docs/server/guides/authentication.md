@@ -6,6 +6,8 @@ title: Authentication with JWT
 
 `@navios/jwt` signs and verifies JSON Web Tokens in an injectable service. This page builds bearer-token authentication with it from start to finish: a login endpoint signs a token, a guard verifies it and stores the user for the request, and an attribute marks the routes that need no token.
 
+This is authentication you assemble yourself. For sign-up, passwords, sessions and OAuth providers ready-made, with their database tables, see [Better Auth](/docs/server/guides/better-auth).
+
 ```bash
 npm install @navios/jwt@next
 ```
@@ -26,13 +28,13 @@ export const Jwt = provideJwtService({
 })
 ```
 
-| Option                    | Meaning                                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `secret`                  | Key for the symmetric algorithms (`HS256`, `HS384`, `HS512`), at least 32 random bytes               |
-| `privateKey`, `publicKey` | Key pair for the asymmetric algorithms (`RS256`, `ES256`, `PS256` and their variants)                |
-| `signOptions`             | Defaults for signing: `expiresIn`, `algorithm`, `issuer`, `audience`, `subject` and the rest         |
-| `verifyOptions`           | Defaults for verifying: `algorithms`, `issuer`, `audience`, `clockTolerance`, `maxAge` and the rest  |
-| `keys`                    | `(request) => key`, called for every sign and verify instead of the keys above                       |
+| Option                    | Meaning                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `secret`                  | Key for the symmetric algorithms (`HS256`, `HS384`, `HS512`), at least 32 random bytes              |
+| `privateKey`, `publicKey` | Key pair for the asymmetric algorithms (`RS256`, `ES256`, `PS256` and their variants)               |
+| `signOptions`             | Defaults for signing: `expiresIn`, `algorithm`, `issuer`, `audience`, `subject` and the rest        |
+| `verifyOptions`           | Defaults for verifying: `algorithms`, `issuer`, `audience`, `clockTolerance`, `maxAge` and the rest |
+| `keys`                    | `(request) => key`, called for every sign and verify instead of the keys above                      |
 
 The algorithms a token may use follow from the key: a `secret` verifies only HMAC, a public key only the algorithms of its type. List `algorithms` in `verifyOptions` to narrow them further. A time span is a number of seconds or a string with a unit (`'15m'`); `'900'` is refused.
 
@@ -166,6 +168,7 @@ export class AuthController {
 The guard needs two small definitions. `CurrentUser` is a [context key](/docs/server/guides/request-state#context-keys), a typed per-request slot. `Public` is a flag [attribute](/docs/server/guides/attributes) for routes that skip the check.
 
 ```ts title="auth.guard.mts"
+import { JsonWebTokenError, TokenExpiredError } from '@navios/jwt'
 import {
   AttributeFactory,
   createContextKey,
@@ -173,7 +176,6 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@navios/server'
-import { JsonWebTokenError, TokenExpiredError } from '@navios/jwt'
 
 import type { Guard, RequestContext } from '@navios/server'
 
@@ -260,13 +262,13 @@ On a `@Public()` route the key is not set and `ctx.get` throws; use `ctx.find(Cu
 
 `inject(Jwt)` is a `JwtService`:
 
-| Method                         | Result                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `sign(payload, options?)`      | The token                                                                 |
-| `signAsync(payload, options?)` | A promise of the token                                                    |
-| `verify<T>(token, options?)`   | The payload, `JwtPayload` by default. Throws one of the errors below      |
-| `verifyAsync<T>(token, options?)` | A promise of the payload, rejected with the same errors                |
-| `decode<T>(token, options?)`   | The payload without checking the signature or expiry. Never trust its result for access decisions |
+| Method                            | Result                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sign(payload, options?)`         | The token                                                                                         |
+| `signAsync(payload, options?)`    | A promise of the token                                                                            |
+| `verify<T>(token, options?)`      | The payload, `JwtPayload` by default. Throws one of the errors below                              |
+| `verifyAsync<T>(token, options?)` | A promise of the payload, rejected with the same errors                                           |
+| `decode<T>(token, options?)`      | The payload without checking the signature or expiry. Never trust its result for access decisions |
 
 Per-call `options` are merged over the configured `signOptions` or `verifyOptions`. An option that is `undefined` is not given, so it never switches off a configured check; an empty one is an error. When signing, `null` leaves out a default claim (`expiresIn: null` is a token without `exp`), and a default is not applied to a claim the payload already has.
 
@@ -278,11 +280,11 @@ A call may carry its own `secret`, `privateKey` or `publicKey`, which wins over 
 
 `verify` and `verifyAsync` throw one of these for a token that cannot be accepted, whatever is wrong with it:
 
-| Class               | When                                                      | Extra field |
-| ------------------- | --------------------------------------------------------- | ----------- |
-| `TokenExpiredError` | The `exp` claim has passed                                | `expiredAt` |
-| `NotBeforeError`    | The `nbf` claim is in the future                          | `date`      |
-| `JsonWebTokenError` | Malformed token, wrong signature, algorithm not allowed, unknown key, audience or issuer mismatch | —  |
+| Class               | When                                                                                              | Extra field |
+| ------------------- | ------------------------------------------------------------------------------------------------- | ----------- |
+| `TokenExpiredError` | The `exp` claim has passed                                                                        | `expiredAt` |
+| `NotBeforeError`    | The `nbf` claim is in the future                                                                  | `date`      |
+| `JsonWebTokenError` | Malformed token, wrong signature, algorithm not allowed, unknown key, audience or issuer mismatch | —           |
 
 The first two extend `JsonWebTokenError`, so test for them first. A missing key or a wrong option is a plain `Error`, so it is not answered as a wrong token. None of them is an `HttpException`: one that escapes a guard or a handler is an unexpected error and answers 500. Either translate them where you verify, as the guard above does, or map the base class once for the whole application:
 
@@ -294,15 +296,15 @@ app.mapError(JsonWebTokenError, () => problem(401, 'Invalid or expired token'))
 
 ## Types
 
-| Export                                 | Description                                                                                   |
-| -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `JwtServiceOptions`                    | The configuration `provideJwtService` takes                                                   |
-| `JwtSignOptions`                       | The per-call options of `sign` and `signAsync`: the defaults of the service and a key         |
-| `JwtVerifyOptions`                     | The per-call options of `verify` and `verifyAsync`: the defaults of the service and a key     |
-| `JwtKeyRequest`, `JwtKeyMaterial`      | What `keys` is called with, and what it returns                                               |
-| `JwtPayload`, `JwtHeader`, `JwtComplete` | The registered claims, the header, and a token taken apart                                  |
-| `JwtDecodeOptions`, `ProvideJwtServiceOptions` | The options of `decode`, and the second argument of `provideJwtService` (`{ name }`)  |
-| `JwtKey`, `JwtPrivateKey`, `Algorithm` | The accepted key types and the algorithm names                                                |
+| Export                                         | Description                                                                               |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `JwtServiceOptions`                            | The configuration `provideJwtService` takes                                               |
+| `JwtSignOptions`                               | The per-call options of `sign` and `signAsync`: the defaults of the service and a key     |
+| `JwtVerifyOptions`                             | The per-call options of `verify` and `verifyAsync`: the defaults of the service and a key |
+| `JwtKeyRequest`, `JwtKeyMaterial`              | What `keys` is called with, and what it returns                                           |
+| `JwtPayload`, `JwtHeader`, `JwtComplete`       | The registered claims, the header, and a token taken apart                                |
+| `JwtDecodeOptions`, `ProvideJwtServiceOptions` | The options of `decode`, and the second argument of `provideJwtService` (`{ name }`)      |
+| `JwtKey`, `JwtPrivateKey`, `Algorithm`         | The accepted key types and the algorithm names                                            |
 
 ## Replacing the service
 

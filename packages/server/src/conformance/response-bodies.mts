@@ -64,11 +64,6 @@ export function defineResponseBodiesTopic(suite: ConformanceSuite) {
       () => ({ a: 1 }),
     )
 
-    unsupported = handler(
-      endpoint({ method: 'GET', url: '/unsupported/response', response: 'stream' }),
-      () => new Response('a web response') as any,
-    )
-
     unsupportedText = handler(
       endpoint({ method: 'GET', url: '/unsupported/number', response: 'text' }),
       () => 12 as any,
@@ -110,7 +105,7 @@ export function defineResponseBodiesTopic(suite: ConformanceSuite) {
       })
 
       it('answers 500 problem+json for a body it cannot send', async () => {
-        for (const path of ['/unsupported/response', '/unsupported/number']) {
+        for (const path of ['/unsupported/number']) {
           const response = await fetch(url(path))
           expect(response.status).toBe(500)
           expect(response.headers.get('content-type')).toContain('application/problem+json')

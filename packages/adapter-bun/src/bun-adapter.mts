@@ -238,8 +238,13 @@ export class BunAdapter<WebSocketData = undefined> implements HttpAdapter<
     handle: Handle,
   ): (request: BunRequest) => MaybePromise<Response> {
     const { segments, params: names } = path
-    if (segments.some((segment) => 'literal' in segment && segment.literal.includes(':'))) {
-      // Bun finds the route, and takes what follows the colon for one of its params.
+    if (
+      segments.some(
+        (segment) => 'rest' in segment || ('literal' in segment && segment.literal.includes(':')),
+      )
+    ) {
+      // Bun finds the route, and takes what follows the colon for one of its params. What
+      // its wildcard matched, it does not name. Either way the path is read again.
       return (request) => {
         let params: Record<string, string>
         try {
@@ -367,9 +372,9 @@ function isDecodable(request: Request): boolean {
 function toSentPath({ segments, params }: RoutePath): RoutePath {
   return {
     segments: segments.map((segment) =>
-      'param' in segment
-        ? segment
-        : { literal: new URL(`http://localhost/${segment.literal}`).pathname.slice(1) },
+      'literal' in segment
+        ? { literal: new URL(`http://localhost/${segment.literal}`).pathname.slice(1) }
+        : segment,
     ),
     params,
   }
@@ -377,7 +382,9 @@ function toSentPath({ segments, params }: RoutePath): RoutePath {
 
 function toBunPath({ segments }: RoutePath): string {
   return segments
-    .map((segment) => ('param' in segment ? `/:${segment.param}` : `/${segment.literal}`))
+    .map((segment) =>
+      'param' in segment ? `/:${segment.param}` : 'rest' in segment ? '/*' : `/${segment.literal}`,
+    )
     .join('')
 }
 
@@ -388,6 +395,8 @@ function paramsIn(path: string, { segments }: RoutePath): Record<string, string>
   segments.forEach((segment, index) => {
     if ('param' in segment) {
       params[segment.param] = decodeURIComponent(texts[index] ?? '')
+    } else if ('rest' in segment) {
+      params[segment.rest] = texts.slice(index).map(decodeURIComponent).join('/')
     }
   })
   return params

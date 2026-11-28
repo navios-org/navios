@@ -7,7 +7,7 @@ import { getControllerMetadata } from '../controllers/controller-metadata.mjs'
 import { memberEndpoint } from '../handlers/endpoint-declaration.mjs'
 import { isFieldHandler } from '../handlers/handler.mjs'
 import { compileRoute } from '../pipeline/compile-route.mjs'
-import { compileRoutePath, isUnmatchable } from '../routing/route-path.mjs'
+import { compileRoutePath, isUnmatchable, isUnmatchableRest } from '../routing/route-path.mjs'
 
 import type { CompiledRoute, RouteExecutor } from '../adapter/compiled-route.mjs'
 import type { RequestContext } from '../context/request-context.mjs'
@@ -71,7 +71,9 @@ export async function assembleRoutes(
         const method = draft.config.method.toUpperCase()
         const { path, compiledPath } = routePath(prefix, draft.config.url, where)
         const key = `${method} ${JSON.stringify(
-          compiledPath.segments.map((segment) => ('param' in segment ? null : segment.literal)),
+          compiledPath.segments.map((segment) =>
+            'literal' in segment ? segment.literal : 'rest' in segment ? '*' : null,
+          ),
         )}`
         const existing = taken.get(key)
         if (existing) {
@@ -129,20 +131,24 @@ function routePath(
 
 /**
  * A router may match `/users/` to `/users/$id` with an empty `id`, and most
- * take `..` for a value. Neither is a request for the route.
+ * take `..` for a value. Neither is a request for the route. For a rest param
+ * the same holds for each of its segments: `/files/a//b` is not a file.
  */
 function matching(
-  { params }: RoutePath,
+  { segments, params }: RoutePath,
   execute: RouteExecutor,
   notFound: RouteExecutor,
 ): RouteExecutor {
   if (params.length === 0) {
     return execute
   }
+  const last = segments[segments.length - 1]
+  const rest = 'rest' in last ? last.rest : null
   return (input) => {
     const { urlParams } = input
     for (const name of params) {
-      if (isUnmatchable(urlParams[name])) {
+      const value = urlParams[name]
+      if (name === rest ? isUnmatchableRest(value ?? '') : isUnmatchable(value)) {
         return notFound(input)
       }
     }

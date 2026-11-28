@@ -26,23 +26,23 @@ Most members are created on first access, so a request that never reads cookies 
 
 ## Request data
 
-| Member                       | Type                               | Notes                                                                                             |
-| ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `ctx.id`                     | `string`                           | The adapter's request id when it has one (Fastify), otherwise a process-unique `req-N`            |
-| `ctx.method`                 | `string`                           |                                                                                                   |
-| `ctx.path`                   | `string`                           | The path that was matched, without the query string. See [Path, URL and address](#path-url-and-address) |
-| `ctx.url`                    | `URL`                              | The URL of the request, with `ctx.path` as its path                                               |
-| `ctx.ip`                     | `string \| undefined`              | The address of the client                                                                         |
-| `ctx.route`                  | `RouteInfo`                        | The matched route: method, full path, the endpoint's `config`, controller, guards, attributes     |
-| `ctx.handler`                | `RouteInfo`                        | The same object as `ctx.route`, under the name every transport's context has                      |
+| Member                       | Type                               | Notes                                                                                                                                                                               |
+| ---------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ctx.id`                     | `string`                           | The adapter's request id when it has one (Fastify), otherwise a process-unique `req-N`                                                                                              |
+| `ctx.method`                 | `string`                           |                                                                                                                                                                                     |
+| `ctx.path`                   | `string`                           | The path that was matched, without the query string. See [Path, URL and address](#path-url-and-address)                                                                             |
+| `ctx.url`                    | `URL`                              | The URL of the request, with `ctx.path` as its path                                                                                                                                 |
+| `ctx.ip`                     | `string \| undefined`              | The address of the client                                                                                                                                                           |
+| `ctx.route`                  | `RouteInfo`                        | The matched route: method, full path, the endpoint's `config`, controller, guards, attributes                                                                                       |
+| `ctx.handler`                | `RouteInfo`                        | The same object as `ctx.route`, under the name every transport's context has                                                                                                        |
 | `ctx.kind`                   | `'http'`                           | The kind of transport. A guard shared with [other transports](/docs/server/guides/other-transports#guards-and-interceptors-on-several-transports) narrows with `isHttpContext(ctx)` |
-| `ctx.urlParams`              | `Readonly<Record<string, string>>` | Decoded URL parameters of the whole path, module and global prefixes included. Not validated      |
-| `ctx.query`                  | `RequestQuery`                     | The parsed query string; a repeated parameter is an array. Not validated                          |
-| `ctx.headers.get(name)`      | `string \| undefined`              | Case-insensitive                                                                                  |
-| `ctx.headers.toWebHeaders()` | `Headers`                          | All request headers as a web `Headers` object, for libraries that take one                        |
-| `ctx.cookies.get(name)`      | `string \| undefined`              | Parsed from the `cookie` header on first use. Values are URL-decoded                              |
-| `ctx.cookies.all()`          | `Readonly<Record<string, string>>` |                                                                                                   |
-| `ctx.signal`                 | `AbortSignal`                      | Aborts when the client disconnects                                                                |
+| `ctx.urlParams`              | `Readonly<Record<string, string>>` | Decoded URL parameters of the whole path, module and global prefixes included. Not validated                                                                                        |
+| `ctx.query`                  | `RequestQuery`                     | The parsed query string; a repeated parameter is an array. Not validated                                                                                                            |
+| `ctx.headers.get(name)`      | `string \| undefined`              | Case-insensitive                                                                                                                                                                    |
+| `ctx.headers.toWebHeaders()` | `Headers`                          | All request headers as a web `Headers` object, for libraries that take one                                                                                                          |
+| `ctx.cookies.get(name)`      | `string \| undefined`              | Parsed from the `cookie` header on first use. Values are URL-decoded                                                                                                                |
+| `ctx.cookies.all()`          | `Readonly<Record<string, string>>` |                                                                                                                                                                                     |
+| `ctx.signal`                 | `AbortSignal`                      | Aborts when the client disconnects                                                                                                                                                  |
 
 `ctx.urlParams` and `ctx.query` hold what the client sent, as strings. They are what a guard reads, because guards run [before validation](/docs/server/request-lifecycle). In a handler, use the validated values in the first argument instead. The decoded body is not on the context: it is not read until guards have passed. Its bytes are, as [`ctx.rawBody()`](#the-raw-body).
 
@@ -53,6 +53,10 @@ Most members are created on first access, so a request that never reads cookies 
 `ctx.url.host` is what the client says in its `Host` header, or `localhost` when that is not a valid host. Do not build links that you send to somebody else from it.
 
 `ctx.ip` is the address of the connection. Behind a proxy that is the proxy's address, unless the adapter is told which proxies to trust: set `trustProxy` on [Fastify](/docs/server/adapters/fastify), or `serve.trustProxy` on [srvx](/docs/server/adapters/srvx); Bun has no such option, so read the header your proxy sets. It is `undefined` for `app.inject()` without a `remoteAddress`.
+
+### The request for `fetch` handlers
+
+`await ctx.toWebRequest()` is the request as a Web `Request`, for code written for `fetch` handlers. On Bun, and srvx on Bun and Deno, it is the request the server received, untouched, as long as nothing has read its body. Otherwise, on Fastify, srvx on Node, or once a guard has read `ctx.rawBody()`, it is built from the method, the target as the client sent it, the headers but those of the connection (`connection`, `transfer-encoding` and the like), and the bytes of the body. Its body can be read once. A handler can return what such code answers; see [What a handler returns](/docs/server/essentials/controllers#what-a-handler-returns).
 
 ### The raw body
 
@@ -71,7 +75,9 @@ export class WebhookGuard implements Guard {
 
   async canActivate(ctx: RequestContext) {
     const sent = Buffer.from(ctx.headers.get('x-signature') ?? '', 'hex')
-    const expected = createHmac('sha256', this.secret).update(await ctx.rawBody()).digest()
+    const expected = createHmac('sha256', this.secret)
+      .update(await ctx.rawBody())
+      .digest()
     return sent.byteLength === expected.byteLength && timingSafeEqual(sent, expected)
   }
 }
@@ -149,12 +155,12 @@ When `app.close()` has to give up on a request, its callbacks run and its state 
 
 `ctx.raw` holds the adapter's own request objects.
 
-| Adapter           | `ctx.raw`                                          |
-| ----------------- | -------------------------------------------------- |
-| Fastify           | `{ request: FastifyRequest; reply: FastifyReply }` |
-| Bun               | `{ request: Request; server: Server \| null }`     |
+| Adapter           | `ctx.raw`                                            |
+| ----------------- | ---------------------------------------------------- |
+| Fastify           | `{ request: FastifyRequest; reply: FastifyReply }`   |
+| Bun               | `{ request: Request; server: Server \| null }`       |
 | srvx              | `{ request: ServerRequest; server: Server \| null }` |
-| In-memory (tests) | `{ request: TestRequest }`                         |
+| In-memory (tests) | `{ request: TestRequest }`                           |
 
 Without further setup `ctx.raw` is `unknown`. Its type comes from one declaration in the application, which tells TypeScript which adapter the application runs on:
 

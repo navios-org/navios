@@ -69,11 +69,13 @@ export class UsersController {
 
 `HandlerParams<typeof endpoint>` has a key for each part the declaration has:
 
-| Key         | Present when the declaration has | Content                                                             |
-| ----------- | -------------------------------- | ------------------------------------------------------------------- |
-| `urlParams` | `$name` placeholders in `url`    | Path parameters: strings, or the output of `urlParamsSchema`        |
-| `params`    | `querySchema`                    | The validated query: the schema's output                            |
-| `data`      | `requestSchema`                  | The validated body: the schema's output                             |
+| Key         | Present when the declaration has | Content                                                      |
+| ----------- | -------------------------------- | ------------------------------------------------------------ |
+| `urlParams` | `$name` placeholders in `url`    | Path parameters: strings, or the output of `urlParamsSchema` |
+| `params`    | `querySchema`                    | The validated query: the schema's output                     |
+| `data`      | `requestSchema`                  | The validated body: the schema's output                      |
+
+A `$name*` placeholder at the end of `url` is a **rest param**: it takes the rest of the path, one segment or more. `url: '/files/$path*'` matches `/files/readme.md` and `/files/docs/a%20b/c.txt`, where `urlParams.path` is `'docs/a b/c.txt'`, each segment decoded. It matches no empty or dot segment (`/files/a//b`, `/files/a/..`), and a route with fixed text or a `$name` at the first segment where two routes differ wins over it: `/files/readme` and `/files/$id/meta` are matched before `/files/$path*`.
 
 The values are schema **outputs**. `listUsers` above declares `limit` with `z.number().default(20)`, so the client may send `?limit=5` or nothing, and the handler always receives a number. The table in [Sharing with Navios Server](/docs/builder/guides/navios-server#what-each-side-sees) compares this with what the client passes.
 
@@ -81,13 +83,13 @@ The values are schema **outputs**. `listUsers` above declares `limit` with `z.nu
 
 A query string, URL parameters and the fields of a multipart body are text. Before validation the server gives each field the form its schema describes:
 
-| The schema says           | Text                        | Value                  |
-| ------------------------- | --------------------------- | ---------------------- |
-| an array                  | `?tag=a`, `?tag=a&tag=b`    | `['a']`, `['a', 'b']`  |
-| a required array          | nothing                     | `[]`                   |
-| a number or an integer    | `?page=2`                   | `2`                    |
-| a boolean                 | `?draft=false`              | `false`                |
-| an object                 | `?filter={"role":"admin"}`  | `{ role: 'admin' }`    |
+| The schema says        | Text                       | Value                 |
+| ---------------------- | -------------------------- | --------------------- |
+| an array               | `?tag=a`, `?tag=a&tag=b`   | `['a']`, `['a', 'b']` |
+| a required array       | nothing                    | `[]`                  |
+| a number or an integer | `?page=2`                  | `2`                   |
+| a boolean              | `?draft=false`             | `false`               |
+| an object              | `?filter={"role":"admin"}` | `{ role: 'admin' }`   |
 
 - Only text that is exactly such a value is converted: the numeral of a JSON number, `true` or `false`, the JSON of an object. Anything else (`?page=`, `?page=1x`, `?draft=1`) reaches the schema as it was sent, and fails there.
 - A field that may be a string is left alone, and so is one about which the schema says nothing, such as `z.any()` or `z.preprocess()`.
@@ -102,13 +104,13 @@ This needs a schema library that implements [Standard JSON Schema](https://stand
 
 A body is decoded by its content type, after guards have passed, and only for an endpoint with a `requestSchema`:
 
-| Content type                                  | `requestSchema` receives                                                         |
-| --------------------------------------------- | -------------------------------------------------------------------------------- |
-| `application/json`, or one that ends in `+json` | the parsed JSON                                                                |
-| `text/*`                                      | a string                                                                         |
-| `multipart/form-data`                         | the [parts](/docs/server/guides/file-uploads), on an endpoint with `body: 'multipart'` |
-| no body                                       | `undefined`                                                                      |
-| anything else, or no content type             | nothing: the answer is 415                                                       |
+| Content type                                    | `requestSchema` receives                                                               |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `application/json`, or one that ends in `+json` | the parsed JSON                                                                        |
+| `text/*`                                        | a string                                                                               |
+| `multipart/form-data`                           | the [parts](/docs/server/guides/file-uploads), on an endpoint with `body: 'multipart'` |
+| no body                                         | `undefined`                                                                            |
+| anything else, or no content type               | nothing: the answer is 415                                                             |
 
 A body is UTF-8. Malformed JSON, and JSON with a `__proto__` or `constructor.prototype` key, is a 400 with `source: 'body'`. Because a body is never taken for JSON unless its content type says so, a page of another origin cannot send JSON without a CORS preflight.
 
@@ -127,6 +129,16 @@ An endpoint that needs the bytes themselves reads them with [`ctx.rawBody()`](/d
 | `response: 'stream'`                    | a `ReadableStream`, an async iterable or `sseStream(...)` | 200           |
 
 The last three rows are covered in [Streams and server-sent events](/docs/server/guides/streams-and-sse).
+
+A `text`, `blob` or `stream` endpoint may also return a Web `Response`, which is sent with its own status, its headers over those of `ctx.reply`, every `set-cookie` of both, and its body streamed. Together with a rest param and [`ctx.toWebRequest()`](/docs/server/essentials/request-context#the-request-for-fetch-handlers) this mounts code written for `fetch` handlers, such as Better Auth or a Hono app:
+
+```ts
+// honoApp = new Hono().basePath('/hono'): it routes on the whole path of the request.
+mount = handler(
+  { config: { method: 'POST', url: '/hono/$path*', response: 'stream' } },
+  async (_params, ctx) => honoApp.fetch(await ctx.toWebRequest()),
+)
+```
 
 Response headers and cookies are set through [`ctx.reply`](/docs/server/essentials/request-context#reply-controls), as `getUser` does above. The status is never set there: it comes from the declaration.
 
@@ -264,14 +276,14 @@ registerModule(StatusModule, { controllers: [StatusController] })
 
 Navios builds the route table during `init()` and rejects it when a rule is broken. The application does not start, and the error names the classes involved.
 
-| Rule                                                                 | Example of the error                                                                    |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Rule                                                                      | Example of the error                                                                    |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | One handler per method and path. Parameter names do not distinguish paths | `GET /users/$userId is served by both UsersController.getUser and OtherController.find` |
-| `@UseGuards`, `@UseInterceptors` and attributes need a handler       | `AdminController.purge has guards, interceptors or attributes but is not a handler`     |
-| A controller cannot inject a request-scoped service                  | `Scope mismatch: UnitOfWork is request-scoped … (UsersController -> UnitOfWork)`        |
-| A module with controllers is mounted under one prefix                | `Module UsersModule is imported under two different prefixes`                           |
+| `@UseGuards`, `@UseInterceptors` and attributes need a handler            | `AdminController.purge has guards, interceptors or attributes but is not a handler`     |
+| A controller cannot inject a request-scoped service                       | `Scope mismatch: UnitOfWork is request-scoped … (UsersController -> UnitOfWork)`        |
+| A module with controllers is mounted under one prefix                     | `Module UsersModule is imported under two different prefixes`                           |
 | A path is made of [whole segments](/docs/server/essentials/modules#paths) | `FilesController.get cannot be served: the path "/files/$name.json" has the segment …`  |
-| What a module lists as a controller is a class                       | `Module UsersModule lists undefined in controllers`                                     |
+| What a module lists as a controller is a class                            | `Module UsersModule lists undefined in controllers`                                     |
 
 One rule is checked earlier, when the class is defined: a method serves one endpoint. A second `@Endpoint` with another declaration on the same method throws `getUser already serves GET /users/$userId; a method can serve one endpoint.` A method that overrides an inherited one may serve another endpoint; the guards, interceptors and attributes of the inherited one stay.
 
