@@ -1,10 +1,14 @@
 import { Database } from 'bun:sqlite'
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+// Each test starts the Better Auth CLI, which takes a few seconds on a cold machine: more
+// than the 5 seconds `bun test` allows by default.
+setDefaultTimeout(60_000)
 
 const exampleDir = fileURLToPath(new URL('..', import.meta.url))
 
