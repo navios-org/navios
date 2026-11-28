@@ -37,19 +37,20 @@ Return a user without `email`, or answer with a status the declaration does not 
 
 ## Packages
 
-| Package                   | What it is                                                                        |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `@navios/server`          | The framework: controllers, modules, guards, interceptors, errors, config, logger |
-| `@navios/builder`         | Endpoint declarations, shared with clients                                        |
-| `@navios/adapter-fastify` | [Fastify adapter](/docs/server/adapters/fastify) for Node.js                      |
-| `@navios/adapter-bun`     | [Bun adapter](/docs/server/adapters/bun)                                          |
-| `@navios/adapter-srvx`    | [srvx adapter](/docs/server/adapters/srvx) for Workers, Lambda and Deno           |
-| `@navios/adapter-xml`     | [XML responses](/docs/server/adapters/xml) written as JSX                         |
-| `@navios/jwt`             | [Signing and verifying JSON Web Tokens](/docs/server/guides/authentication)       |
-| `@navios/schedule`        | [Cron jobs](/docs/server/guides/scheduled-jobs)                                   |
+| Package                   | What it is                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `@navios/server`          | The framework: controllers, modules, guards, interceptors, errors, config, logger               |
+| `@navios/builder`         | Endpoint declarations, shared with clients                                                      |
+| `@navios/adapter-fastify` | [Fastify adapter](/docs/server/adapters/fastify) for Node.js                                    |
+| `@navios/adapter-bun`     | [Bun adapter](/docs/server/adapters/bun)                                                        |
+| `@navios/adapter-srvx`    | [srvx adapter](/docs/server/adapters/srvx) for Workers, Lambda and Deno                         |
+| `@navios/adapter-xml`     | [XML responses](/docs/server/adapters/xml) written as JSX                                       |
+| `@navios/jwt`             | [Signing and verifying JSON Web Tokens](/docs/server/guides/authentication)                     |
+| `@navios/better-auth`     | [Better Auth](/docs/server/guides/better-auth): sign-up, sessions and OAuth. Not published yet  |
+| `@navios/schedule`        | [Cron jobs](/docs/server/guides/scheduled-jobs)                                                 |
 | `@navios/microservice`    | [Message handlers](/docs/server/guides/other-transports#messages) on a queue. Not published yet |
-| `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes      |
-| `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                   |
+| `@navios/openapi`         | [An OpenAPI document](/docs/server/guides/openapi) generated from the routes                    |
+| `@navios/otel`            | [OpenTelemetry](/docs/server/opentelemetry/) traces and metrics                                 |
 
 An application needs `@navios/server`, `@navios/builder` and one adapter. The rest are optional. They run on Node.js 24 or newer, and on Bun 1.4.5 or newer; the srvx adapter adds Cloudflare Workers, AWS Lambda and Deno.
 
@@ -61,13 +62,14 @@ If you come from NestJS, the vocabulary is familiar (modules, controllers, guard
 
 ## Where to go
 
-| You want to…                                 | Read                                                                                          |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| get a server running                         | [Quick start](/docs/server/quick-start)                                                       |
-| see what happens to a request, in order      | [How a request is handled](/docs/server/request-lifecycle)                                    |
-| learn the everyday API in order              | Essentials, starting with [Controllers and handlers](/docs/server/essentials/controllers)     |
-| declare endpoints                            | [Declaring endpoints](/docs/builder/essentials/endpoints) in the Builder docs                 |
-| share declarations between client and server | [Sharing with Navios Server](/docs/builder/guides/navios-server)                              |
-| authenticate requests                        | [Authentication with JWT](/docs/server/guides/authentication)                                 |
-| test an application                          | [Testing](/docs/server/essentials/testing)                                                    |
-| upgrade from 1.x                             | [Migrating to 2.0](/docs/server/reference/migrating-to-2)                                     |
+| You want to…                                 | Read                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| get a server running                         | [Quick start](/docs/server/quick-start)                                                   |
+| see what happens to a request, in order      | [How a request is handled](/docs/server/request-lifecycle)                                |
+| learn the everyday API in order              | Essentials, starting with [Controllers and handlers](/docs/server/essentials/controllers) |
+| declare endpoints                            | [Declaring endpoints](/docs/builder/essentials/endpoints) in the Builder docs             |
+| share declarations between client and server | [Sharing with Navios Server](/docs/builder/guides/navios-server)                          |
+| authenticate requests                        | [Authentication with JWT](/docs/server/guides/authentication)                             |
+| sign users up and in, with sessions          | [Better Auth](/docs/server/guides/better-auth)                                            |
+| test an application                          | [Testing](/docs/server/essentials/testing)                                                |
+| upgrade from 1.x                             | [Migrating to 2.0](/docs/server/reference/migrating-to-2)                                 |

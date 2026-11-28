@@ -138,6 +138,7 @@
 /docs/server/best-practices
 /docs/server/faq/common-problems
 /docs/server/guides/authentication
+/docs/server/guides/better-auth
 /docs/server/guides/configuration
 /docs/server/guides/controllers
 /docs/server/guides/error-handling
